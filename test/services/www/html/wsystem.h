@@ -22,20 +22,52 @@
  */
 
 
-#ifndef __QORAAL_HTTP_H__
-#define __QORAAL_HTTP_H__
+/**
+ * @file        wserver.h
+ * @author      Natie van Rooyen <natie@navaro.nl>
+ * @date        January 1, 2015
+ * @version     0.0.0.1 (alpha)
+ *
+ * @section DESCRIPTION
+ *
+ * Simple web server for provisioning.
+ */
+
+#ifndef __WSYSTEM_H__
+#define __WSYSTEM_H__
+
 
 #include <stdint.h>
-#include <string.h>
+#include "qoraal-http/httpserver.h"
 
 
-/*===========================================================================*/
-/* Constants.                                                                */
-/*===========================================================================*/
 
 /*===========================================================================*/
-/* Data structures and types.                                                */
+/* Client constants.                                                         */
 /*===========================================================================*/
+
+
+/** @} */
+
+/*===========================================================================*/
+/* Client pre-compile time settings.                                         */
+/*===========================================================================*/
+
+/**
+ * @name    Debug Level
+ * @{
+ */
+/** @} */
+
+
+
+
+/** @} */
+
+/*===========================================================================*/
+/* Client data structures and types.                                         */
+/*===========================================================================*/
+
 
 /*===========================================================================*/
 /* External declarations.                                                    */
@@ -45,9 +77,12 @@
 extern "C" {
 #endif
 
- 
+int32_t         wsystem_handler (HTTP_USER_T *user, uint32_t method, char* endpoint) ;
+const char*     wsystem_metadata (HTTP_USER_T *user, uint32_t method, char* endpoint, uint32_t type) ;
+
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* __QORAAL_HTTP_H__ */
+#endif /* __WSYSTEM_H__ */
+

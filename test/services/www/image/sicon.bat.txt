@@ -1,0 +1,3 @@
+
+
+.\bin2h.exe -cz image_sicon_data < icon2.png > sicon_cc.c

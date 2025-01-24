@@ -1,6 +1,6 @@
 mkdir build
 cd build
-cmake .. -DBUILD_LWIPTEST=ON -G "MinGW Makefiles" 
+cmake .. -DBUILD_HTTPTEST=ON -G "MinGW Makefiles" 
 cmake --build .
 cd ..
-.\build\test\lwiptest
+.\build\test\httptest

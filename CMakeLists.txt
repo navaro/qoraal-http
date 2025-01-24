@@ -22,9 +22,9 @@ include_directories("${qoraal_SOURCE_DIR}/include")
 add_subdirectory(src)
 
 # Option to build tests
-option(BUILD_LWIPTEST "Build the test directory" OFF)
+option(BUILD_HTTPTEST "Build the test directory" OFF)
 
-if(BUILD_LWIPTEST)
+if(BUILD_HTTPTEST)
     add_subdirectory(test)
 endif()
 

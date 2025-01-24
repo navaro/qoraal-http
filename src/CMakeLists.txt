@@ -1,6 +1,13 @@
 # Collect all source files
 set(FLASH_SRC
-    qoraal_http.c
+    qoraal.c
+    httpclient.c
+    httpdwnld.c
+    httpserver.c
+    httpparse.c
+    wserver_m.c
+    network.c
+    qshell/httpcmds.c
 )
 
 

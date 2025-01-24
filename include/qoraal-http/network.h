@@ -22,9 +22,34 @@
  */
 
 
-#include "qoraal-flash/config.h"
+#ifndef __NETWORK_H__
+#define __NETWORK_H__
 
 #include <stdint.h>
 #include <string.h>
-#include <stdio.h>
-#include <ctype.h>
+
+
+
+/*===========================================================================*/
+/* Constants.                                                                */
+/*===========================================================================*/
+
+/*===========================================================================*/
+/* Data structures and types.                                                */
+/*===========================================================================*/
+
+/*===========================================================================*/
+/* External declarations.                                                    */
+/*===========================================================================*/
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+int32_t gethostbyname_timeout (const char* hostname, uint32_t *ip4_address, uint32_t timeout) ;
+ 
+#ifdef __cplusplus
+}
+#endif
+
+#endif /* __NETWORK_H__ */

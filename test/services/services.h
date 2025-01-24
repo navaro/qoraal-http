@@ -33,7 +33,8 @@
 
 typedef enum  {
     QORAAL_SERVICE_SHELL = SVC_SERVICES_USER,
-    QORAAL_SERVICE_LWIP
+    QORAAL_SERVICE_SYSTEM,
+    QORAAL_SERVICE_WWW
 } QORAAL_SERVICES ;
 
 /*===========================================================================*/
@@ -50,8 +51,12 @@ extern "C" {
     extern int32_t      shell_service_ctrl (uint32_t code, uintptr_t arg) ;
     extern int32_t      shell_service_run (uintptr_t arg) ;
 
-    extern int32_t      lwip_service_ctrl (uint32_t code, uintptr_t arg) ;
-    extern int32_t      lwip_service_run (uintptr_t arg) ;
+    extern int32_t      system_service_ctrl (uint32_t code, uintptr_t arg) ;
+    extern int32_t      system_service_run (uintptr_t arg) ;
+
+    extern int32_t      wserver_service_ctrl (uint32_t code, uintptr_t arg) ;
+    extern int32_t      wserver_service_run (uintptr_t arg) ;
+
 
 #ifdef __cplusplus
 }

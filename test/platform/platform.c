@@ -1,9 +1,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "platform.h"
+#include "qoraal-http/config.h"
 #include "qoraal/common/rtclib.h"
 #include "qoraal/common/dictionary.h"
 
+#include "qoraal-http/config.h"
 
 #define PLATFORM_FLASH_SIZE     (1024*1024*10)
 
@@ -19,7 +21,17 @@ platform_init ()
 int32_t         
 platform_start ()
 {
+#ifdef _WIN32
+    // Initialize Winsock if on Windows
+    WSADATA wsaData;
+    int ret = WSAStartup(MAKEWORD(2, 2), &wsaData);
+    if (ret != 0) {
+        return -1; // Winsock initialization failed
+    }
+#endif
     os_thread_sleep (100) ;
+
+
     return 0 ;
 }
 
