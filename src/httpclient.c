@@ -22,22 +22,17 @@
  */
 
 
-
+#include <string.h>
+#include <stdio.h>
 #include "qoraal/qoraal.h"
 #include "qoraal-http/config.h"
 #include "qoraal-http/qoraal.h"
 #include "qoraal-http/httpclient.h"
 #include "qoraal-http/httpparse.h"
 
-
-#include <string.h>
-#include <stdio.h>
-
-
 #if CFG_UTILS_HTTP_USE_MBEDTLS
 #include "platform/ext/mbedtls/platform_mbedtls.h"
 #endif
-
 
 #define HTTP_GET_REQ            "GET /%s HTTP/1.1\r\n" \
                                 "Host: %s\r\n" \
@@ -73,7 +68,6 @@
                                 "User-Agent: " HTTP_CLIENT_AGENT_NAME "\r\n" \
                                 "Transfer-Encoding: chunked\r\n" \
                                 "\r\n"
-
 
 #define HTTP_POST_REQ_BASIC     "POST /%s HTTP/1.1\r\n" \
                                 "Host: %s\r\n" \
@@ -142,7 +136,6 @@ httpclient_init (HTTP_CLIENT_T* client, int32_t mss)
     client->mss = mss ;
     client->socket = -1 ;
 
-
     return HTTP_CLIENT_E_OK ;
 }
 
@@ -167,9 +160,6 @@ int32_t
 httpclient_connect (HTTP_CLIENT_T* client, const struct sockaddr_in* addr, uint32_t use_ssl)
 {
     int32_t status ;
-#if defined HTTP_CLIENT_LINGER_TIME
-    struct linger linger = { 1, HTTP_CLIENT_LINGER_TIME };
-#endif
 
     DBG_CHECK_HTTP_CLIENT (client->socket == -1, EFAIL,
                     "HTTP  :E: httpclient_connect unexpected\r\n!") ;
@@ -214,17 +204,7 @@ httpclient_connect (HTTP_CLIENT_T* client, const struct sockaddr_in* addr, uint3
                     client->host, (int)ntohs((uint16_t)addr->sin_port), 
                     client->socket, use_ssl ? "SSL" : "NO SSL");
 
-#if defined HTTP_CLIENT_LINGER_TIME
-    status = t_setsockopt(athwifi_get_handle(), client->socket, SOL_SOCKET, SO_LINGER,
-                        (unsigned char *) &linger, sizeof(linger));
-
-    if (status != A_OK) {
-        DBG_MESSAGE_HTTP_CLIENT (DBG_MESSAGE_SEVERITY_WARNING,
-                        "HTTP  :W: failed setting SO_LINGER") ;
-
-    }
-#endif
-#if 0 // !defined CORAL_CFG_BOOT || !CORAL_CFG_BOOT
+#if 0
     if (client->mss > 0) {
         int mss  = client->mss ;
         status = setsockopt(client->socket, SOL_SOCKET, TCP_MAXSEG, (uint8_t*)&mss, sizeof(int) );
@@ -235,6 +215,7 @@ httpclient_connect (HTTP_CLIENT_T* client, const struct sockaddr_in* addr, uint3
         }
     }
 #endif
+
     status = connect (client->socket, (const struct sockaddr *) addr, sizeof(struct sockaddr_in));
     if (status != 0) {
         DBG_MESSAGE_HTTP_CLIENT (DBG_MESSAGE_SEVERITY_WARNING,
@@ -255,7 +236,6 @@ httpclient_connect (HTTP_CLIENT_T* client, const struct sockaddr_in* addr, uint3
     }
 
 #if CFG_UTILS_HTTP_USE_MBEDTLS
-
     if (client->ssl) {
         do {
             struct fd_set   fdread;
@@ -300,6 +280,7 @@ httpclient_connect (HTTP_CLIENT_T* client, const struct sockaddr_in* addr, uint3
             if (status != MBEDTLS_ERR_SSL_FATAL_ALERT_MESSAGE) {
                 DBG_MESSAGE_HTTP_CLIENT (DBG_MESSAGE_SEVERITY_WARNING,
                     "mbedtls_ssl_handshake() returned -0x%04X", -status);
+
             }
             return HTTP_CLIENT_E_CONNECTION ;
 
@@ -387,9 +368,6 @@ httpclient_close (HTTP_CLIENT_T* client)
     }
 #endif
     if (client->socket>=0) {
-#if defined HTTP_CLIENT_CLOSE_WAIT_TIME && HTTP_CLIENT_CLOSE_WAIT_TIME
-        t_select(athwifi_get_handle(), client->socket, HTTP_CLIENT_CLOSE_WAIT_TIME) ;
-#endif
         shutdown (client->socket, /*SHUT_RDWR*/2) ;
 #if CFG_UTILS_HTTP_USE_MBEDTLS
         if (client->ssl) {
@@ -427,7 +405,6 @@ httpclient_write (HTTP_CLIENT_T* client, uint8_t* buffer, uint32_t length, uint3
     setsockopt (client->socket, SOL_SOCKET, SO_SNDTIMEO, (char *)&timeout, sizeof(timeout));
 
     while (length) {
-
 #if CFG_UTILS_HTTP_USE_MBEDTLS
         if (client->ssl) {
             sent_bytes = mbedtls_ssl_write ((mbedtls_ssl_context *)client->ssl, (unsigned char*)&buffer[total], length) ;
@@ -435,6 +412,7 @@ httpclient_write (HTTP_CLIENT_T* client, uint8_t* buffer, uint32_t length, uint3
 #endif
         {
             sent_bytes = send (client->socket, (unsigned char*)&buffer[total], length, 0);
+
         }
 
         if (sent_bytes <= 0) {
@@ -448,6 +426,7 @@ httpclient_write (HTTP_CLIENT_T* client, uint8_t* buffer, uint32_t length, uint3
             else break ;
 
         }
+
     }
 
     return total ;
@@ -473,10 +452,6 @@ httpclient_write_chunked (HTTP_CLIENT_T* client, uint8_t* buffer, uint32_t lengt
     uint32_t total = 0 ;
     char chunkhead[16] ;
 
-    DBG_MESSAGE_HTTP_CLIENT (DBG_MESSAGE_SEVERITY_DEBUG,
-                    ("-->> httpclient_write"));
-
-
     setsockopt (client->socket, SOL_SOCKET, SO_SNDTIMEO, (char *)&timeout, sizeof(timeout));
 
     i = snprintf (chunkhead, 16, "%x\r\n", (unsigned int)length) ;
@@ -491,6 +466,7 @@ httpclient_write_chunked (HTTP_CLIENT_T* client, uint8_t* buffer, uint32_t lengt
 #endif
         {
             sent_bytes = send (client->socket, (unsigned char*)&buffer[total], length, 0);
+
         }
 
         if (sent_bytes <= 0) {
@@ -507,7 +483,6 @@ httpclient_write_chunked (HTTP_CLIENT_T* client, uint8_t* buffer, uint32_t lengt
     }
 
     send (client->socket, "\r\n", 2, 0);
-
 
     return total ;
 }
@@ -544,15 +519,9 @@ httpclient_write_stream (HTTP_CLIENT_T* client, HTTP_STREAM_NEXT_T stream, uint3
     int32_t sent_bytes = 0;
     int32_t total = 0 ;
 
-    DBG_MESSAGE_HTTP_CLIENT (DBG_MESSAGE_SEVERITY_DEBUG,
-                    ("-->> httpclient_write_stream\r\n"));
-
     setsockopt (client->socket, SOL_SOCKET, SO_SNDTIMEO, (char *)&timeout, sizeof(timeout));
 
-
     do {
-
-
 #if CFG_UTILS_HTTP_USE_MBEDTLS
         if (client->ssl) {
             sent_bytes = stream((HTTP_STREAM_WRITE)ssl_socket_send,
@@ -613,7 +582,6 @@ httpclient_wait_read(HTTP_CLIENT_T* client, uint32_t timeout)
                     "HTTP  : : read select failed with %d after %d", res, timeout);
 
     return HTTP_CLIENT_E_ERROR ;
-
 }
 
 /**
@@ -653,12 +621,15 @@ httpclient_read (HTTP_CLIENT_T* client, void* buffer, uint32_t length, uint32_t 
         received = httpclient_wait_read (client, timeout) ;
         if (received == EOK) {
             received = recv (client->socket, buffer, length, 0);
+
         }
+
     }
 
     if(received <= 0) {
         DBG_MESSAGE_HTTP_CLIENT (DBG_MESSAGE_SEVERITY_REPORT,
                 "HTTP  : : httpclient_read  %d",received);
+
     }
 
     return received ;
@@ -696,6 +667,7 @@ httpclient_get (HTTP_CLIENT_T* client, const char* endpoint, const char *credent
         DBG_MESSAGE_HTTP_CLIENT (DBG_MESSAGE_SEVERITY_LOG,
                     "HTTP  : : socket closed!");
         return HTTP_CLIENT_E_CONNECTION ;
+
     }
 
     buffer = HTTP_CLIENT_MALLOC(HTTP_CLIENT_MAX_XMIT_BUFFER_LENGTH);
@@ -707,13 +679,16 @@ httpclient_get (HTTP_CLIENT_T* client, const char* endpoint, const char *credent
 
     if (client->hostname[0]) {
         host = client->hostname ;
+
     } else {
         host = client->host ;
+
     }
 
     if (credentials == 0) {
         count = snprintf((char*)buffer, HTTP_CLIENT_MAX_XMIT_BUFFER_LENGTH,
                             HTTP_GET_REQ, endpoint ? endpoint : "", host);
+
     } else {
         count = snprintf((char*)buffer, HTTP_CLIENT_MAX_XMIT_BUFFER_LENGTH,
                             HTTP_GET_REQ_BASIC, endpoint ? endpoint : "", host,
@@ -728,10 +703,10 @@ httpclient_get (HTTP_CLIENT_T* client, const char* endpoint, const char *credent
                     "HTTP  :E: HTTP_CLIENT_MAX_XMIT_BUFFER_LENGTH to small for HTTP headers!");
         HTTP_CLIENT_FREE (buffer) ;
         return HTTP_CLIENT_E_LENGTH ;
+
     }
 
     sent_bytes = httpclient_write(client, (unsigned char*)buffer , count, 8000);
-
     HTTP_CLIENT_FREE (buffer) ;
 
     DBG_MESSAGE_HTTP_CLIENT (DBG_MESSAGE_SEVERITY_INFO,
@@ -773,6 +748,7 @@ httpclient_post_start (HTTP_CLIENT_T* client, const char* endpoint, int32_t len,
          DBG_MESSAGE_HTTP_CLIENT (DBG_MESSAGE_SEVERITY_LOG,
                     "HTTP  : : socket closed!");
         return HTTP_CLIENT_E_CONNECTION ;
+
     }
 
     buffer = HTTP_CLIENT_MALLOC(HTTP_CLIENT_MAX_XMIT_BUFFER_LENGTH);
@@ -780,18 +756,22 @@ httpclient_post_start (HTTP_CLIENT_T* client, const char* endpoint, int32_t len,
         DBG_MESSAGE_HTTP_CLIENT (DBG_MESSAGE_SEVERITY_ERROR,
                     "HTTP  :E: Memory allocation failed");
         return HTTP_CLIENT_E_MEMORY ;
+
     }
 
     if (client->hostname[0]) {
         host = client->hostname ;
+
     } else {
         host = client->host ;
+
     }
 
     if (credentials == 0) {
         count = snprintf((char*)buffer, HTTP_CLIENT_MAX_XMIT_BUFFER_LENGTH,
                             chunked ? HTTP_POST_CHUNKED_REQ : HTTP_POST_REQ,
                             endpoint ? endpoint : "", host, (int)len);
+
     } else {
         count = snprintf((char*)buffer, HTTP_CLIENT_MAX_XMIT_BUFFER_LENGTH,
                             chunked ? HTTP_POST_CHUNKED_REQ_BASIC : HTTP_POST_REQ_BASIC,
@@ -808,6 +788,7 @@ httpclient_post_start (HTTP_CLIENT_T* client, const char* endpoint, int32_t len,
                     "HTTP  :E: header error");
         HTTP_CLIENT_FREE (buffer) ;
         return HTTP_CLIENT_E_HEADER ;
+
     }
 
     if (count >= HTTP_CLIENT_MAX_XMIT_BUFFER_LENGTH) {
@@ -815,12 +796,14 @@ httpclient_post_start (HTTP_CLIENT_T* client, const char* endpoint, int32_t len,
                     "HTTP  :E: HTTP_CLIENT_MAX_XMIT_BUFFER_LENGTH to small for HTTP headers!");
         HTTP_CLIENT_FREE (buffer) ;
         return HTTP_CLIENT_E_LENGTH ;
+
     }
 
     sent_bytes = httpclient_write(client, (unsigned char*)buffer, count, 8000);
     HTTP_CLIENT_FREE (buffer) ;
     if (sent_bytes < count) {
         return HTTP_CLIENT_E_CONNECTION ;
+
     }
 
     return sent_bytes ;
@@ -851,10 +834,8 @@ httpclient_post (HTTP_CLIENT_T* client, const char* endpoint, const char* reques
 
     if (status >= 0) {
         status = httpclient_write(client, (unsigned char*)request, len, 8000);
-    }
 
-    DBG_MESSAGE_HTTP_CLIENT (DBG_MESSAGE_SEVERITY_INFO,
-                    "HTTP  : : sent %d bytes", status);
+    }
 
     return status ;
 }
@@ -883,11 +864,9 @@ httpclient_post_chunked (HTTP_CLIENT_T* client, const char* endpoint, const char
 
     if ((status >= 0) && (len > 0)) {
         status = httpclient_write_chunked(client, (unsigned char*)request, len, 8000);
+
     }
     status = httpclient_write_chunked(client, (unsigned char*)0, 0, 8000);
-
-    DBG_MESSAGE_HTTP_CLIENT (DBG_MESSAGE_SEVERITY_INFO,
-                    "HTTP  : : sent %d bytes", status);
 
     return status ;
 }
@@ -917,10 +896,8 @@ httpclient_post_stream (HTTP_CLIENT_T* client, const char* endpoint, HTTP_STREAM
 
     if (status >= 0) {
         status = httpclient_write_stream(client, stream, parm, len, 8000) ;
-    }
 
-    DBG_MESSAGE_HTTP_CLIENT (DBG_MESSAGE_SEVERITY_INFO,
-                    "HTTP  : : sent stream %d bytes", status);
+    }
 
     return status ;
 }
@@ -937,9 +914,9 @@ httpclient_post_stream (HTTP_CLIENT_T* client, const char* endpoint, HTTP_STREAM
 void
 httpclient_free_response (HTTP_CLIENT_T* client, void* response)
 {
-    (void)client ;
     if (response) {
         HTTP_CLIENT_FREE (response) ;
+        
     }
 }
 
@@ -969,7 +946,6 @@ int32_t
 httpclient_read_response (HTTP_CLIENT_T* client, uint32_t timeout, char** response, int32_t* status)
 {
     uint32_t        received ;
-    //char*         buffer ;
     char*           content ;
     char*           payload ;
     unsigned int    offset = 0 ;
@@ -998,6 +974,7 @@ httpclient_read_response (HTTP_CLIENT_T* client, uint32_t timeout, char** respon
         DBG_MESSAGE_HTTP_CLIENT (DBG_MESSAGE_SEVERITY_INFO,
             "HTTP  : : out of memory ");
         return HTTP_CLIENT_E_MEMORY ;
+
     }
 
     do {
@@ -1022,6 +999,7 @@ httpclient_read_response (HTTP_CLIENT_T* client, uint32_t timeout, char** respon
                         "HTTP  :E: HTTP_CLIENT_MAX_RECV_HEADER_LENGTH to small for HTTP headers!");
             HTTP_CLIENT_FREE(header) ;
             return HTTP_CLIENT_E_LENGTH ;
+
         }
 
     } while (offset < HTTP_CLIENT_MAX_RECV_HEADER_LENGTH) ;
@@ -1151,7 +1129,6 @@ httpclient_read_response_ex (HTTP_CLIENT_T* client, uint32_t timeout, int32_t* s
                     "HTTP  :E: unexpected - client->read_buffer.!") ;
 
     *status = 0 ;
-    //client->payload = 0 ;
     client->payload_length = 0 ;
     client->content_length = 0 ;
     client->chunked = 0 ;
@@ -1212,6 +1189,7 @@ httpclient_read_response_ex (HTTP_CLIENT_T* client, uint32_t timeout, int32_t* s
 
     if (headers[2].value && (strncmp(headers[2].value, "chunked", 7) == 0)) {
         client->chunked = 1 ;
+
     } else {
         if (!headers[1].value || !sscanf(headers[1].value, "%u", (unsigned int*)&client->content_length)) {
             HTTP_CLIENT_FREE(client->read_buffer) ;
@@ -1252,7 +1230,6 @@ httpclient_read_next_ex (HTTP_CLIENT_T* client, uint32_t timeout, uint8_t** recv
 {
     int32_t received ;
 
-
     if (!client->chunked) {
 
         if (client->read >= client->content_length) {
@@ -1265,7 +1242,8 @@ httpclient_read_next_ex (HTTP_CLIENT_T* client, uint32_t timeout, uint8_t** recv
                 DBG_MESSAGE_HTTP_CLIENT (DBG_MESSAGE_SEVERITY_REPORT,
                         "HTTP  : : httpclient_read_next_ex %d",
                         client->payload_length);
-                return -1 ;
+                return HTTP_CLIENT_E_ERROR ;
+                
             }
 
         }
@@ -1277,10 +1255,8 @@ httpclient_read_next_ex (HTTP_CLIENT_T* client, uint32_t timeout, uint8_t** recv
         client->payload_length = 0 ;
         *recv = client->read_buffer ;
 
-
     } else {
 
-        //static char testbuffer[256] ;
         client->chunked++ ;
 
         if (client->read) {
@@ -1297,9 +1273,9 @@ httpclient_read_next_ex (HTTP_CLIENT_T* client, uint32_t timeout, uint8_t** recv
                                 "HTTP  : : httpclient_read_next_ex failed with %d",
                                         received);
                         return -1 ;
+
                     }
                     client->payload_length += received ;
-
 
                 }
 
@@ -1321,7 +1297,8 @@ httpclient_read_next_ex (HTTP_CLIENT_T* client, uint32_t timeout, uint8_t** recv
                     DBG_MESSAGE_HTTP_CLIENT (DBG_MESSAGE_SEVERITY_REPORT,
                             "HTTP  : : httpclient_read_next_ex received %d",
                                     received);
-                    return -1 ;
+                    return HTTP_CLIENT_E_ERROR ;
+
                 }
                 client->payload_length += received ;
 
@@ -1357,7 +1334,7 @@ httpclient_read_next_ex (HTTP_CLIENT_T* client, uint32_t timeout, uint8_t** recv
                 DBG_MESSAGE_HTTP_CLIENT (DBG_MESSAGE_SEVERITY_REPORT,
                         "HTTP  : : httpclient_read_next_ex payload_length %d",
                         client->payload_length);
-                return -1 ;
+                return HTTP_CLIENT_E_ERROR ;
 
             }
 

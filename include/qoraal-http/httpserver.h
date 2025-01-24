@@ -25,15 +25,12 @@
 #ifndef __HTTPSERVER_H__
 #define __HTTPSERVER_H__
 
-
 #include <stdint.h>
 #include <stdbool.h>
 #include <stdarg.h>
 #include <stddef.h>
-
-#include "qoraal-http/config.h"
+#include "qoraal-http/qoraal.h"
 #include "qoraal-http/httpparse.h"
-
 
 /*===========================================================================*/
 /* Client constants.                                                         */
@@ -52,8 +49,6 @@
 #define HTTP_SERVER_E_MEMORY                                -6
 #define HTTP_SERVER_WSERVER_E_OK                            HTTP_SERVER_E_OK
 #define HTTP_SERVER_WSERVER_E_METHOD                        HTTP_SERVER_E_ERROR
-
-
 /** @} */
 
 /**
@@ -92,7 +87,6 @@
 #define HTTP_SERVER_MAX_XMIT_CONTENT_LENGTH                 (1024*4) /* MAX_ETHERNET_FRAME_SIZE */ // (MAX_ETHERNET_FRAME_SIZE )// 1280 // IPV4_FRAGMENTATION_THRESHOLD
 #define MAX_IPv4_STR_LEN                                    32 /* a.b.c.d:port */
 #define HTTP_SERVER_MAX_CHUNK_LENGTH                        HTTP_SERVER_MAX_XMIT_CONTENT_LENGTH
-
 /** @} */
 
 /**
@@ -113,7 +107,7 @@
  * @name    Content Types
  * @{
  */
-#define HTTP_SERVER_NAME                                    "CORAL"
+#define HTTP_SERVER_NAME                                    "Qoraal"
 /** @} */
 
 

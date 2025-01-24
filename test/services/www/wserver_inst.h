@@ -67,14 +67,6 @@
 /*===========================================================================*/
 
 /**
- * @name    Debug Level
- * @{
- */
-//#define DBG_MESSAGE_WSERVER                              DBG_MESSAGE
-//#define DBG_ASSERT_WSERVER                               DBG_ASSERT
-/** @} */
-
-/**
  * @name    HTML text
  * @{
  */

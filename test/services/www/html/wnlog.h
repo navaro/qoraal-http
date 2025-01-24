@@ -30,33 +30,17 @@
 #include "qoraal-http/httpserver.h"
 
 
-
 /*===========================================================================*/
 /* Client constants.                                                         */
 /*===========================================================================*/
-
-
-/** @} */
 
 /*===========================================================================*/
 /* Client pre-compile time settings.                                         */
 /*===========================================================================*/
 
-/**
- * @name    Debug Level
- * @{
- */
-/** @} */
-
-
-
-
-/** @} */
-
 /*===========================================================================*/
 /* Client data structures and types.                                         */
 /*===========================================================================*/
-
 
 /*===========================================================================*/
 /* External declarations.                                                    */
@@ -66,19 +50,9 @@
 extern "C" {
 #endif
 
-
-
 int32_t		wnlog_handler (HTTP_USER_T *user, uint32_t method, char* endpoint) ;
-int32_t         wnlog_memlog_handler (HTTP_USER_T *user, uint32_t method, char* endpoint) ;
+int32_t     wnlog_memlog_handler (HTTP_USER_T *user, uint32_t method, char* endpoint) ;
 const char*	wnlog_metadata (HTTP_USER_T *user, uint32_t method, char* endpoint, uint32_t type) ;
-
-int32_t		weventlog_download_handler (HTTP_USER_T *user, uint32_t method, char* endpoint) ;
-int32_t		wcalllog_download_handler (HTTP_USER_T *user, uint32_t method, char* endpoint) ;
-int32_t		wmissedcalllog_download_handler (HTTP_USER_T *user, uint32_t method, char* endpoint) ;
-int32_t		wansweredcalllog_download_handler (HTTP_USER_T *user, uint32_t method, char* endpoint) ;
-int32_t		woutgoingcalllog_download_handler (HTTP_USER_T *user, uint32_t method, char* endpoint) ;
-
-int32_t		wdbglog_download_handler (HTTP_USER_T *user, uint32_t method, char* endpoint) ;
 
 
 #ifdef __cplusplus

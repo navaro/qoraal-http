@@ -43,7 +43,8 @@ static const HTTP_METHOD_T _httpparse_methods[] = { HTTP_PARSE_REQUEST_METHODS }
 #define isxdigit(c) \
     (isdigit(c) || ('A' <= (c) && (c) <= 'F') || ('a' <= (c) && (c) <= 'f'))
 */
-void urldecode(char *dst, const char *src, uint32_t dstlen)
+void 
+urldecode(char *dst, const char *src, uint32_t dstlen)
 {
     if (!dstlen) dstlen = (uint32_t)-1 ;
         char a, b;
@@ -78,11 +79,13 @@ void urldecode(char *dst, const char *src, uint32_t dstlen)
 
 static char hex[] = "0123456789abcdef";
 
-char i2a(char code) {
+char 
+i2a(char code) {
     return hex[code & 15];
 }
 
-int urlencode( char *pstr, char * buf, int len )
+int 
+urlencode( char *pstr, char * buf, int len )
 {
     char
          *pbuf = buf;
@@ -106,7 +109,8 @@ int urlencode( char *pstr, char * buf, int len )
     return pbuf - buf ;
 }
 
-int htmlencode( char *pstr, char * buf, int len )
+int 
+htmlencode( char *pstr, char * buf, int len )
 {
     char
          *pbuf = buf;
@@ -143,12 +147,14 @@ static const char encoding_table[] = {'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H',
                                 '4', '5', '6', '7', '8', '9', '+', '/', '\0'};
 static const unsigned int mod_table[] = {0, 2, 1};
 
-int isbase64(char c)
+int 
+isbase64(char c)
 {
    return c && strchr(encoding_table, c) != NULL;
 }
 
-char _value(char c)
+char 
+_value(char c)
 {
    const char *p = strchr(encoding_table, c);
    if(p) {
@@ -158,7 +164,8 @@ char _value(char c)
    }
 }
 
-int base64_decode(unsigned char *dest, const unsigned char *src, int srclen)
+int 
+base64_decode(unsigned char *dest, const unsigned char *src, int srclen)
 {
    *dest = 0;
    if(*src == 0)
@@ -292,7 +299,8 @@ strnstr(const char * s, const char *find, size_t slen)
  * Find the first occurrence of find in s, where the search is limited to the
  * first slen characters of s.
  */
-char *memstr(char *haystack, char *needle, int size)
+char *
+memstr(char *haystack, char *needle, int size)
 {
     char *p;
     char needlesize = strlen(needle);
@@ -305,7 +313,8 @@ char *memstr(char *haystack, char *needle, int size)
     return NULL;
 }
 
-int strnicmp(const char *pStr1, const char *pStr2, size_t Count)
+int 
+strnicmp(const char *pStr1, const char *pStr2, size_t Count)
 {
     unsigned char c1, c2;
     int v;
@@ -635,7 +644,8 @@ httpparse_get_multipart_separator( const HTTP_HEADER_T* headers,int headers_coun
  *
  * @http
  */
-int32_t httpparse_url_parse (char* url, int *https, int *port, char** host,
+int32_t 
+httpparse_url_parse (char* url, int *https, int *port, char** host,
         char** endpoint, char** credentials)
 {
     //scriptget  "http://[USR:PSWD@]192.168.7.1:80/test.cfg"

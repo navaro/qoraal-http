@@ -40,17 +40,6 @@
 /* Pre-compile time settings.                                                */
 /*===========================================================================*/
 
-/**
- * @name    Debug Level
- * @{
- */
-#define DBG_MESSAGE_WSERVER(severity, fmt_str, ...)     DBG_MESSAGE_T(SVC_LOGGER_TYPE(severity,0), CORAL_UTIL_HTTP, fmt_str, ##__VA_ARGS__)
-#define DBG_ASSERT_WSERVER                              DBG_ASSERT
-/** @} */
-
-
-
-/** @} */
 
 /**
  * @name    WServer Responses

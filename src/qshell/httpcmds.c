@@ -29,8 +29,7 @@
 #include "qoraal/svc/svc_shell.h"
 #include "qoraal-http/httpdwnld.h"
 
-SVC_SHELL_CMD_DECL("wsource", qshell_wsource, "<url>>");
-
+SVC_SHELL_CMD_DECL("wsource", qshell_wsource, "<url>");
 
 static int32_t
 qshell_wsource (SVC_SHELL_IF_T * pif, char** argv, int argc)
@@ -38,9 +37,9 @@ qshell_wsource (SVC_SHELL_IF_T * pif, char** argv, int argc)
     int32_t res ;
     HTTPDWNLD_MEM_T script ;
 
-
     if (argc < 2) {
         return SVC_SHELL_CMD_E_PARMS ;
+        
     }
 
     httpdwnld_mem_init (&script) ;

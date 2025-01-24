@@ -23,6 +23,7 @@
 
 
 #include "qoraal-http/config.h"
+#include "qoraal-http/qoraal.h"
 #include "qoraal/qoraal.h"
 #include <stdint.h>
 #include <string.h>

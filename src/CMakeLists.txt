@@ -4,6 +4,7 @@ set(FLASH_SRC
     httpclient.c
     httpdwnld.c
     httpserver.c
+    httpwebapi.c
     httpparse.c
     wserver_m.c
     network.c

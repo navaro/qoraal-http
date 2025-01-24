@@ -1,12 +1,28 @@
 /*
- * css.h
- *
- *  Created on: 8 May 2015
- *      Author: natie
+    Copyright (C) 2015-2025, Navaro, All Rights Reserved
+    SPDX-License-Identifier: MIT
+
+    Permission is hereby granted, free of charge, to any person obtaining a copy
+    of this software and associated documentation files (the "Software"), to deal
+    in the Software without restriction, including without limitation the rights
+    to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+    copies of the Software, and to permit persons to whom the Software is
+    furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in all
+    copies or substantial portions of the Software.
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+    OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+    SOFTWARE.
  */
 
-#ifndef SERVICES_WWW_CSS_H_
-#define SERVICES_WWW_CSS_H_
+#ifndef __WCSS_H__
+#define __WCSS_H__
 
 
 
@@ -14,7 +30,31 @@
 #include <stdint.h>
 
 
+/*===========================================================================*/
+/* Client constants.                                                         */
+/*===========================================================================*/
+
+/*===========================================================================*/
+/* Client pre-compile time settings.                                         */
+/*===========================================================================*/
+
+/*===========================================================================*/
+/* Client data structures and types.                                         */
+/*===========================================================================*/
+
+/*===========================================================================*/
+/* External declarations.                                                    */
+/*===========================================================================*/
+
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 extern int32_t              wcss_handler(HTTP_USER_T *user, uint32_t method, char* endpoint) ;
 
+#ifdef __cplusplus
+}
+#endif
 
-#endif /* SERVICES_WWW_CSS_H_ */
+#endif /* __WCSS_H__ */

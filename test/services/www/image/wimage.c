@@ -50,9 +50,6 @@ wimage_handler(HTTP_USER_T *user, uint32_t method, char* endpoint)
             //{"Cache-Control",  "max-age=10, public"} ,
     };
 
-
-//    DBG_MESSAGE_WSERVER (DBG_MESSAGE_SEVERITY_REPORT, ("-->> wimage_handler get %s\r\n", endpoint))
-
     if (method == HTTP_HEADER_METHOD_GET) {
 
 

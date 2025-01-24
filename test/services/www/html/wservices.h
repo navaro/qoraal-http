@@ -23,17 +23,6 @@
 
 
 
-/**
- * @file        wserver.h
- * @author      Natie van Rooyen <natie@navaro.nl>
- * @date        January 1, 2015
- * @version     0.0.0.1 (alpha)
- *
- * @section DESCRIPTION
- *
- * Simple web server for provisioning.
- */
-
 #ifndef __WSERVICES_H__
 #define __WSERVICES_H__
 
@@ -46,28 +35,14 @@
 /* Client constants.                                                         */
 /*===========================================================================*/
 
-
-/** @} */
-
 /*===========================================================================*/
 /* Client pre-compile time settings.                                         */
 /*===========================================================================*/
 
-/**
- * @name    Debug Level
- * @{
- */
-/** @} */
-
-
-
-
-/** @} */
 
 /*===========================================================================*/
 /* Client data structures and types.                                         */
 /*===========================================================================*/
-
 
 /*===========================================================================*/
 /* External declarations.                                                    */
@@ -76,8 +51,6 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-
 
 int32_t         wservices_handler (HTTP_USER_T *user, uint32_t method, char* endpoint) ;
 const char*     wservices_metadata (HTTP_USER_T *user, uint32_t method, char* endpoint, uint32_t type) ;

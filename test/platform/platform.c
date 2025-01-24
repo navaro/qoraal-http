@@ -1,11 +1,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "platform.h"
-#include "qoraal-http/config.h"
+#include "qoraal-http/qoraal.h"
 #include "qoraal/common/rtclib.h"
-#include "qoraal/common/dictionary.h"
 
-#include "qoraal-http/config.h"
 
 #define PLATFORM_FLASH_SIZE     (1024*1024*10)
 

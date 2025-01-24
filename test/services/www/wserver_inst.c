@@ -55,7 +55,7 @@ static HTTPSERVER_INST_T *  _wserver_inst = 0 ;
 int32_t
 wserver_header_start(HTTP_USER_T * user, uint32_t method, char* endpoint, WSERVER_METADATA metadata)
 {
-    static const char head_content[] =
+    static const char head_content_1[] =
             "<!DOCTYPE HTML PUBLIC>"
             "<head>\r\n"
             "<meta content=\"text/html;charset=utf-8\" http-equiv=\"Content-Type\">"
@@ -75,12 +75,11 @@ wserver_header_start(HTTP_USER_T * user, uint32_t method, char* endpoint, WSERVE
         headers = metadata (user, method, endpoint, WSERVER_METADATA_TYPE_HEADERS) ;
     }
 
-
     do {
         if ((res = httpserver_chunked_response (user, 200, HTTP_SERVER_CONTENT_TYPE_HTML, 0, 0) < HTTP_SERVER_E_OK)) {
             break ;
         }
-        if ((res = httpserver_chunked_append_str (user, head_content, sizeof(head_content) - 1) < HTTP_SERVER_E_OK)) {
+        if ((res = httpserver_chunked_append_str (user, head_content_1, sizeof(head_content_1) - 1) < HTTP_SERVER_E_OK)) {
             break ;
         }
         if (headers) {
@@ -103,14 +102,9 @@ wserver_header_start(HTTP_USER_T * user, uint32_t method, char* endpoint, WSERVE
 int32_t
 wserver_footer_end(HTTP_USER_T * user, uint32_t method, char* endpoint, WSERVER_METADATA metadata)
 {
-
-    (void) endpoint ;
     static const char footer_content[] =
             "\r\n</body>\r\n</html>\r\n\r\n" ;
     int32_t res ;
-
-    (void) endpoint ;
-
 
     do {
         if ((res = httpserver_chunked_append_str (user, footer_content, sizeof(footer_content) - 1) < HTTP_SERVER_E_OK)) {
@@ -200,9 +194,7 @@ wserver_handler_framework_end(HTTP_USER_T * user, uint32_t method, char* endpoin
             "   </div>\r\n"
             "</div>\r\n" ;
 
-    (void) endpoint ;
     return httpserver_chunked_append_str (user, framework_content, sizeof(framework_content) - 1) ;
-
 }
 
 
@@ -240,7 +232,7 @@ windex_handler (HTTP_USER_T *user, uint32_t method, char* endpoint)
 }
 
 /**
- * @brief       power_service_ctrl
+ * @brief       wserver_service_ctrl
  * @details
  * @note
  *
@@ -332,7 +324,6 @@ wserver_start (uintptr_t arg)
     WSERVER_FRAMEWORK_HANDLER    ("services", wservices_handler,        WSERVER_ENDPOINT_ACCESS_ADMIN,  0, wservices_metadata, wserver_std)
     WSERVER_FRAMEWORK_HANDLER    ("shell",   wshell_handler,            WSERVER_ENDPOINT_ACCESS_ADMIN,  0, wshell_metadata,    wserver_std)
     WSERVER_HANDLERS_END()
-
 
     _wserver_inst = httpserver_wserver_create (port, ssl, handlers, wserver_authenticate) ;
     return _wserver_inst ? EOK : EFAIL ;

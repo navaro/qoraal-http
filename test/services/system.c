@@ -61,14 +61,12 @@ system_service_ctrl (uint32_t code, uintptr_t arg)
     int32_t res = EOK ;
 
     switch (code) {
-    case SVC_SERVICE_CTRL_INIT: {
-        
-     }
-    break ;
+    case SVC_SERVICE_CTRL_INIT: 
+        break ;
 
     case SVC_SERVICE_CTRL_START:{
         DBG_MESSAGE_SYSTEM (DBG_MESSAGE_SEVERITY_REPORT, 
-                        "SYS   : : system starting...\r\n");
+                "SYS   : : system starting...\r\n");
         os_sem_create (&_system_stop_sem, 0) ;
         svc_tasks_schedule (&_system_startup_task, system_startup_cb, 0,
                 SERVICE_PRIO_QUEUE2, SVC_TASK_MS2TICKS(5000)) ;        
@@ -80,7 +78,7 @@ system_service_ctrl (uint32_t code, uintptr_t arg)
 
     case SVC_SERVICE_CTRL_STOP: {
         DBG_MESSAGE_SYSTEM (DBG_MESSAGE_SEVERITY_REPORT, 
-                        "SYS   : : system stopping...\r\n");
+                "SYS   : : system stopping...\r\n");
         SVC_SHELL_CMD_LIST_UNINSTALL(system) ;
         svc_tasks_cancel (&_system_startup_task) ;
         svc_tasks_cancel (&_system_periodic_task) ;
@@ -109,14 +107,14 @@ system_service_run (uintptr_t arg)
         }
 
         DBG_MESSAGE_SYSTEM (DBG_MESSAGE_SEVERITY_REPORT, 
-                        "SYS   : : system running...");
+                "SYS   : : system running...");
 
     }
 
     os_sem_delete (&_system_stop_sem) ;
     
     DBG_MESSAGE_SYSTEM (DBG_MESSAGE_SEVERITY_REPORT, 
-                    "SYS   : : system complete.");
+                "SYS   : : system complete.");
 
     return EOK ;
 }
@@ -129,7 +127,7 @@ system_startup_cb (SVC_TASKS_T *task, uintptr_t parm, uint32_t reason)
     if (reason == SERVICE_CALLBACK_REASON_RUN) {
 
         DBG_MESSAGE_SYSTEM (DBG_MESSAGE_SEVERITY_REPORT, 
-                        "SYS   : : system 'STARTUP TASK'...");
+                "SYS   : : system 'STARTUP TASK'...");
 
     }
 
@@ -142,7 +140,7 @@ system_periodic_cb (SVC_TASKS_T *task, uintptr_t parm, uint32_t reason)
     if (reason == SERVICE_CALLBACK_REASON_RUN) {
 
         DBG_MESSAGE_SYSTEM (DBG_MESSAGE_SEVERITY_LOG, 
-                        "SYS   : : system 'PERIODIC TASK'...");
+                "SYS   : : system 'PERIODIC TASK'...");
 
         svc_tasks_schedule (&_system_periodic_task, system_periodic_cb, 0,
                 SERVICE_PRIO_QUEUE4, SVC_TASK_S2TICKS(90)) ;        

@@ -22,23 +22,37 @@
  */
 
 
-/*
- * image.h
- *
- *  Created on: 8 May 2015
- *      Author: natie
- */
 
-#ifndef SERVICES_WWW_IMAGE_IMAGE_H_
-#define SERVICES_WWW_IMAGE_IMAGE_H_
+#ifndef __WIMAGE_H__
+#define __WIMAGE_H__
 
 #include <stdint.h>
 #include "qoraal-http/httpserver.h"
 
+/*===========================================================================*/
+/* Client constants.                                                         */
+/*===========================================================================*/
+
+/*===========================================================================*/
+/* Client pre-compile time settings.                                         */
+/*===========================================================================*/
+
+/*===========================================================================*/
+/* Client data structures and types.                                         */
+/*===========================================================================*/
+
+/*===========================================================================*/
+/* External declarations.                                                    */
+/*===========================================================================*/
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 
+    extern int32_t          wimage_handler(HTTP_USER_T *user, uint32_t method, char* endpoint) ;
 
-extern int32_t          wimage_handler(HTTP_USER_T *user, uint32_t method, char* endpoint) ;
-
-
-#endif /* SERVICES_WWW_IMAGE_IMAGE_H_ */
+#ifdef __cplusplus
+}
+#endif
+#endif /* __WIMAGE_H__ */

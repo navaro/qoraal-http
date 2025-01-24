@@ -42,8 +42,6 @@
 
 #include <stdint.h>
 
-
-
 /*===========================================================================*/
 /* Client constants.                                                         */
 /*===========================================================================*/
@@ -96,28 +94,6 @@
 #define HTTP_CLIENT_CONNECT_TIMEOUT                         (8000)
 /** @} */
 
-/**
- * @name    linger: linger time in seconds for TCP sockets.
- * @details         If not zero it has implications. The kingfisher can have
- *                  14 open sockets and this include lingering sockets.
- *                  Lingering are sockets already closed by the user but
- *                  still have to be kept into account. Use with care
- *                  because if the maximum number of sockets are acceded
- *                  the kingfisher hangs up without warning!
- *  * @note         Fixed in the v3.3.2.47 firmware.
- * @{
- */
-//#define HTTP_CLIENT_LINGER_TIME                           (0)
-#define HTTP_CLIENT_DWNLD_LINGER_TIME                           (0)
-/** @} */
-
-/**
- * @name    close_wait: Time in micro-seconds for TCP sockets before closing.
- * @details         Can be used if linger time is not zero.
- * @{
- */
-#define HTTP_CLIENT_CLOSE_WAIT_TIME                         (0)
-/** @} */
 
 /**
  * @name    Name
@@ -159,9 +135,7 @@ typedef struct HTTP_CLIENT_S {
     int32_t                socket ;
     void                    *ssl ;
 
-
     uint8_t                 *read_buffer ;
-    //uint8_t                   *payload ;
     int32_t                 payload_length ;
     int32_t                 content_length ;
     uint32_t                chunked ;
@@ -216,7 +190,6 @@ extern "C" {
     extern int32_t      httpclient_read_response_ex (HTTP_CLIENT_T* client, uint32_t timeout, int32_t* status) ;
     extern int32_t      httpclient_read_next_ex (HTTP_CLIENT_T* client, uint32_t timeout, uint8_t** recv) ;
     extern int32_t      httpclient_read_complete_ex (HTTP_CLIENT_T* client) ;
-
 
     extern int32_t      httpclient_websock_get (HTTP_CLIENT_T* client, const char* endpoint, const char *credentials) ;
     extern int32_t      httpclient_websock_read_response (HTTP_CLIENT_T* client, uint32_t timeout) ;

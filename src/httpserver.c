@@ -69,10 +69,6 @@ httpserver_init (uint16_t port)
     int32_t     res ;
     struct sockaddr_in address ;
 
-    DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_INFO,
-                    "HTTPD : : httpserver_init bind to port %d",
-                    address.sin_port);
-
     memset(&address, 0, sizeof(address));
     address.sin_family = AF_INET;
     address.sin_port = htons((uint16_t)port);
@@ -86,6 +82,7 @@ httpserver_init (uint16_t port)
         DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_REPORT,
                 "HTTPD :E: failed to create socket");
         return HTTP_SERVER_E_ERROR;
+
     }
 
     if ((res = bind (server_sock, (struct sockaddr *)&address, sizeof(address))) != EOK ) {
@@ -93,6 +90,7 @@ httpserver_init (uint16_t port)
                 "HTTPD  :E: failed %d to bind socket to port.", res);
         closesocket (server_sock) ;
         return HTTP_SERVER_E_ERROR ;
+
     }
 
 
@@ -115,11 +113,11 @@ int32_t
 httpserver_close (int server_sock)
 {
     int32_t res = HTTP_SERVER_E_ERROR ;
-    DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_INFO,
-                             "HTTPD : : httpserver_close");
+
     if (server_sock>=0) {
         res = closesocket (server_sock) ;
         server_sock = -1 ;
+
     }
 
 #if defined HTTP_SSL_SERVER && HTTP_SSL_SERVER
@@ -153,6 +151,7 @@ httpserver_select (int server_sock, uint32_t timeout)
 
     if (server_sock<0) {
         return HTTP_SERVER_E_CONNECTION ;
+
     }
 
     FD_ZERO(&fdread) ;
@@ -168,6 +167,7 @@ httpserver_select (int server_sock, uint32_t timeout)
         DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_REPORT,
                     "HTTPD : : read exception on listening socket...");
         return HTTP_SERVER_E_CONNECTION ;
+
 
     } else if (result < 0) {
         DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_LOG,
@@ -255,11 +255,9 @@ httpserver_listen (int server_sock)
 {
     int32_t res ;
 
-    DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_INFO,
-                   "HTTPD : : httpserver_listen sock 0x%x", server_sock);
-
     if (server_sock<0) {
         return HTTP_SERVER_E_CONNECTION ;
+
     }
 
     if ((res = listen (server_sock, HTTP_SERVER_LISTEN_BACKLOG)) != EOK ) {
@@ -307,17 +305,12 @@ httpserver_user_init (HTTP_USER_T* user)
 int32_t
 httpserver_user_accept (int server_sock, HTTP_USER_T* user, uint32_t timeout)
 {
-    DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_INFO,
-                            "HTTPD : : httpserver_user_accept");
-
     if (server_sock<0) {
         return HTTP_SERVER_E_CONNECTION ;
+
     }
 
     user->timeout = timeout ;
-
-    DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_INFO,
-                             "HTTPD : : socket connecting...");
 
     uint32_t addrlen = sizeof(user->address) ;
     user->socket = accept(server_sock, (struct sockaddr *)&user->address, &addrlen) ;
@@ -341,6 +334,7 @@ httpserver_user_accept (int server_sock, HTTP_USER_T* user, uint32_t timeout)
                     "HTTPD :W: setting FIONBIO failed %d!", status);
         closesocket(user->socket);
         return HTTP_CLIENT_E_CONNECTION;
+
     }
 
     return HTTP_SERVER_E_OK ;
@@ -379,6 +373,7 @@ httpserver_user_ssl_accept (HTTP_USER_T* user, uint32_t timeout)
             }
             mbedtls_ssl_set_bio( (mbedtls_ssl_context *)user->ssl, (void*)user->socket,
                 mbedtls_net_send, mbedtls_net_recv, 0 /*mbedtls_net_recv_timeout*/ )  ;
+
        }
  
         if (user->ssl) {
@@ -444,7 +439,6 @@ httpserver_user_ssl_accept (HTTP_USER_T* user, uint32_t timeout)
 #endif
 
     return HTTP_SERVER_E_OK ;
-
 }
 
 /**
@@ -469,6 +463,7 @@ httpserver_user_close (HTTP_USER_T* user)
 #if defined HTTP_SSL_SERVER && HTTP_SSL_SERVER
     if (user->ssl) {
         mbedtls_ssl_close_notify ((mbedtls_ssl_context *)user->ssl) ;
+
     }
 #endif
     res = closesocket (user->socket);
@@ -479,6 +474,7 @@ httpserver_user_close (HTTP_USER_T* user)
         mbedtls_ssl_free ((mbedtls_ssl_context *)user->ssl) ;
         HTTP_SERVER_FREE(user->ssl) ;
         user->ssl = 0 ;
+
     }
 #endif
     httpserver_free_request (user) ;
@@ -519,13 +515,7 @@ httpserver_write (HTTP_USER_T* user, const uint8_t* buffer, uint32_t length)
         tv.tv_sec = 0 ;
         tv.tv_usec = user->timeout * 1000 ;
 
-        DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_INFO,
-                    "HTTPD : : write socket select %d...", user->socket);
-
         result = select(user->socket+1, 0, &fdwrite, &fdex, &tv) ;
-
-        DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_INFO,
-                    "HTTPD : : write socket select %d complete", user->socket);
 
         if (FD_ISSET(user->socket, &fdex)) {
             DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_REPORT,
@@ -588,17 +578,16 @@ httpserver_wait_read(HTTP_USER_T* user, uint32_t timeout)
 
     }
     if (FD_ISSET(user->socket, &fdex)) {
-           DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_LOG,
-                        "HTTP  : : read select failed with exception");
-            return HTTP_SERVER_E_CONNECTION ;
+        DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_LOG,
+                "HTTP  : : read select failed with exception");
+        return HTTP_SERVER_E_CONNECTION ;
 
     }
 
     DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_DEBUG,
-                    "HTTP  : : read select failed with %d after %d", res, timeout);
+                "HTTP  : : read select failed with %d after %d", res, timeout);
 
     return HTTP_SERVER_E_ERROR ;
-
 }
 
 /**
@@ -623,13 +612,17 @@ httpserver_read (HTTP_USER_T* user, void* buffer, uint32_t length, uint32_t time
     if (user->ssl) {
         if (!mbedtls_ssl_get_bytes_avail ((mbedtls_ssl_context *)user->ssl)) {
             received = httpserver_wait_read (user, timeout) ;
+
         }
+
         while (received == EOK) {
             received = mbedtls_ssl_read ((mbedtls_ssl_context *)user->ssl, buffer, length) ;
             if (received == MBEDTLS_ERR_SSL_WANT_READ) {
                 received = httpserver_wait_read (user, timeout) ;
+
             } else {
                 break ;
+
             }
 
         }
@@ -639,18 +632,16 @@ httpserver_read (HTTP_USER_T* user, void* buffer, uint32_t length, uint32_t time
         received = httpserver_wait_read (user, timeout) ;
         if (received == EOK) {
             received = recv (user->socket, buffer, length, 0);
+
         }
 
     }
 
-   if(received <= 0) {
-        DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_INFO,
-                "HTTP  : : httpserver_read  %d",received);
-                
-    } else {
+   if(received > 0) {
         user->read += received ;
 
     }
+
     return received ;
 }
 
@@ -670,9 +661,10 @@ alloc_headers (HTTP_USER_T* user)
             char* value = (char*)HTTP_SERVER_MALLOC(strlen(user->headers[i].value) + 1) ;
             if (value) strcpy (value, user->headers[i].value ) ;
             user->headers[i].value = value ;
-        }
-    }
 
+        }
+
+    }
 }
 
 void
@@ -685,8 +677,8 @@ free_headers (HTTP_USER_T* user)
             user->headers[i].value = 0 ;
 
         }
-    }
 
+    }
 }
 
 /**
@@ -710,7 +702,6 @@ free_headers (HTTP_USER_T* user)
  *
  * @http
  */
-
 int32_t
 httpserver_read_request_ex (HTTP_USER_T* user, uint32_t timeout, char** endpoint, int32_t* method)
 {
@@ -746,17 +737,12 @@ httpserver_read_request_ex (HTTP_USER_T* user, uint32_t timeout, char** endpoint
     do {
         received = httpserver_read (user, &user->rw_buffer[offset], HTTP_SERVER_MAX_XMIT_CONTENT_LENGTH - offset, timeout) ;
         if(received <= 0) {
-            DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_INFO,
-                    "HTTPD :E: httpserver_read  %d",received);
             return received ;
 
         }
 
         offset += received ;
         if (strnstr(user->rw_buffer, "\r\n\r\n", offset)) break ;
-
-        DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_INFO,
-                    "HTTPD : : incomplete header received %d bytes",offset);
 
         if (offset >= HTTP_SERVER_MAX_XMIT_CONTENT_LENGTH) {
             DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_ERROR,
@@ -766,10 +752,6 @@ httpserver_read_request_ex (HTTP_USER_T* user, uint32_t timeout, char** endpoint
         }
 
     } while (offset < HTTP_SERVER_MAX_XMIT_CONTENT_LENGTH) ;
-
-    DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_INFO,
-                    "HTTPD : : httpserver_read %d", offset);
-
 
     memset (user->headers, 0, sizeof(user->headers)) ;
     user->headers[0].key = HTTP_HEADER_KEY_CONTENT_TYPE ;
@@ -787,19 +769,17 @@ httpserver_read_request_ex (HTTP_USER_T* user, uint32_t timeout, char** endpoint
 
     }
 
-    DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_INFO,
-                    "HTTPD : : httpserver_read_request_ex %d:%s \r\n%s", *method, pendpoint, content);
-
     if (pendpoint) {
         user->endpoint = (char*)HTTP_SERVER_MALLOC(strlen(pendpoint) + 1) ;
         if (user->endpoint == 0) {
-            DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_INFO,
-                    "HTTP  :E: out of memory");
+            DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_WARNING,
+                    "HTTP  :W: out of memory");
             return HTTP_SERVER_E_MEMORY ;
 
         }
         strcpy(user->endpoint, pendpoint) ;
         *endpoint = user->endpoint ;
+
     }
 
     user->payload = 0 ;
@@ -822,6 +802,7 @@ httpserver_read_request_ex (HTTP_USER_T* user, uint32_t timeout, char** endpoint
                     user->payload_length = left ;
 
                 }
+
         }
 
     }
@@ -843,7 +824,9 @@ httpserver_get_authorization_header (HTTP_USER_T* user)
     for (int i = 0; i < sizeof(user->headers) / sizeof(user->headers[0]); i++) {
         if ((uintptr_t)user->headers[i].key == (uintptr_t)HTTP_HEADER_KEY_AUTHORIZATION) {
             return user->headers[i].value;  // Return the value of the Authorization header.
+
         }
+
     }
     return NULL;  // Return NULL if the Authorization header is not found.
 }
@@ -877,11 +860,13 @@ httpserver_read_content_ex (HTTP_USER_T* user, uint32_t timeout, char** request)
         user->payload_length = 0 ;
         user->content_length -= received ;
         return received ;
+
     }
 
     if (request) *request = 0 ;
     if (user->content_length <= 0) {
         return 0 ;
+
     }
 
     received = httpserver_read (user, user->rw_buffer, HTTP_SERVER_MAX_XMIT_CONTENT_LENGTH, timeout) ;
@@ -890,10 +875,10 @@ httpserver_read_content_ex (HTTP_USER_T* user, uint32_t timeout, char** request)
                     "HTTPD : : read error %d",
                         received);
         return  received;
+
     }
 
     user->content_length -= received ;
-
     if (request) *request = user->rw_buffer ;
     return received ;
 }
@@ -1006,23 +991,26 @@ httpserver_write_response (HTTP_USER_T* user, uint32_t result, const char* conte
     count = snprintf(user->rw_buffer, HTTP_SERVER_MAX_XMIT_CONTENT_LENGTH, HTTPSERVER_RESPONSE_HEADER, (unsigned int)result);
 
     if (headers) {
-        count += httpparse_append_headers (user->rw_buffer, HTTP_SERVER_MAX_XMIT_CONTENT_LENGTH - count,
-                headers, headers_count, 0) ;
+        count += httpparse_append_headers (user->rw_buffer, 
+            HTTP_SERVER_MAX_XMIT_CONTENT_LENGTH - count,
+            headers, headers_count, 0) ;
     }
-    count += httpparse_append_headers (user->rw_buffer, HTTP_SERVER_MAX_XMIT_CONTENT_LENGTH - count,
+    count += httpparse_append_headers (user->rw_buffer, 
+            HTTP_SERVER_MAX_XMIT_CONTENT_LENGTH - count,
             _http_headers, sizeof(_http_headers)/sizeof(_http_headers[0]), 0) ;
-    count += httpparse_append_headers (user->rw_buffer, HTTP_SERVER_MAX_XMIT_CONTENT_LENGTH - count,
-            _http_headers_content_type, sizeof(_http_headers_content_type)/sizeof(_http_headers_content_type[0]), 0) ;
-    count += httpparse_append_headers (user->rw_buffer, HTTP_SERVER_MAX_XMIT_CONTENT_LENGTH - count,
-            _http_headers_content_length, sizeof(_http_headers_content_length)/sizeof(_http_headers_content_length[0]), 1) ;
+    count += httpparse_append_headers (user->rw_buffer, 
+            HTTP_SERVER_MAX_XMIT_CONTENT_LENGTH - count,
+            _http_headers_content_type, 
+            sizeof(_http_headers_content_type)/sizeof(_http_headers_content_type[0]), 0) ;
+    count += httpparse_append_headers (user->rw_buffer, 
+            HTTP_SERVER_MAX_XMIT_CONTENT_LENGTH - count,
+            _http_headers_content_length, 
+            sizeof(_http_headers_content_length)/sizeof(_http_headers_content_length[0]), 1) ;
 
     DBG_ASSERT_HTTP_SERVER (count < HTTP_SERVER_MAX_XMIT_CONTENT_LENGTH ,
             "HTTPD :A: send buffer to small") ;
 
-
     sent_bytes = httpserver_write (user, (unsigned char*)user->rw_buffer, count) ;
-    DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_INFO,
-                    "HTTPD :D: write %d", sent_bytes);
 
     while ((sent_bytes > 0) && length) {
         if (HTTP_SERVER_MAX_XMIT_CONTENT_LENGTH  > length) { send_length = length ; }
@@ -1033,11 +1021,7 @@ httpserver_write_response (HTTP_USER_T* user, uint32_t result, const char* conte
         send_offset += sent_bytes ;
         length -= sent_bytes ;
 
-        DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_INFO,
-                    "HTTPD : : write %d", sent_bytes);
-
     }
-
 
     return sent_bytes ;
 }
@@ -1080,27 +1064,30 @@ httpserver_chunked_response (HTTP_USER_T* user, uint32_t result, const char* con
 
     }
 
-
     if (headers) {
-        user->write_idx += httpparse_append_headers ((char*)user->rw_buffer, HTTP_SERVER_MAX_XMIT_CONTENT_LENGTH - user->write_idx,
-                headers, headers_count, 0) ;
+        user->write_idx += httpparse_append_headers ((char*)user->rw_buffer, 
+            HTTP_SERVER_MAX_XMIT_CONTENT_LENGTH - user->write_idx,
+            headers, headers_count, 0) ;
     }
-    user->write_idx += httpparse_append_headers ((char*)user->rw_buffer, HTTP_SERVER_MAX_XMIT_CONTENT_LENGTH - user->write_idx,
-            _http_headers, sizeof(_http_headers)/sizeof(_http_headers[0]), 0) ;
-    user->write_idx += httpparse_append_headers ((char*)user->rw_buffer, HTTP_SERVER_MAX_XMIT_CONTENT_LENGTH - user->write_idx,
-            _http_headers_chunked, sizeof(_http_headers_chunked)/sizeof(_http_headers_chunked[0]), 0) ;
-    user->write_idx += httpparse_append_headers ((char*)user->rw_buffer, HTTP_SERVER_MAX_XMIT_CONTENT_LENGTH- user->write_idx,
-            _http_headers_content_type, sizeof(_http_headers_content_type)/sizeof(_http_headers_content_type[0]), 1) ;
+    user->write_idx += httpparse_append_headers ((char*)user->rw_buffer, 
+            HTTP_SERVER_MAX_XMIT_CONTENT_LENGTH - user->write_idx,
+            _http_headers, 
+            sizeof(_http_headers)/sizeof(_http_headers[0]), 0) ;
+    user->write_idx += httpparse_append_headers ((char*)user->rw_buffer, 
+            HTTP_SERVER_MAX_XMIT_CONTENT_LENGTH - user->write_idx,
+            _http_headers_chunked, 
+            sizeof(_http_headers_chunked)/sizeof(_http_headers_chunked[0]), 0) ;
+    user->write_idx += httpparse_append_headers ((char*)user->rw_buffer, 
+            HTTP_SERVER_MAX_XMIT_CONTENT_LENGTH - user->write_idx,
+            _http_headers_content_type, 
+            sizeof(_http_headers_content_type)/sizeof(_http_headers_content_type[0]), 1) ;
 
     DBG_ASSERT_HTTP_SERVER (user->write_idx < HTTP_SERVER_MAX_XMIT_CONTENT_LENGTH,
-                    "HTTPD :A: HTTP_SERVER_MAX_XMIT_CONTENT_LENGTH to small for HTTP headers!") ;
+            "HTTPD :A: HTTP_SERVER_MAX_XMIT_CONTENT_LENGTH to small for HTTP headers!") ;
 
     send_bytes = httpserver_write (user, (unsigned char*)user->rw_buffer, user->write_idx) ;
 
     user->write_idx = 0 ;
-
-    DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_INFO,
-                    "HTTPD : : httpserver_chunked_response %d bytes header", user->write_idx);
 
     return send_bytes > 0 ? HTTP_SERVER_E_OK : HTTP_SERVER_E_ERROR ;
 }
@@ -1124,6 +1111,7 @@ _chunked_flush(HTTP_USER_T* user)
         bytes = httpserver_write (user, (unsigned char*)user->rw_buffer, user->write_idx) ;
         user->write_idx = 0 ;
         user->send_bytes = 0 ;
+
     }
 
     return bytes ;
@@ -1141,23 +1129,24 @@ _chunked_alloc (HTTP_USER_T* user, int len, char** buffer)
     int32_t status = HTTP_SERVER_E_OK ;
     DBG_ASSERT_HTTP_SERVER (user->rw_buffer,
                     "HTTPD :A: _chunked_alloc unexpected!") ;
-    DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_INFO,
-                    "HTTPD : : _chunked_alloc %d bytes", len);
 
     if (user->write_idx  >= HTTP_SERVER_MAX_CHUNK_LENGTH - 32) {
         status = _chunked_flush (user) ;
         if (status < 0) {
             return status ;
+
         }
     }
 
     if (user->write_idx + len > HTTP_SERVER_MAX_CHUNK_LENGTH - 8) {
             len =  HTTP_SERVER_MAX_CHUNK_LENGTH - 8 - user->write_idx ;
+
     }
     if (user->write_idx == 0) {
             // placeholder for length
         user->write_idx = snprintf(&user->rw_buffer[0],
             HTTP_SERVER_MAX_CHUNK_LENGTH, "%03x\r\n", (unsigned int)0) ;
+
     }
 
     *buffer = &user->rw_buffer[user->write_idx] ;
@@ -1170,7 +1159,6 @@ _chunked_commit (HTTP_USER_T* user, int len)
 {
     user->write_idx += len ;
     user->send_bytes += len ;
-
 }
 
 int32_t
@@ -1209,12 +1197,9 @@ httpserver_chunked_vappend_fmtstr (HTTP_USER_T* user, const char* format_str,  v
         vsnprintf(buffer, req+1, format_str, args) ;
         _chunked_commit(user, req) ;
 
-
     } while(0) ;
 
     va_end(args);
-
-    DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_INFO, "httpserver_chunked_append_fmtstr : write %d", req);
 
     return req ;
 }
@@ -1240,7 +1225,6 @@ int32_t
 httpserver_chunked_append_str (HTTP_USER_T* user, const char* str, uint32_t len)
 {
     int32_t         req = 0;
-
     DBG_ASSERT_HTTP_SERVER (user->rw_buffer,
                     "HTTPD :A: httpserver_chunked_append_str unexpected!") ;
 
@@ -1265,9 +1249,6 @@ httpserver_chunked_append_str (HTTP_USER_T* user, const char* str, uint32_t len)
         len -= req ;
 
     }
-
-    DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_INFO,
-                "HTTPD : : httpserver_chunked_append_str : write %d", req);
 
     return req ;
 }
@@ -1320,10 +1301,6 @@ httpserver_chunked_complete (HTTP_USER_T* user)
 
     user->write_idx = 0 ;
     user->send_bytes = 0 ;
-
-    DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_INFO,
-        "HTTPD : : httpserver_chunked_complete : write %d", user->write_idx);
-
 
     return res ;
 }

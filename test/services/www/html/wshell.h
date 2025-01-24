@@ -22,18 +22,6 @@
  */
 
 
-
-/**
- * @file        wserver.h
- * @author      Natie van Rooyen <natie@navaro.nl>
- * @date        January 1, 2015
- * @version     0.0.0.1 (alpha)
- *
- * @section DESCRIPTION
- *
- * Simple web server for provisioning.
- */
-
 #ifndef __WSHELL_H__
 #define __WSHELL_H__
 
@@ -42,48 +30,17 @@
 #include "qoraal-http/httpserver.h"
 
 
-
 /*===========================================================================*/
 /* Client constants.                                                         */
 /*===========================================================================*/
-
-/**
- * @name    Error Codes
- * @{
- */
-//#define HTTP_WSERVER_E_OK                              EOK
-
-/** @} */
 
 /*===========================================================================*/
 /* Client pre-compile time settings.                                         */
 /*===========================================================================*/
 
-/**
- * @name    Debug Level
- * @{
- */
-
-/** @} */
-
-/**
- * @name    HTML text
- * @{
- */
-//#define WSERVER_ABOUT_TEXT        "NAVARO-Wireless Pendant"
-//#define WSERVER_TITLE_TEXT        "NAVARO Pendant"
-
-/** @} */
-
-
-
-
-/** @} */
-
 /*===========================================================================*/
 /* Client data structures and types.                                         */
 /*===========================================================================*/
-
 
 /*===========================================================================*/
 /* External declarations.                                                    */

@@ -42,15 +42,8 @@ wservices_metadata (HTTP_USER_T *user, uint32_t method, char* endpoint, uint32_t
 int32_t
 wservices_handler (HTTP_USER_T *user, uint32_t method, char* endpoint)
 {
-    //ATH_GET_SCAN list ;
-    //int i, j ;
-    //vectors_t *  _bootloader = (vectors_t *) 0x1A000000 ;
-
-    (void)endpoint ;
-
     if (method == HTTP_HEADER_METHOD_GET) {
 
-        //CORAL_SERVICES s ;
         SCV_SERVICE_HANDLE h ;
 
         char* request = strchr (endpoint, '?') ;

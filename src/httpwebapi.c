@@ -21,32 +21,25 @@
     SOFTWARE.
  */
 
-
-#include "system_config.h"
-#if CFG_UTILS_HTTP
-
+#include "qoraal-http/config.h"
+#if !defined CFG_JSON_DISABLE
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdint.h>
 #include <string.h>
 #include <ctype.h>
-#include "qoraal/os.h"
-#include "platform/heap.h"
+#include "qoraal/qoraal.h"
+#include "qoraal-http/qoraal.h"
+#include "qoraal-http/httpwebapi.h"
 #include "qoraal/common/lists.h"
-#include "utils/utils.h"
-#include "httpwebapi.h"
 
-
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 
 // Define the type of property (e.g., string, integer)
 static linked_t _webapi_inst_list ;
-static heapspace _webapi_heap = HEAP_SPACE ;
+static QORAAL_HEAP _webapi_heap = QORAAL_HeapAuxiliary ;
 static const char * _webapi_root = "api" ;
 
-int32_t webapi_init (const char * root, heapspace heap)
+int32_t webapi_init (const char * root, QORAAL_HEAP heap)
 {
     _webapi_root = root ;
     _webapi_heap = heap ;
@@ -67,6 +60,7 @@ WEBAPI_INST_T *  webapi_inst_get (const char * ep)
     while (current != NULL) {
         if (strcmp(ep, current->ep) == 0) return current ;
         current = linked_next(current, OFFSETOF(WEBAPI_INST_T, next));
+
     }
 
     return 0 ;
@@ -378,6 +372,6 @@ int32_t webapi_post(const char * ep, const char *json)
     return res < 0 ? res : EOK ;
 }
 
-#endif /* CFG_UTILS_HTTP */
+#endif /* CFG_JSON_DISABLE */
 
 

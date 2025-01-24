@@ -26,7 +26,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
-#include "platform/heap.h"
+#include "qoraal/qoraal.h"
 #include "qoraal/common/lists.h"
 
 #define DBG_MESSAGE_HTTPWEBSERVICE(severity, fmt_str, ...)           DBG_MESSAGE_T_LOG(SVC_LOGGER_TYPE(severity,0), 0, fmt_str, ##__VA_ARGS__)
@@ -106,7 +106,7 @@ typedef struct WEBAPI_PROP_S {
 extern "C" {
 #endif
 
-    int32_t webapi_init (const char * root, heapspace heap) ;
+    int32_t webapi_init (const char * root, QORAAL_HEAP heap) ;
 
     int32_t webapi_inst_add(WEBAPI_INST_T * inst) ;
     int32_t webapi_add_property(WEBAPI_INST_T *inst, WEBAPI_PROP_T *prop) ;

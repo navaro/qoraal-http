@@ -86,7 +86,6 @@ wabout_handler_about(HTTP_USER_T *user, uint32_t method, char* endpoint)
 int32_t
 wserver_handler_about2(HTTP_USER_T *user, uint32_t method, char* endpoint)
 {
-//#define WSERVER_ABOUT_TEXT "CORAL Wi-Fi Mesenger"
 #define ABOUT_CONTENT_SIZE          2048
     static int i = 0 ;
     static const char about_start[] = \

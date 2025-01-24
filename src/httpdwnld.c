@@ -42,7 +42,6 @@ httpdwnld_init (HTTPDWNLD_T * dwnld)
 {
     memset (dwnld, 0, sizeof(HTTPDWNLD_T)) ;
     dwnld->mss = 0 ; // registry_get ("net.mss", 0) ;
-
 }
 
 void
@@ -50,7 +49,6 @@ httpdwnld_mem_init (HTTPDWNLD_MEM_T * dwnld)
 {
     memset (dwnld, 0, sizeof(HTTPDWNLD_MEM_T)) ;
     httpdwnld_init (&dwnld->dwnld) ;
-
 }
 
 #if !defined CFG_LITTLEFS_DISABLE
@@ -136,9 +134,6 @@ httpdwnld_download (HTTPDWNLD_T * dwnld,
     addr.sin_len = sizeof(addr);
 #endif
 
-    DBG_MESSAGE_HTTP_CLIENT (DBG_MESSAGE_SEVERITY_INFO,
-                               "HTTP  : : resolving %s ... ", dwnld->host) ;
-
     if (gethostbyname_timeout (dwnld->host, &ip, 6) != EOK) {
         DBG_MESSAGE_HTTP_CLIENT (DBG_MESSAGE_SEVERITY_ERROR,
                                    "HTTP  : : resolving %s failed!", dwnld->host) ;
@@ -149,13 +144,10 @@ httpdwnld_download (HTTPDWNLD_T * dwnld,
 
     httpclient_init (&client, dwnld->mss) ;
 
-    DBG_MESSAGE_HTTP_CLIENT (DBG_MESSAGE_SEVERITY_INFO,
-                               "HTTP  : : connecting...", dwnld->host) ;
-
     if (dwnld->host) {
         httpclient_set_hostname (&client, dwnld->host) ;
-    }
 
+    }
 
     res = httpclient_connect (&client, &addr, dwnld->https) ;
 
@@ -164,11 +156,8 @@ httpdwnld_download (HTTPDWNLD_T * dwnld,
                     "HTTP  : : httpclient_connect failed!");
         httpclient_close (&client) ;
         return res ;
+
     }
-
-    DBG_MESSAGE_HTTP_CLIENT (DBG_MESSAGE_SEVERITY_INFO,
-                               "HTTP  : : connected.", dwnld->host) ;
-
 
     res = cb (1, 0, 0, parm) ;
     if (res != EOK) {
@@ -195,8 +184,6 @@ httpdwnld_download (HTTPDWNLD_T * dwnld,
 
         if ((res > HTTP_CLIENT_E_OK)) {
 
-            DBG_MESSAGE_HTTP_CLIENT (DBG_MESSAGE_SEVERITY_INFO,
-                        "HTTP  : : read response...");
             res = httpclient_read_response_ex (&client, timeout, &status) ;
 
             if (status/100 != 2) {
@@ -214,21 +201,18 @@ httpdwnld_download (HTTPDWNLD_T * dwnld,
                 while (1) {
                     res = httpclient_read_next_ex (&client, timeout, &response) ;
                     if (res <= 0) {
-                        //if (res == 0) res = -1 ;
                         break ;
+
                     }
                     read += res ;
 
                     res = cb (0, response, res, parm) ;
                     if (res != EOK) {
                         break;
+
                     }
 
-
                 }
-
-
-
 
             } else {
                 DBG_MESSAGE_HTTP_CLIENT (DBG_MESSAGE_SEVERITY_REPORT,
@@ -249,11 +233,6 @@ httpdwnld_download (HTTPDWNLD_T * dwnld,
 
     httpclient_close (&client) ;
 
-    if (res) {
-        DBG_MESSAGE_HTTP_CLIENT (DBG_MESSAGE_SEVERITY_INFO,
-            "HTTP  : : %d bytes complete %d", read, res);
-    }
-
     return res  < 0 ? res : read ;
 }
 
@@ -268,14 +247,17 @@ httpdwnld_url_parse (char* url, int *https, int *port, char** host,
 
     if ((res = httpparse_url_parse (url, https, port, host, name, credentials)) != EOK) {
         return res ;
+
     }
 
     if (strlen(*host) > 0) {
         strncpy (_last_host, *host, 128-1) ;
         _last_host[128-1] = '\0';
+
     }
     else {
         *host = (char*)_last_host ;
+
     }
 
     if (*port) {
@@ -283,12 +265,15 @@ httpdwnld_url_parse (char* url, int *https, int *port, char** host,
     } else {
         if (_last_port) {
             *port = _last_port ;
+
         } else if (*https) {
             *port = 443 ;
+
         } else {
             *port = 80 ;
 
         }
+
     }
 
     return res ;
@@ -304,8 +289,8 @@ httpdwnld_mem_download_cb (int32_t status, uint8_t * buffer, uint32_t len, uintp
     char* tmp ;
 
     if (status/100 == 2) { // connected an open
-
         return EOK ;
+
     }
 
     if (len) {
@@ -314,40 +299,41 @@ httpdwnld_mem_download_cb (int32_t status, uint8_t * buffer, uint32_t len, uintp
         i = 0 ;
         while (mem->capacity + i < mem->offset + len) {
             i += mem->grow ? mem->grow : 2*1024 ;
+
         }
 
         if (i) {
 
-        tmp = HTTP_CLIENT_MALLOC (mem->capacity + i) ;
-        if (!tmp) {
-            DBG_MESSAGE_HTTPDWNLD (DBG_MESSAGE_SEVERITY_ERROR,
-                "HTTP  :E: memory failed from heap 0x%x for %d bytes after %d bytes",
-                mem->heap, i, mem->capacity);
-            return E_NOMEM ;
-        }
-        if (mem->mem) {
-            memcpy(tmp, mem->mem, mem->offset) ;
-            HTTP_CLIENT_FREE (mem->mem) ;
-        }
+            tmp = HTTP_CLIENT_MALLOC (mem->capacity + i) ;
+            if (!tmp) {
+                DBG_MESSAGE_HTTPDWNLD (DBG_MESSAGE_SEVERITY_ERROR,
+                    "HTTP  :E: memory failed from heap 0x%x for %d bytes after %d bytes",
+                    mem->heap, i, mem->capacity);
+                return E_NOMEM ;
 
+            }
+            if (mem->mem) {
+                memcpy(tmp, mem->mem, mem->offset) ;
+                HTTP_CLIENT_FREE (mem->mem) ;
 
-        mem->mem = tmp ;
-        mem->capacity += i ;
-        }
+            }
+
+            mem->mem = tmp ;
+            mem->capacity += i ;
+
+            }
 
         if (mem->capacity >= mem->offset + len) {
             memcpy (&mem->mem[mem->offset], buffer, len) ;
             mem->offset += len ;
         } else {
             return E_NOMEM ;
+
         }
-
-
 
     }
 
     return  mem->dwnld.cancel ? E_CANCELED : res ;
-
 }
 
 int32_t
@@ -357,21 +343,21 @@ httpdwnld_mem_download (char* url, HTTPDWNLD_MEM_T* mem, uint32_t timeout)
 
     HTTPDWNLD_T * dwmld = &mem->dwnld ;
 
-   res = httpdwnld_url_parse (url, &dwmld->https, &dwmld->port, &dwmld->host, &dwmld->name, &dwmld->credentials) ;
+    res = httpdwnld_url_parse (url, &dwmld->https, &dwmld->port, &dwmld->host, &dwmld->name, &dwmld->credentials) ;
 
-    if (dwmld->cancel) {
-        return E_CANCELED ;
+    if (res < 0) {
+        DBG_MESSAGE_HTTPDWNLD (DBG_MESSAGE_SEVERITY_LOG,
+            "HTTP  : : invalid url") ;
+        return res ;
+
     }
 
     res = httpdwnld_download (dwmld, timeout, httpdwnld_mem_download_cb, (uintptr_t) mem) ;
 
-
     DBG_MESSAGE_HTTPDWNLD (DBG_MESSAGE_SEVERITY_REPORT,
         "HTTP  : : download complete return %d bytes", res);
 
-
     return res  ;
-
 }
 
 int32_t
@@ -485,15 +471,10 @@ httpdwnld_fs_download (char* url, HTTPDWNLD_FS_T* fs, uint32_t timeout)
 
    res = httpdwnld_url_parse (url, &dwmld->https, &dwmld->port, &dwmld->host, &dwmld->name, 0) ;
 
-    while (network_state_wait_enter(NETWORK_STATE_IP_UP, 1000) != EOK) {
+    if (res < 0) {
         DBG_MESSAGE_HTTPDWNLD (DBG_MESSAGE_SEVERITY_LOG,
-            "HTTP  : : waiting for IP connection failed") ;
-        return EFAIL ;
-
-    }
-
-    if (dwmld->cancel) {
-        return E_CANCELED ;
+            "HTTP  : : invalid url") ;
+        return res ;
 
     }
 
@@ -558,8 +539,11 @@ httpdwnld_test_download (char* url, HTTPDWNLD_T* dwmld, uint32_t timeout)
 
    res = httpdwnld_url_parse (url, &dwmld->https, &dwmld->port, &dwmld->host, &dwmld->name, &dwmld->credentials) ;
 
-    if (dwmld->cancel) {
-        return E_CANCELED ;
+    if (res < 0) {
+        DBG_MESSAGE_HTTPDWNLD (DBG_MESSAGE_SEVERITY_LOG,
+            "HTTP  : : invalid url") ;
+        return res ;
+
     }
 
     res = httpdwnld_download (dwmld, timeout, httpdwnld_test_download_cb, (uintptr_t) dwmld) ;
