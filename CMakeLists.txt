@@ -21,6 +21,9 @@ include_directories("${qoraal_SOURCE_DIR}/include")
 # Add subdirectories
 add_subdirectory(src)
 
+# Set compile-time definitions for the qoraal OS
+target_compile_definitions(qoraal PRIVATE CFG_OS_POSIX)
+
 # Option to build tests
 option(BUILD_HTTPTEST "Build the test directory" OFF)
 

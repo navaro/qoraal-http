@@ -29,10 +29,8 @@ static int32_t  shell_out (void* ctx, uint32_t out, const char* str);
 static int32_t  shell_get_line (char * buffer, uint32_t len) ;
 
 SVC_SHELL_CMD_DECL("exit", qshell_exit, "");
-SVC_SHELL_CMD_DECL("halt", qshell_exit, "");
 SVC_SHELL_CMD_DECL("version", qshell_version, "");
 SVC_SHELL_CMD_DECL("hello", qshell_hello, "");
-
 
 /*===========================================================================*/
 /* Service Local Variables and Types                                         */

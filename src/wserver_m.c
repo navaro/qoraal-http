@@ -454,7 +454,8 @@ httpserver_wserver_run (HTTPSERVER_INST_T * inst)
     uint32_t i ;
 
     DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_LOG,
-            "WSERV : : web server running.\r\n");
+            "WSERV : : web server running on port %d%s.\r\n",
+            inst->port, inst->ssl ? " with SSL" : "") ;
 
     inst->close = 0 ;
  
