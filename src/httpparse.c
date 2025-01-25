@@ -22,12 +22,11 @@
  */
 
 #include <stdio.h>
+#include <stdlib.h>
+#include <ctype.h>
 #include "qoraal/qoraal.h"
-#include "qoraal/errordef.h"
-#include "qoraal/debug.h"
 #include "qoraal-http/config.h"
 #include "qoraal-http/qoraal.h"
-#include "qoraal-http/httpclient.h"
 #include "qoraal-http/httpparse.h"
 
 

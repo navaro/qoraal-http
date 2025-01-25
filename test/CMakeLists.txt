@@ -19,7 +19,11 @@ set(TEST_SRCS
 add_executable(httptest ${TEST_SRCS})
 
 # Link the qoraal library and pthread
-target_link_libraries(httptest qoraal qoraal-http pthread ws2_32)
+if(WIN32)
+    target_link_libraries(httptest qoraal qoraal-http pthread ws2_32)
+else()
+    target_link_libraries(httptest qoraal qoraal-http pthread)
+endif()
 target_compile_options(httptest PRIVATE -O0 -g)
 target_compile_options(qoraal PRIVATE -O0 -g)
 target_compile_options(qoraal-http PRIVATE -O0 -g)

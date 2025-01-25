@@ -23,6 +23,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 #include "qoraal/qoraal.h"
 #include "qoraal/svc/svc_logger.h"
 #include "qoraal/common/mlog.h"

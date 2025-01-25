@@ -41,6 +41,7 @@
 #endif
 
 #include <stdint.h>
+#include "qoraal-http/qoraal.h"
 
 /*===========================================================================*/
 /* Client constants.                                                         */

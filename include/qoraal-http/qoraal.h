@@ -36,21 +36,27 @@
     #pragma comment(lib, "ws2_32.lib")
     typedef int socklen_t;
 #elif __has_include(<lwip/inet.h>) || (defined QORAAL_CFG_USE_LWIP && QORAAL_CFG_USE_LWIP)
-// Looks like LWIP is present
-#include <lwip/inet.h>
-#include <lwip/sockets.h>
-#include <lwip/netdb.h>
-#ifdef QORAAL_CFG_USE_LWIP
-#undef QORAAL_CFG_USE_LWIP
-#endif
-#define QORAAL_CFG_USE_LWIP            1
+    // Looks like LWIP is present
+    #include <lwip/inet.h>
+    #include <lwip/sockets.h>
+    #include <lwip/netdb.h>
+    #ifdef QORAAL_CFG_USE_LWIP
+    #undef QORAAL_CFG_USE_LWIP
+    #endif
+    #define QORAAL_CFG_USE_LWIP            1
 #else
     #include <sys/types.h>
     #include <sys/socket.h>
     #include <netinet/in.h>
     #include <unistd.h>
     #include <arpa/inet.h>
+    #include <sys/ioctl.h>
+    #include <sys/select.h>
+    #include <netdb.h>
+
     #define closesocket close
+    #define ioctlsocket  ioctl
+
 #endif
 
 

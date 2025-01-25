@@ -329,7 +329,7 @@ httpclient_set_hostname (HTTP_CLIENT_T* client, const char* hostname)
 int32_t
 httpclient_is_connected (HTTP_CLIENT_T* client)
 {
-    struct fd_set   fdread;
+     fd_set   fdread;
     struct timeval tv;
 
     if (client->socket < 0) {
@@ -554,8 +554,8 @@ static int32_t
 httpclient_wait_read(HTTP_CLIENT_T* client, uint32_t timeout)
 {
     int32_t res ;
-    struct fd_set   fdread;
-    struct fd_set   fdex;
+     fd_set   fdread;
+     fd_set   fdex;
     struct timeval tv;
 
     FD_ZERO(&fdread) ;

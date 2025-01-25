@@ -145,8 +145,8 @@ int32_t
 httpserver_select (int server_sock, uint32_t timeout)
 {
     int32_t result ;
-    struct fd_set   fdread;
-    struct fd_set   fdex;
+     fd_set   fdread;
+     fd_set   fdex;
     struct timeval tv;
 
     if (server_sock<0) {
@@ -200,8 +200,8 @@ int32_t
 httpserver_user_select (HTTP_USER_T* user, uint32_t timeout)
 {
     int32_t result ;
-    struct fd_set   fdread;
-    struct fd_set   fdex;
+     fd_set   fdread;
+     fd_set   fdex;
     struct timeval tv;
 
     if (user->socket<0) {
@@ -505,8 +505,8 @@ httpserver_write (HTTP_USER_T* user, const uint8_t* buffer, uint32_t length)
 
     while (length) {
 
-        struct fd_set   fdwrite;
-        struct fd_set   fdex;
+         fd_set   fdwrite;
+         fd_set   fdex;
         struct timeval tv;
         FD_ZERO(&fdwrite) ;
         FD_ZERO(&fdex) ;
@@ -560,8 +560,8 @@ static int32_t
 httpserver_wait_read(HTTP_USER_T* user, uint32_t timeout)
 {
     int32_t res ;
-    struct fd_set   fdread;
-    struct fd_set   fdex;
+     fd_set   fdread;
+     fd_set   fdex;
     struct timeval tv;
 
     FD_ZERO(&fdread) ;

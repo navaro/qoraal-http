@@ -1,7 +1,6 @@
 mkdir build
 cd build
-cmake .. -DBUILD_LWIPTEST=ON 
+cmake .. -DBUILD_HTTPTEST=ON 
 cmake --build .
 cd ..
-./build/test/lwiptest
-
+./build/test/httptest
