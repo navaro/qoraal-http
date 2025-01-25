@@ -87,7 +87,7 @@ httpserver_init (uint16_t port)
 
     if ((res = bind (server_sock, (struct sockaddr *)&address, sizeof(address))) != EOK ) {
         DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_ERROR,
-                "HTTPD  :E: failed %d to bind socket to port.", res);
+                "HTTPD :E: failed %d to bind socket to port.", res);
         closesocket (server_sock) ;
         return HTTP_SERVER_E_ERROR ;
 
