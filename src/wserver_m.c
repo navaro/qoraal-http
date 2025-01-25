@@ -54,7 +54,7 @@ typedef struct HTTPSERVER_INST_S {
     bool                        ssl;               /**< Flag indicating if SSL/TLS is enabled */
     const WSERVER_HANDLERS_T*   handlers;          /**< Array of request handlers */
     int32_t                     close;             /**< Flag indicating if the server should close */
-    p_sem_t               count_sem;         /**< Semaphore to limit concurrent connections */
+    p_sem_t                     count_sem;         /**< Semaphore to limit concurrent connections */
     WSERVER_AUTHENTICATE        authenticate;      /**< Function pointer for authentication */
 } HTTPSERVER_INST_T ;
 

@@ -2,14 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "qoraal/qoraal.h"
-#include "qoraal/svc/svc_events.h"
-#include "qoraal/svc/svc_tasks.h"
-#include "qoraal/svc/svc_logger.h"
-#include "qoraal/svc/svc_threads.h"
-#include "qoraal/svc/svc_wdt.h"
 #include "qoraal/svc/svc_services.h"
-#include "qoraal/svc/svc_shell.h"
-#include "qoraal/common/mlog.h"
 #include "services/services.h"
 #include "platform/platform.h"
 

@@ -46,28 +46,6 @@ wshell_metadata (HTTP_USER_T *user, uint32_t method, char* endpoint, uint32_t ty
 }
 
 
-int32_t
-wdbg_shell_handler (HTTP_USER_T *user, uint32_t method, char* endpoint, char* content, int len)
-{
-    int32_t res ;
-    if ((res = httpserver_chunked_response (user, 200, HTTP_SERVER_CONTENT_TYPE_TEXT, 0, 0) < HTTP_SERVER_E_OK)) {
-        return res ;
-    }
-    httpserver_chunked_append_fmtstr (user,
-            "SHELL\r\n\r\n") ;
-
-    int32_t l = svc_shell_cmd_help (0, 0)    ;
-    char * buffer = qoraal_malloc(QORAAL_HeapAuxiliary, l) ;
-    if (buffer) {
-        svc_shell_cmd_help (buffer, l)   ;
-        httpserver_chunked_append_str (user, buffer, l) ;
-        qoraal_free(QORAAL_HeapAuxiliary, buffer) ;
-    }
-    return httpserver_chunked_complete (user) ;
-
-}
-
-
 static int32_t
 wshell_qshell_out(void* ctx, uint32_t out, const char* str)
 {
@@ -93,9 +71,6 @@ wshell_qshell_out(void* ctx, uint32_t out, const char* str)
 int32_t
 wshell_handler_result (HTTP_USER_T *user, uint32_t method, char* endpoint)
 {
-    //ATH_GET_SCAN list ;
-    //int i ;
-
     if (method == HTTP_HEADER_METHOD_GET) {
 
         char* dst = "version" ;

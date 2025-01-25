@@ -466,7 +466,6 @@ httpclient_write_chunked (HTTP_CLIENT_T* client, uint8_t* buffer, uint32_t lengt
 #endif
         {
             sent_bytes = send (client->socket, (unsigned char*)&buffer[total], length, 0);
-
         }
 
         if (sent_bytes <= 0) {
@@ -481,9 +480,14 @@ httpclient_write_chunked (HTTP_CLIENT_T* client, uint8_t* buffer, uint32_t lengt
 
         }
     }
-
-    send (client->socket, "\r\n", 2, 0);
-
+#if CFG_UTILS_HTTP_USE_MBEDTLS
+        if (client->ssl) {
+            sent_bytes = mbedtls_ssl_write ((mbedtls_ssl_context *)client->ssl, "\r\n", 2) ;
+        } else
+#endif
+    {
+        send (client->socket, "\r\n", 2, 0);
+    }
     return total ;
 }
 
@@ -554,8 +558,8 @@ static int32_t
 httpclient_wait_read(HTTP_CLIENT_T* client, uint32_t timeout)
 {
     int32_t res ;
-     fd_set   fdread;
-     fd_set   fdex;
+    fd_set   fdread;
+    fd_set   fdex;
     struct timeval tv;
 
     FD_ZERO(&fdread) ;
