@@ -37,6 +37,9 @@ static void
 main_thread(void* arg)
 {
     platform_start () ;
+    /*
+     * Lets get the thing started!
+     */
     qoraal_svc_start () ;
 }
 
@@ -47,6 +50,11 @@ main_thread(void* arg)
 void
 main_init (void)
 {
+    /* 
+     * If you can malloc before the scheduler is started, no need for a
+     * static declaration here as you can free it in the svc_threads_create
+     * complete callback.  
+     */
     static SVC_THREADS_T thd ;
 
     platform_init () ;
@@ -79,8 +87,8 @@ int main( void )
     os_sys_start ();
 
     /* 
-     * Dependinmg on the RTOS, if you get here it will be in a threading context. 
-     * So alternatively, main_thread can be called from here.
+     * Dependinmg on the RTOS, if you get here it will most likely be in a  
+     * threading context. So alternatively, main_thread can be called from here.
      */
 
     /*
