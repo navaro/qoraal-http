@@ -295,7 +295,7 @@ int32_t
 wserver_start (uintptr_t arg)
 {
     _wserver_quit = 0 ;
-    uint32_t port = 8080 ; //registry_get ("www.port", 80) ;
+    uint32_t port = 8092 ; //registry_get ("www.port", 80) ;
     bool ssl = false ; // registry_get ("www.ssl", false) ;
 
     static const WSERVER_FRAMEWORK wserver_std_headers[] = {

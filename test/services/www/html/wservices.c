@@ -34,6 +34,13 @@ wservices_metadata (HTTP_USER_T *user, uint32_t method, char* endpoint, uint32_t
 {
     if (type == WSERVER_METADATA_TYPE_HEADING) {
         return "Services" ;
+
+    }
+    if (type == WSERVER_METADATA_TYPE_HEADERS) {
+        if (strchr (endpoint, '?')) {
+            return "<meta http-equiv=\"refresh\" content=\"1;url=/services\">";
+
+        }
     }
 
     return 0 ;
@@ -47,23 +54,29 @@ wservices_handler (HTTP_USER_T *user, uint32_t method, char* endpoint)
         SCV_SERVICE_HANDLE h ;
 
         char* request = strchr (endpoint, '?') ;
-        if (request++) {
+        if (request) {
+            request++ ;
 
+            DBG_MESSAGE_WWW (DBG_MESSAGE_SEVERITY_INFO, 
+                    "service %s", request)
 
             for (h = svc_service_first(); h!=SVC_SERVICE_INVALID_HANDLE; ) {
-
 
                 if (strncmp(request, svc_service_name(h), strlen(svc_service_name(h))) == 0) {
 
                     if (svc_service_status(h) != SVC_SERVICE_STATUS_STOPPED) {
+                        DBG_MESSAGE_WWW (DBG_MESSAGE_SEVERITY_INFO, 
+                                "stopping %s", svc_service_name(h))
                         svc_service_stop (h,0,0) ;
+
                     } else{
-                             svc_service_start (h, 0, 0, 0) ;
+                        DBG_MESSAGE_WWW (DBG_MESSAGE_SEVERITY_INFO, 
+                                "starting %s", svc_service_name(h))
+                        svc_service_start (h, 0, 0, 0) ;
 
                     }
 
                     break ;
-
 
                 }
 
@@ -72,7 +85,9 @@ wservices_handler (HTTP_USER_T *user, uint32_t method, char* endpoint)
             }
         }
 
-            httpserver_chunked_append_fmtstr (user,
+        DBG_MESSAGE_WWW (DBG_MESSAGE_SEVERITY_INFO, "done")
+
+        httpserver_chunked_append_fmtstr (user,
                     "<table style=\"width: 50%%; box-sizing: border-box;\">\r\n"
                     //"<table width='100%' cellpadding=\"0\" cellspacing=\"0\">\r\n"
                     "<thead><tr><td></td></tr>\r\n"
@@ -81,33 +96,35 @@ wservices_handler (HTTP_USER_T *user, uint32_t method, char* endpoint)
                     "</tr>\r\n") ;
 
 
+        for (h = svc_service_first(); h!=SVC_SERVICE_INVALID_HANDLE; ) {
 
+            const char * name = svc_service_name(h) ;
+            const char * next_state = svc_service_status(h) != SVC_SERVICE_STATUS_STOPPED ? "Stop" : "Start" ;
+            const char* next_name = (svc_service_status(h) == SVC_SERVICE_STATUS_STOPPED) ? "[-]" :
+                                    (svc_service_status(h) == SVC_SERVICE_STATUS_STARTED) ? "[+]" :
+                                                                                            "[ ]";
 
-            for (h = svc_service_first(); h!=SVC_SERVICE_INVALID_HANDLE; ) {
-
-                const char * next_state = svc_service_status(h) != SVC_SERVICE_STATUS_STOPPED ? "Stop" : "Start" ;
-                const char * next_name = svc_service_status(h) != SVC_SERVICE_STATUS_STOPPED ? "[ + ]" : "[ - ]" ;
-                httpserver_chunked_append_fmtstr (user,
+            httpserver_chunked_append_fmtstr (user,
                     "<tr><td valign=\"top\" >  %s  </td>"
                     "<td> <a href=\"/services?%s=%s\">%s</a> </td>"
                     "</tr>\r\n",
-                    svc_service_name(h),
-                    svc_service_name(h),
+                    name,
+                    name,
                     next_state,
                     next_name) ;
 
-                h = svc_service_next(h);
+            h = svc_service_next(h);
 
 
-            }
+        }
 
 
-            httpserver_chunked_append_fmtstr (user,
-                    "</thead></table><br>\r\n"
-                    "<form action=\"\" method=\"get\"><input type=\"submit\" name=\"refresh\" value=\"Refresh\">\r\n"
+        httpserver_chunked_append_fmtstr (user,
+                "</thead></table><br>\r\n"
+                "<form action=\"\" method=\"get\"><input type=\"submit\" name=\"refresh\" value=\"Refresh\">\r\n"
 
-            ) ;
-            // "<form action=\"log/reset\" method=\"get\"><input type=\"submit\" value=\"Reset\"></form><br>\r\n"
+        ) ;
+        // "<form action=\"log/reset\" method=\"get\"><input type=\"submit\" value=\"Reset\"></form><br>\r\n"
 
 
     } else {

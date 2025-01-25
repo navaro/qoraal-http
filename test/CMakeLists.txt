@@ -28,6 +28,9 @@ target_compile_options(httptest PRIVATE -O0 -g)
 target_compile_options(qoraal PRIVATE -O0 -g)
 target_compile_options(qoraal-http PRIVATE -O0 -g)
 
+# Define CFG_OS_MEM_DEBUG_ENABLE for qoraal
+target_compile_definitions(qoraal PRIVATE CFG_OS_MEM_DEBUG_ENABLE)
+
 target_link_options(httptest PRIVATE
     "-Wl,--whole-archive"
     "$<TARGET_FILE:qoraal>"

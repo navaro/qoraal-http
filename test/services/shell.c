@@ -29,9 +29,9 @@ static int32_t  shell_out (void* ctx, uint32_t out, const char* str);
 static int32_t  shell_get_line (char * buffer, uint32_t len) ;
 
 SVC_SHELL_CMD_DECL("exit", qshell_exit, "");
+SVC_SHELL_CMD_DECL("halt", qshell_exit, "");
 SVC_SHELL_CMD_DECL("version", qshell_version, "");
 SVC_SHELL_CMD_DECL("hello", qshell_hello, "");
-
 
 
 /*===========================================================================*/
@@ -72,7 +72,6 @@ shell_service_ctrl (uint32_t code, uintptr_t arg)
         break ;
 
     case SVC_SERVICE_CTRL_STOP:
-        svc_logger_channel_remove (&_shell_log_channel) ;
         break ;
 
     case SVC_SERVICE_CTRL_STATUS:
@@ -120,6 +119,10 @@ shell_service_run (uintptr_t arg)
     } while (!_shell_exit) ;
 
     DBG_MESSAGE_SHELL(DBG_MESSAGE_SEVERITY_LOG, "SHELL : : shell shutting down...");
+    svc_service_stop_timeout (svc_service_get(QORAAL_SERVICE_WWW), 2000) ;
+    os_thread_sleep (100) ;
+    svc_logger_channel_remove (&_shell_log_channel) ;
+    svc_service_system_halt () ;
 
     return EOK ;
 }

@@ -1164,42 +1164,34 @@ _chunked_commit (HTTP_USER_T* user, int len)
 int32_t
 httpserver_chunked_vappend_fmtstr (HTTP_USER_T* user, const char* format_str,  va_list  args)
 {
-    int32_t         req = HTTP_SERVER_E_OK;
-
     DBG_ASSERT_HTTP_SERVER (user->rw_buffer,
-                  "HTTPD :A: httpserver_chunked_append_fmtstr unexpected!\r\n") ;
+                  "HTTPD :A: httpserver_chunked_append_fmtstr unexpected!") ;
 
-    do {
-        req = vsnprintf(0, 0, format_str, args) ;
-        char * buffer ;
+    va_list args_copy;
+    va_copy(args_copy, args);      // Make a copy
+    int32_t req = vsnprintf(NULL, 0, format_str, args_copy); 
+    va_end(args_copy);             // Done with the copy
 
-        if (req <= 0) {
-                req = HTTP_SERVER_E_CONTENT;
-            break ;
+    if (req <= 0) {
+        return  HTTP_SERVER_E_CONTENT;
 
-        }
-        if (user->write_idx &&
-                (user->write_idx + req > HTTP_SERVER_MAX_CHUNK_LENGTH - 8)) {
-                _chunked_flush (user) ;
-        }
-        if (req > 0) {
-            req = _chunked_alloc (user, req, &buffer) ;
+    }
+    if (user->write_idx &&
+            (user->write_idx + req > HTTP_SERVER_MAX_CHUNK_LENGTH - 8)) {
+            _chunked_flush (user) ;
+    }
+    char * buffer ;
+    req = _chunked_alloc (user, req, &buffer) ;
 
-        }
+    if (req <= 0) {
+        DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_LOG, 
+                "httpserver_chunked_vappend_fmtstr : memory  %d", req);
+        return HTTP_SERVER_E_LENGTH;
 
-        if (req <= 0) {
-            DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_LOG, "httpserver_chunked_vappend_fmtstr : memory  %d", req);
-            req = HTTP_SERVER_E_LENGTH;
-            break ;
+    }
 
-        }
-
-        vsnprintf(buffer, req+1, format_str, args) ;
-        _chunked_commit(user, req) ;
-
-    } while(0) ;
-
-    va_end(args);
+    vsnprintf(buffer, req+1, format_str, args) ;
+    _chunked_commit(user, req) ;
 
     return req ;
 }
@@ -1256,10 +1248,12 @@ httpserver_chunked_append_str (HTTP_USER_T* user, const char* str, uint32_t len)
 int32_t
 httpserver_chunked_append_fmtstr (HTTP_USER_T* user, const char* format_str, ...)
 {
-    va_list         args;
+    va_list args;
     va_start(args, format_str);
+    int32_t res = httpserver_chunked_vappend_fmtstr (user, format_str, args) ;
+    va_end(args);
 
-    return httpserver_chunked_vappend_fmtstr (user, format_str, args) ;
+    return res ;
 }
 
 
