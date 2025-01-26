@@ -29,9 +29,11 @@
 #include <string.h>
 #include <ctype.h>
 #include "qoraal/qoraal.h"
+#include "qoraal/common/lists.h"
 #include "qoraal-http/qoraal.h"
 #include "qoraal-http/httpwebapi.h"
-#include "qoraal/common/lists.h"
+#include "qoraal-http/json/jsmn_tools.h"
+#include "qoraal-http/json/frozen.h"
 
 
 // Define the type of property (e.g., string, integer)
@@ -143,7 +145,7 @@ char* webapi_swagger_yaml(void) {
     size_t yaml_length = swagger_yaml(NULL, 0);
 
     // Allocate the buffer
-    char* yaml_buffer = (char*) heap_malloc(_webapi_heap, yaml_length + 1);  // +1 for null terminator
+    char* yaml_buffer = (char*) qoraal_malloc(_webapi_heap, yaml_length + 1);  // +1 for null terminator
     if (yaml_buffer == NULL) {
         return NULL;  // Handle memory allocation failure
     }
@@ -157,7 +159,7 @@ char* webapi_swagger_yaml(void) {
 
 void webapi_swagger_yaml_free(char * buffer)
 {
-    heap_free(_webapi_heap, buffer);
+    qoraal_free(_webapi_heap, buffer);
 }
 
 
@@ -249,7 +251,7 @@ char *webapi_generate_simple_json(const char * ep)
     size_t json_length = generate_simple_json(inst, &out_size);
 
     // Allocate the buffer
-    char *json_buffer = (char *)heap_malloc(_webapi_heap, json_length + 1);  // +1 for null terminator
+    char *json_buffer = (char *)qoraal_malloc(_webapi_heap, json_length + 1);  // +1 for null terminator
     if (json_buffer == NULL) {
         return NULL;  // Handle memory allocation failure
     }
@@ -264,7 +266,7 @@ char *webapi_generate_simple_json(const char * ep)
 // Function to free the JSON buffer
 void webapi_simple_json_free(char *buffer)
 {
-    heap_free(_webapi_heap, buffer);
+	qoraal_free(_webapi_heap, buffer);
 }
 
 int32_t webapi_post(const char * ep, const char *json) 
@@ -294,7 +296,7 @@ int32_t webapi_post(const char * ep, const char *json)
         return E_PARM;
     }
 
-    tokens = heap_malloc(HEAP_SPACE, token_num * sizeof(jsmntok_t));
+    tokens = qoraal_malloc(_webapi_heap, token_num * sizeof(jsmntok_t));
     if (!tokens) {    	
         return E_NOMEM;
     }
@@ -305,7 +307,7 @@ int32_t webapi_post(const char * ep, const char *json)
     token_num = jsmn_parse(&parser, json, len, tokens, token_num);
 
     if (tokens[0].type != JSMN_OBJECT) {
-        heap_free(HEAP_SPACE, tokens);
+        qoraal_free(_webapi_heap, tokens);
         return E_PARM;
     }
 
@@ -318,7 +320,7 @@ int32_t webapi_post(const char * ep, const char *json)
             ((val->type != JSMN_STRING) && (val->type != JSMN_PRIMITIVE))
         ) {
             // Only accept key-value pairs
-            heap_free(HEAP_SPACE, tokens);
+        	qoraal_free(_webapi_heap, tokens);
             return E_PARM;
         }
 
@@ -368,7 +370,7 @@ int32_t webapi_post(const char * ep, const char *json)
         val = key + 1;
     }
 
-    heap_free(HEAP_SPACE, tokens);
+    qoraal_free(_webapi_heap, tokens);
     return res < 0 ? res : EOK ;
 }
 

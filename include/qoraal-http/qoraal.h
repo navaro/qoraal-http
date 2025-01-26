@@ -37,6 +37,18 @@
     typedef int socklen_t;
 #elif __has_include(<lwip/inet.h>) || (defined QORAAL_CFG_USE_LWIP && QORAAL_CFG_USE_LWIP)
     // Looks like LWIP is present
+	#include <lwip/opt.h>
+	#include <lwip/def.h>
+	#include <lwip/mem.h>
+	#include <lwip/pbuf.h>
+	#include <lwip/sys.h>
+	#include <lwip/stats.h>
+	#include <lwip/snmp.h>
+	#include <lwip/tcpip.h>
+	#include <netif/etharp.h>
+	#include <lwip/netifapi.h>
+	#include <lwip/dns.h>
+
     #include <lwip/inet.h>
     #include <lwip/sockets.h>
     #include <lwip/netdb.h>

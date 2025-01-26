@@ -130,15 +130,6 @@
 
 
 /**
- * @name    https
- * @details         enable https 
- * @{
- */
-#define HTTP_SSL_SERVER     CFG_UTILS_HTTP_SERVER_USE_MBEDTLS
-/** @} */
-
-
-/**
  * @name    close_wait: Time in micro-seconds for TCP sockets before closing.
  * @details         Can be used if linger time is not zero.
  * @{
@@ -192,7 +183,7 @@ typedef struct HTTP_USER_S {
 
     char*                   content ;
     
-#if HTTP_SSL_SERVER
+#if !defined CFG_HTTPSERVER_TLS_DISABLE
     void*                  ssl ;
 #endif
 

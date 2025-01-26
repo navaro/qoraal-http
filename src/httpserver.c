@@ -32,6 +32,9 @@
 #include "qoraal-http/httpclient.h"
 #include "qoraal-http/httpparse.h"
 #include "qoraal-http/httpserver.h"
+#if !defined CFG_HTTPSERVER_TLS_DISABLE
+#include "qoraal-http/mbedtls/mbedtlsutils.h"
+#endif
 
 
 const   HTTP_HEADER_T _http_headers[]   = {
@@ -73,7 +76,7 @@ httpserver_init (uint16_t port)
     address.sin_family = AF_INET;
     address.sin_port = htons((uint16_t)port);
 #if QORAAL_CFG_USE_LWIP
-    address.sin_len = sizeof(addr);
+    address.sin_len = sizeof(address);
 #endif
 
     int server_sock = socket (AF_INET, SOCK_STREAM, 0);
@@ -120,7 +123,7 @@ httpserver_close (int server_sock)
 
     }
 
-#if defined HTTP_SSL_SERVER && HTTP_SSL_SERVER
+#if !defined CFG_HTTPSERVER_TLS_DISABLE
     mbedtls_release_server_config () ;
 #endif
 
@@ -326,17 +329,17 @@ httpserver_user_accept (int server_sock, HTTP_USER_T* user, uint32_t timeout)
         return HTTP_SERVER_E_ERROR ;
 
     }
-
+#if 0
     unsigned long flags = 1;
     int32_t status = ioctlsocket (user->socket, FIONBIO, &flags) ;
     if (status != 0) {
         DBG_MESSAGE_HTTP_CLIENT (DBG_MESSAGE_SEVERITY_WARNING,
                     "HTTPD :W: setting FIONBIO failed %d!", status);
         closesocket(user->socket);
-        return HTTP_CLIENT_E_CONNECTION;
+        return HTTP_SERVER_E_CONNECTION;
 
     }
-
+#endif
     return HTTP_SERVER_E_OK ;
 }
 
@@ -356,7 +359,7 @@ httpserver_user_accept (int server_sock, HTTP_USER_T* user, uint32_t timeout)
 int32_t
 httpserver_user_ssl_accept (HTTP_USER_T* user, uint32_t timeout)
 {
-#if defined HTTP_SSL_SERVER && HTTP_SSL_SERVER
+#if !defined CFG_HTTPSERVER_TLS_DISABLE
     if (mbedtlsutils_get_server_config() != 0) {
         if (!user->ssl) {
             user->ssl = HTTP_SERVER_MALLOC(sizeof(mbedtls_ssl_context)) ;
@@ -460,7 +463,7 @@ httpserver_user_close (HTTP_USER_T* user)
 #if defined WSERVER_CLOSE_WAIT_TIME /*&& WSERVER_CLOSE_WAIT_TIME*/
     httpserver_user_select(user, WSERVER_CLOSE_WAIT_TIME) ;
 #endif
-#if defined HTTP_SSL_SERVER && HTTP_SSL_SERVER
+#if !defined CFG_HTTPSERVER_TLS_DISABLE
     if (user->ssl) {
         mbedtls_ssl_close_notify ((mbedtls_ssl_context *)user->ssl) ;
 
@@ -469,7 +472,7 @@ httpserver_user_close (HTTP_USER_T* user)
     res = closesocket (user->socket);
     user->socket = -1 ;
 
-#if defined HTTP_SSL_SERVER && HTTP_SSL_SERVER
+#if !defined CFG_HTTPSERVER_TLS_DISABLE
     if (user->ssl) {
         mbedtls_ssl_free ((mbedtls_ssl_context *)user->ssl) ;
         HTTP_SERVER_FREE(user->ssl) ;
@@ -529,7 +532,7 @@ httpserver_write (HTTP_USER_T* user, const uint8_t* buffer, uint32_t length)
 
         }
 
-    #if defined HTTP_SSL_SERVER && HTTP_SSL_SERVER
+    #if !defined CFG_HTTPSERVER_TLS_DISABLE
         if (user->ssl) {
             sent_bytes = mbedtls_ssl_write ((mbedtls_ssl_context *)user->ssl, (unsigned char*)&buffer[total], length) ;
              
@@ -537,7 +540,7 @@ httpserver_write (HTTP_USER_T* user, const uint8_t* buffer, uint32_t length)
         else {
     #endif
             sent_bytes = send (user->socket, (unsigned char*)&buffer[total], length, 0 /*MSG_DONTWAIT*/);
-    #if defined HTTP_SSL_SERVER && HTTP_SSL_SERVER
+    #if !defined CFG_HTTPSERVER_TLS_DISABLE
         }
     #endif
         if (sent_bytes <= 0) {
@@ -608,7 +611,7 @@ int32_t
 httpserver_read (HTTP_USER_T* user, void* buffer, uint32_t length, uint32_t timeout)
 {
     int received ;
-#if defined HTTP_SSL_SERVER && HTTP_SSL_SERVER
+#if !defined CFG_HTTPSERVER_TLS_DISABLE
     if (user->ssl) {
         if (!mbedtls_ssl_get_bytes_avail ((mbedtls_ssl_context *)user->ssl)) {
             received = httpserver_wait_read (user, timeout) ;

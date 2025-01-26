@@ -8,6 +8,9 @@ set(FLASH_SRC
     httpparse.c
     wserver_m.c
     network.c
+    json/frozen.c
+    json/jsmn.c
+    json/jsmn_tools.c
     qshell/httpcmds.c
 )
 
