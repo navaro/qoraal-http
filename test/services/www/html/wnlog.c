@@ -323,7 +323,7 @@ wnlog_handler (HTTP_USER_T *user, uint32_t method, char* endpoint)
 
     httpserver_chunked_append_fmtstr (user,
         "<A style=\"width:110%\" class=\"button\" href=\"/log/0\" >System</A>\r\n"
-        "<A style=\"width:110%\" class=\"button\" href=\"/log/1\" >Debug</A>\r\n"
+        "<A style=\"width:110%\" class=\"button\" href=\"/log/1\" >Assert</A>\r\n"
         "<A style=\"width:110%\" class=\"button\" href=\"/log/2\" >Memory</A>\r\n"
         );
 
