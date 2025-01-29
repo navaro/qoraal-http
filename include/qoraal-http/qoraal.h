@@ -90,6 +90,7 @@
 extern "C" {
 #endif
 
+int32_t qoraal_http_init () ;
  
 #ifdef __cplusplus
 }

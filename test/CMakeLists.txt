@@ -1,8 +1,6 @@
 # Collect all test source files
 set(TEST_SRCS
     main.c
-    services/shell.c
-    services/system.c
     services/www/wserver_inst.c
     services/www/css/wcss.c
     services/www/html/wabout.c
@@ -12,7 +10,6 @@ set(TEST_SRCS
     services/www/html/wshell.c
     services/www/html/wsystem.c
     services/www/image/wimage.c
-    platform/platform.c
 )
 
 # Add the executable target
@@ -31,12 +28,12 @@ target_compile_options(qoraal-http PRIVATE -O0 -g)
 # Define CFG_OS_MEM_DEBUG_ENABLE for qoraal
 target_compile_definitions(qoraal PRIVATE CFG_OS_MEM_DEBUG_ENABLE)
 
-target_link_options(httptest PRIVATE
-    "-Wl,--whole-archive"
-    "$<TARGET_FILE:qoraal>"
-    "$<TARGET_FILE:qoraal-http>"
-    "-Wl,--no-whole-archive"
-)
+#target_link_options(httptest PRIVATE
+#    "-Wl,--whole-archive"
+#    "$<TARGET_FILE:qoraal>"
+#    "$<TARGET_FILE:qoraal-http>"
+#    "-Wl,--no-whole-archive"
+#)
 
 # Generate a map file
-set_target_properties(httptest PROPERTIES LINK_FLAGS "-Wl,-Map=output.map -T ${CMAKE_SOURCE_DIR}/test/platform/posix.ld")
+set_target_properties(httptest PROPERTIES LINK_FLAGS "-Wl,-Map=output.map -T ${CMAKE_SOURCE_DIR}/test/posix.ld")

@@ -72,3 +72,9 @@ qshell_wsource (SVC_SHELL_IF_T * pif, char** argv, int argc)
     return res >= EOK ? SVC_SHELL_CMD_E_OK : res ;
 
 }
+
+void
+keep_httpcmds (void)
+{
+    (void)qshell_wsource ; 
+}

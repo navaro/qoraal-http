@@ -3,20 +3,25 @@
 #include <string.h>
 #include "qoraal/qoraal.h"
 #include "qoraal/svc/svc_services.h"
-#include "services/services.h"
-#include "platform/platform.h"
+#include "services/www/wserver_inst.h"
+#include "qoraal/example/platform.h"
+#include "qoraal/example/console.h"
 
 /*===========================================================================*/
 /* Macros and Defines                                                        */
 /*===========================================================================*/
+
+typedef enum  {
+    QORAAL_SERVICE_SHELL = SVC_SERVICES_USER,
+    QORAAL_SERVICE_WWW
+} QORAAL_SERVICES ;
 
 /*===========================================================================*/
 /* Service Local Variables and Types                                         */
 /*===========================================================================*/
 
 SVC_SERVICE_LIST_START(_qoraal_services_list)
-SVC_SERVICE_RUN_DECL("system",  system_service_run, system_service_ctrl, 0, 6000, OS_THREAD_PRIO_8, QORAAL_SERVICE_SHELL, SVC_SERVICE_FLAGS_AUTOSTART)
-SVC_SERVICE_RUN_DECL("shell",  shell_service_run, shell_service_ctrl, 0, 6000, OS_THREAD_PRIO_8, QORAAL_SERVICE_SHELL, SVC_SERVICE_FLAGS_AUTOSTART)
+SVC_SERVICE_RUN_DECL("shell",  console_service_run, console_service_ctrl, 0, 6000, OS_THREAD_PRIO_8, QORAAL_SERVICE_SHELL, SVC_SERVICE_FLAGS_AUTOSTART)
 SVC_SERVICE_RUN_DECL("www",  wserver_service_run, wserver_service_ctrl, 0, 6000, OS_THREAD_PRIO_4, QORAAL_SERVICE_WWW, SVC_SERVICE_FLAGS_AUTOSTART)
 SVC_SERVICE_LIST_END()
 
@@ -57,9 +62,10 @@ main_init (void)
      */
     static SVC_THREADS_T thd ;
 
-    platform_init () ;
+    platform_init (0) ;
     qoraal_instance_init (&_qoraal_cfg) ;
     qoraal_svc_init (_qoraal_services_list) ;
+    qoraal_http_init () ;
 
     svc_threads_create (&thd, 0,
                 4000, OS_THREAD_PRIO_1, main_thread, 0, 0) ;
@@ -94,8 +100,7 @@ int main( void )
     /*
      * For the demo, we wait for the shell to be exited with the "exit" command.
      */
-    platform_wait_for_exit (QORAAL_SERVICE_SHELL) ;    
-
+    console_wait_for_exit () ;
     // for( ;; ) os_thread_sleep (32768);
 }
 

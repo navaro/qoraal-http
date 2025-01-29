@@ -34,11 +34,7 @@
 #define DBG_MESSAGE_SERVICES(severity, fmt_str, ...)   DBG_MESSAGE_T_LOG (SVC_LOGGER_TYPE(severity,0), 0, fmt_str, ##__VA_ARGS__)
 
 
-typedef enum  {
-    QORAAL_SERVICE_SHELL = SVC_SERVICES_USER,
-    QORAAL_SERVICE_SYSTEM,
-    QORAAL_SERVICE_WWW
-} QORAAL_SERVICES ;
+
 
 /*===========================================================================*/
 /* Data structures and types.                                                */
@@ -51,14 +47,7 @@ typedef enum  {
 extern "C" {
 #endif
 
-    extern int32_t      shell_service_ctrl (uint32_t code, uintptr_t arg) ;
-    extern int32_t      shell_service_run (uintptr_t arg) ;
 
-    extern int32_t      system_service_ctrl (uint32_t code, uintptr_t arg) ;
-    extern int32_t      system_service_run (uintptr_t arg) ;
-
-    extern int32_t      wserver_service_ctrl (uint32_t code, uintptr_t arg) ;
-    extern int32_t      wserver_service_run (uintptr_t arg) ;
 
 
 #ifdef __cplusplus

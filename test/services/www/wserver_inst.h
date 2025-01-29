@@ -56,7 +56,7 @@
  * @name    Debug Level
  * @{
  */
-#define DBG_MESSAGE_WWW(severity, fmt_str, ...)     DBG_MESSAGE_T(SVC_LOGGER_TYPE(severity,0), QORAAL_SERVICE_WWW, fmt_str, ##__VA_ARGS__)
+#define DBG_MESSAGE_WWW(severity, fmt_str, ...)     DBG_MESSAGE_T(SVC_LOGGER_TYPE(severity,0), 0, fmt_str, ##__VA_ARGS__)
 #define DBG_ASSERT_WWW                              DBG_ASSERT_T
 /** @} */
 
