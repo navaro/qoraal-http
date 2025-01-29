@@ -45,7 +45,7 @@ main_thread(void* arg)
     /*
      * Lets get the thing started!
      */
-    qoraal_svc_start () ;
+    qoraal_start_default () ;
 }
 
 /**
@@ -63,9 +63,8 @@ main_init (void)
     static SVC_THREADS_T thd ;
 
     platform_init (0) ;
-    qoraal_instance_init (&_qoraal_cfg) ;
-    qoraal_svc_init (_qoraal_services_list) ;
-    qoraal_http_init () ;
+    qoraal_init_default (&_qoraal_cfg, _qoraal_services_list) ;
+    qoraal_http_init_default () ;
 
     svc_threads_create (&thd, 0,
                 4000, OS_THREAD_PRIO_1, main_thread, 0, 0) ;

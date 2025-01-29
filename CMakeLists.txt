@@ -12,13 +12,6 @@ FetchContent_Declare(
     GIT_TAG        main  # or whatever branch/commit you need
     SOURCE_SUBDIR  .
 )
-
-FetchContent_Declare(
-    qoraal_flash
-    GIT_REPOSITORY https://github.com/navaro/qoraal-flash.git
-    GIT_TAG        main  # or whatever branch/commit you need
-    SOURCE_SUBDIR  .
-)
 FetchContent_MakeAvailable(qoraal qoraal_flash)
 
 # Include directories

@@ -4,7 +4,7 @@
 
 extern void    keep_httpcmds (void) ;
 
-int32_t qoraal_http_init ()
+int32_t qoraal_http_init_default ()
 {
     keep_httpcmds () ;
     return EOK ;
