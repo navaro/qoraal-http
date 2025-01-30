@@ -66,7 +66,7 @@ wserver_header_start(HTTP_USER_T * user, uint32_t method, char* endpoint, WSERVE
 
     static const char head_content_2[] =
             "<link rel=\"stylesheet\" href=\"/css/default.css\">\r\n"
-            "\r\n</head>\r\n<body style=\"background-color: #FAF7F5;\">\r\n" ;
+            "\r\n</head>\r\n<body style=\"background-color: #E1D6C5;\">\r\n" ;
 
     int32_t res ;
 
