@@ -34,8 +34,8 @@
 #include "qoraal/common/rtclib.h"
 #include "qoraal-http/wserver.h"
 #include "wimage.h"
-
-#include "icon_image.c"
+#define PROGMEM
+#include "logo.inc"
 
 /**
  * @brief   Handler 
@@ -67,7 +67,7 @@ wimage_handler(HTTP_USER_T *user, uint32_t method, char* endpoint)
         if (strncmp(endpoint, "image/sicon", 11) == 0) {
             httpserver_write_response (user, 200, HTTP_SERVER_CONTENT_TYPE_IMAGE,
                     image_headers, sizeof(image_headers)/sizeof(image_headers[0]),
-                    image_icon_data, sizeof(image_icon_data)) ;
+                    logo, sizeof(logo)) ;
         }
         /*
         else if (strcmp(endpoint, "image/ssicon") == 0) {

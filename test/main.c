@@ -6,15 +6,13 @@
 #include "services/www/wserver_inst.h"
 #include "qoraal/example/platform.h"
 #include "qoraal/example/console.h"
+#include "services/services.h"
 
 /*===========================================================================*/
 /* Macros and Defines                                                        */
 /*===========================================================================*/
 
-typedef enum  {
-    QORAAL_SERVICE_SHELL = SVC_SERVICES_USER,
-    QORAAL_SERVICE_WWW
-} QORAAL_SERVICES ;
+
 
 /*===========================================================================*/
 /* Service Local Variables and Types                                         */

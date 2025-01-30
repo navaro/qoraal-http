@@ -1,3 +1,4 @@
+
 /*
     Copyright (C) 2015-2025, Navaro, All Rights Reserved
     SPDX-License-Identifier: MIT
@@ -21,14 +22,14 @@
     SOFTWARE.
  */
 
-#include "qoraal-http/httpserver.h"
-
-
 #include <stdio.h>
 #include <string.h>
-#include "../wserver_inst.h"
-#include "wcss.h"
-#include "skeleton_css.c"
+#include "qoraal/qoraal.h"
+#include "qoraal-http/wserver.h"
+// https://notisrac.github.io/FileToCArray
+#define PROGMEM
+#define byte char
+#include "skeleton.inc"
 
 
 /**
@@ -48,7 +49,7 @@ wcss_handler(HTTP_USER_T *user, uint32_t method, char* endpoint)
         if (strcmp(endpoint, "css/default.css") == 0) {
             httpserver_write_response (user, 200, HTTP_SERVER_CONTENT_TYPE_CSS,
                     css_headers, sizeof(css_headers)/sizeof(css_headers[0]),
-                    sekleton_css_data, sizeof(sekleton_css_data)) ;
+                    skeleton, sizeof(skeleton)) ;
         }
         else {
             httpserver_write_response (user, WSERVER_RESP_CODE_400, HTTP_SERVER_CONTENT_TYPE_HTML,

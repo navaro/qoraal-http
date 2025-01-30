@@ -25,7 +25,6 @@
 #define __WCSS_H__
 
 
-
 #include "qoraal-http/httpserver.h"
 #include <stdint.h>
 

@@ -66,7 +66,7 @@ wserver_header_start(HTTP_USER_T * user, uint32_t method, char* endpoint, WSERVE
 
     static const char head_content_2[] =
             "<link rel=\"stylesheet\" href=\"/css/default.css\">\r\n"
-            "\r\n</head>\r\n<body>\r\n" ;
+            "\r\n</head>\r\n<body style=\"background-color: #FAF7F5;\">\r\n" ;
 
     int32_t res ;
 
@@ -125,8 +125,8 @@ wserver_handler_framework_start(HTTP_USER_T * user, uint32_t method, char* endpo
     static const char framework_content_1[] =
             "<div style=\"max-width:1536x; width:90%\" class=\"container\" >\r\n"
             "   <div class=\"row\">\r\n"
-            "   <div class=\"one columns\">\r\n"
-            "       <a href=\"/\"><img src=\"/image/sicon.png\" align=\"top\"></a>"
+            "   <div class=\"two columns\">\r\n"
+            "       <a href=\"/\"><img src=\"/image/sicon.png\" align=\"top\" style=\"width:100%; \"></a>"
             "   </div><div class=\"eight columns\">\r\n"
             "   <H4 align=\"center\"><B>&nbsp;" WSERVER_TITLE_TEXT ;
 

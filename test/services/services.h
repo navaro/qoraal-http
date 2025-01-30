@@ -34,7 +34,10 @@
 #define DBG_MESSAGE_SERVICES(severity, fmt_str, ...)   DBG_MESSAGE_T_LOG (SVC_LOGGER_TYPE(severity,0), 0, fmt_str, ##__VA_ARGS__)
 
 
-
+typedef enum  {
+    QORAAL_SERVICE_SHELL = SVC_SERVICES_USER,
+    QORAAL_SERVICE_WWW
+} QORAAL_SERVICES ;
 
 /*===========================================================================*/
 /* Data structures and types.                                                */
