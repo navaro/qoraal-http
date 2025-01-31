@@ -44,7 +44,6 @@ static int32_t      wserver_init (uintptr_t arg) ;
 static int32_t      wserver_start (uintptr_t port) ;
 static int32_t      wserver_stop (uintptr_t arg) ;
 
-static uint32_t             _wserver_quit = 0 ;
 static HTTPSERVER_INST_T *  _wserver_inst = 0 ;
 
 /**
@@ -256,6 +255,7 @@ int32_t     wserver_service_ctrl (uint32_t code, uintptr_t arg)
         res = wserver_start(arg) ;
         break ;
 
+    case SVC_SERVICE_CTRL_HALT:
     case SVC_SERVICE_CTRL_STOP:
         res = wserver_stop(arg) ;
         break ;
@@ -294,7 +294,6 @@ wserver_authenticate (const char * user, const char * passwd)
 int32_t
 wserver_start (uintptr_t arg)
 {
-    _wserver_quit = 0 ;
     uint32_t port = 8080 ; //registry_get ("www.port", 80) ;
     bool ssl = false ; // registry_get ("www.ssl", false) ;
 
@@ -332,7 +331,6 @@ wserver_start (uintptr_t arg)
 int32_t
 wserver_stop (uintptr_t arg)
 {
-    _wserver_quit = 1 ;
     if (_wserver_inst) {
         httpserver_wserver_stop (_wserver_inst) ;
     }
