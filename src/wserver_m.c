@@ -474,7 +474,7 @@ httpserver_wserver_run (HTTPSERVER_INST_T * inst)
 
     DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_LOG,
             "WSERV : : web server running on port %d%s.\r\n",
-            inst->port, inst->ssl ? " with SSL" : "") ;
+            inst->port, inst->ssl ? " with SSL." : " without SSL!!") ;
 
     for (i=0; inst->handlers[i].endpoint; i++) {
         if ( inst->handlers[i].ctrl)  {
