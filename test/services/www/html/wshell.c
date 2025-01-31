@@ -36,10 +36,8 @@
 const char*
 wshell_metadata (HTTP_USER_T *user, uint32_t method, char* endpoint, uint32_t type)
 {
-    if (type == WSERVER_METADATA_TYPE_HEADING) {
+    if (type == WSERVER_CTRL_METADATA_HEADING) {
         return "QShell" ;
-    }
-    if (type == WSERVER_METADATA_TYPE_HEADERS) {
     }
 
     return 0 ;

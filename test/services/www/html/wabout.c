@@ -36,10 +36,10 @@
 const char*
 wabout_metadata (HTTP_USER_T *user, uint32_t method, char* endpoint, uint32_t type)
 {
-    if (type == WSERVER_METADATA_TYPE_HEADING) {
+    if (type == WSERVER_CTRL_METADATA_HEADING) {
         return "About" ;
     }
-    if (type == WSERVER_METADATA_TYPE_HEADERS) {
+    if (type == WSERVER_CTRL_METADATA_HEADERS) {
 
         char* groupname = strchr (endpoint, '/') ;
         if (groupname++) {
@@ -70,7 +70,7 @@ wabout_handler_about(HTTP_USER_T *user, uint32_t method, char* endpoint)
             "<H4>" WSERVER_ABOUT_TEXT "</H4>\r\n"
             "<H5>" WSERVER_ABOUT_TEXT "</H5>\r\n"
             "<H6>" WSERVER_ABOUT_TEXT "</H6>\r\n"
-            "<H7>" WSERVER_ABOUT_TEXT "</H7>\r\n" ;
+            ;
 
 
     if (method == HTTP_HEADER_METHOD_GET) {

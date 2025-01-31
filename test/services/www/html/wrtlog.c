@@ -36,11 +36,8 @@
 const char*
 wrtlog_metadata (HTTP_USER_T *user, uint32_t method, char* endpoint, uint32_t type)
 {
-    if (type == WSERVER_METADATA_TYPE_HEADING) {
+    if (type == WSERVER_CTRL_METADATA_HEADING) {
         return "RTLog" ;
-    }
-    if (type == WSERVER_METADATA_TYPE_HEADERS) {
-
     }
 
     return 0 ;

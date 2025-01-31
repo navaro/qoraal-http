@@ -288,7 +288,7 @@ _wserver_thread (void *arg)
             if (handler->headers) {
                 const WSERVER_FRAMEWORK* framework = handler->headers ;
                 while (*framework) {
-                    if ((res = (*framework)(&thread->user, method, endpoint, handler->metadata)) < HTTP_SERVER_E_OK) {
+                    if ((res = (*framework)(&thread->user, method, endpoint, handler->ctrl)) < HTTP_SERVER_E_OK) {
                         DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_ERROR,
                                 "WSERV :E: headers for %s failed %d (2).\r\n", endpoint, res);
                         break ;
@@ -320,7 +320,7 @@ _wserver_thread (void *arg)
             if (handler->footers) {
                 const WSERVER_FRAMEWORK* framework = handler->footers ;
                 while (*framework) {
-                    if ((res = (*framework)(&thread->user, method, endpoint, handler->metadata)) < HTTP_SERVER_E_OK) {
+                    if ((res = (*framework)(&thread->user, method, endpoint, handler->ctrl)) < HTTP_SERVER_E_OK) {
                         DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_ERROR,
                                 "WSERV :E:  footers for %s failed %d (4).\r\n", endpoint, res);
                         break ;
@@ -453,10 +453,6 @@ httpserver_wserver_run (HTTPSERVER_INST_T * inst)
     int32_t res ;
     uint32_t i ;
 
-    DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_LOG,
-            "WSERV : : web server running on port %d%s.\r\n",
-            inst->port, inst->ssl ? " with SSL" : "") ;
-
     inst->close = 0 ;
  
     inst->server_sock = httpserver_init (inst->port) ;
@@ -474,6 +470,16 @@ httpserver_wserver_run (HTTPSERVER_INST_T * inst)
                 "WSERV :W: http_server listening failed, socket closed.\r\n");
         return res ;
 
+    }
+
+    DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_LOG,
+            "WSERV : : web server running on port %d%s.\r\n",
+            inst->port, inst->ssl ? " with SSL" : "") ;
+
+    for (i=0; inst->handlers[i].endpoint; i++) {
+        if ( inst->handlers[i].ctrl)  {
+            inst->handlers[i].ctrl (0, 0, 0, WSERVER_CTRL_START) ;
+        }
     }
 
     while (!inst->close) {
@@ -582,6 +588,12 @@ httpserver_wserver_run (HTTPSERVER_INST_T * inst)
         os_thread_sleep (100) ;
     }
     //svc_system_speed (SYSTEM_SVC_SPEED_IDLE, SYSTEM_SVC_SPEED_REQUESTOR_HTTP) ;
+
+    for (i=0; inst->handlers[i].endpoint; i++) {
+        if ( inst->handlers[i].ctrl)  {
+            inst->handlers[i].ctrl (0, 0, 0, WSERVER_CTRL_STOP) ;
+        }
+    }
 
     DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_LOG,
             "WSERV : : exit...\r\n");

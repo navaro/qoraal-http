@@ -93,14 +93,14 @@ typedef uint32_t (*WSERVER_AUTHENTICATE)(const char * /*user*/, const char * /*p
  * @brief Embedded web server.
  */
 typedef int32_t (*WSERVER_CONTENT) (HTTP_USER_T * /*user*/, uint32_t /*method*/, char* /*endpoint*/) ;
-typedef const char* (*WSERVER_METADATA) (HTTP_USER_T * /*user*/, uint32_t /*method*/, char* /*endpoint*/, uint32_t /*type*/) ;
-typedef int32_t (*WSERVER_FRAMEWORK) (HTTP_USER_T * /*user*/, uint32_t /*method*/, char* /*endpoint*/, WSERVER_METADATA /*metadata*/) ;
+typedef const char* (*WSERVER_CTRL) (HTTP_USER_T * /*user*/, uint32_t /*method*/, char* /*endpoint*/, uint32_t /*type*/) ;
+typedef int32_t (*WSERVER_FRAMEWORK) (HTTP_USER_T * /*user*/, uint32_t /*method*/, char* /*endpoint*/, WSERVER_CTRL /*ctrl*/) ;
 
 typedef struct WSERVER_HANDLER_S    {
 
     const WSERVER_FRAMEWORK*        headers ;       // zero terminated array
     const WSERVER_FRAMEWORK*        footers ;       // zero terminated array
-    WSERVER_METADATA                metadata ;
+    WSERVER_CTRL                    ctrl ;
     WSERVER_CONTENT                 content ;
     const char*                     endpoint ;
     uint16_t                        endpoint_match_len ; // zero for exact match
@@ -110,8 +110,10 @@ typedef struct WSERVER_HANDLER_S    {
 } WSERVER_HANDLERS_T ;
 /** @} */
 
-#define WSERVER_METADATA_TYPE_HEADERS           0
-#define WSERVER_METADATA_TYPE_HEADING           1
+#define WSERVER_CTRL_START                      0
+#define WSERVER_CTRL_STOP                       1
+#define WSERVER_CTRL_METADATA_HEADERS           2
+#define WSERVER_CTRL_METADATA_HEADING           3
 
 #define WSERVER_ENDPOINT_ACCESS_OPEN            0
 #define WSERVER_ENDPOINT_ACCESS_USER            (1<<0)

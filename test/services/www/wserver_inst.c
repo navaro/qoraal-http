@@ -53,7 +53,7 @@ static HTTPSERVER_INST_T *  _wserver_inst = 0 ;
  * @app
  */
 int32_t
-wserver_header_start(HTTP_USER_T * user, uint32_t method, char* endpoint, WSERVER_METADATA metadata)
+wserver_header_start(HTTP_USER_T * user, uint32_t method, char* endpoint, WSERVER_CTRL ctrl)
 {
     static const char head_content_1[] =
             "<!DOCTYPE HTML PUBLIC>"
@@ -71,8 +71,8 @@ wserver_header_start(HTTP_USER_T * user, uint32_t method, char* endpoint, WSERVE
     int32_t res ;
 
     const char * headers = 0;
-    if (metadata) {
-        headers = metadata (user, method, endpoint, WSERVER_METADATA_TYPE_HEADERS) ;
+    if (ctrl) {
+        headers = ctrl (user, method, endpoint, WSERVER_CTRL_METADATA_HEADERS) ;
     }
 
     do {
@@ -100,7 +100,7 @@ wserver_header_start(HTTP_USER_T * user, uint32_t method, char* endpoint, WSERVE
 
 
 int32_t
-wserver_footer_end(HTTP_USER_T * user, uint32_t method, char* endpoint, WSERVER_METADATA metadata)
+wserver_footer_end(HTTP_USER_T * user, uint32_t method, char* endpoint, WSERVER_CTRL ctrl)
 {
     static const char footer_content[] =
             "\r\n</body>\r\n</html>\r\n\r\n" ;
@@ -120,7 +120,7 @@ wserver_footer_end(HTTP_USER_T * user, uint32_t method, char* endpoint, WSERVER_
 }
 
 int32_t
-wserver_handler_framework_start(HTTP_USER_T * user, uint32_t method, char* endpoint, WSERVER_METADATA metadata)
+wserver_handler_framework_start(HTTP_USER_T * user, uint32_t method, char* endpoint, WSERVER_CTRL ctrl)
 {
     static const char framework_content_1[] =
             "<div style=\"max-width:1536x; width:90%\" class=\"container\" >\r\n"
@@ -155,8 +155,8 @@ wserver_handler_framework_start(HTTP_USER_T * user, uint32_t method, char* endpo
 
     int32_t res ;
     const char * heading = 0;
-    if (metadata) {
-        heading = metadata (user, method, endpoint, WSERVER_METADATA_TYPE_HEADING) ;
+    if (ctrl) {
+        heading = ctrl (user, method, endpoint, WSERVER_CTRL_METADATA_HEADING) ;
     }
 
 
@@ -179,7 +179,7 @@ wserver_handler_framework_start(HTTP_USER_T * user, uint32_t method, char* endpo
 }
 
 int32_t
-wserver_handler_framework_end(HTTP_USER_T * user, uint32_t method, char* endpoint, WSERVER_METADATA metadata)
+wserver_handler_framework_end(HTTP_USER_T * user, uint32_t method, char* endpoint, WSERVER_CTRL ctrl)
 {
     static const char framework_content[] =
             "\r\n"
@@ -201,7 +201,7 @@ wserver_handler_framework_end(HTTP_USER_T * user, uint32_t method, char* endpoin
 const char*
 windex_metadata (HTTP_USER_T *user, uint32_t method, char* endpoint, uint32_t type)
 {
-    if (type == WSERVER_METADATA_TYPE_HEADING) {
+    if (type == WSERVER_CTRL_METADATA_HEADING) {
         return "Configuration" ;
     }
     return 0 ;

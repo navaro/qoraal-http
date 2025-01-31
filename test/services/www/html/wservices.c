@@ -32,11 +32,11 @@
 const char*
 wservices_metadata (HTTP_USER_T *user, uint32_t method, char* endpoint, uint32_t type)
 {
-    if (type == WSERVER_METADATA_TYPE_HEADING) {
+    if (type == WSERVER_CTRL_METADATA_HEADING) {
         return "Services" ;
 
     }
-    if (type == WSERVER_METADATA_TYPE_HEADERS) {
+    if (type == WSERVER_CTRL_METADATA_HEADERS) {
         if (strchr (endpoint, '?')) {
             return "<meta http-equiv=\"refresh\" content=\"1;url=/services\">";
 

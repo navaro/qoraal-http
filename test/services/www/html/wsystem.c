@@ -33,10 +33,10 @@
 const char*
 wsystem_metadata (HTTP_USER_T *user, uint32_t method, char* endpoint, uint32_t type)
 {
-    if (type == WSERVER_METADATA_TYPE_HEADING) {
+    if (type == WSERVER_CTRL_METADATA_HEADING) {
         return "System" ;
     }
-    if (type == WSERVER_METADATA_TYPE_HEADERS) {
+    if (type == WSERVER_CTRL_METADATA_HEADERS) {
         char* groupname = strchr (endpoint, '?') ;
         if (groupname) {
             groupname++ ;
