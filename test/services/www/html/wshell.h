@@ -54,7 +54,7 @@ extern "C" {
 
 //extern ATHWIFI_PROFILE_T* wwifi_get_wifi_profile (void) ;
 int32_t         wshell_handler (HTTP_USER_T *user, uint32_t method, char* endpoint) ;
-const char*     wshell_metadata (HTTP_USER_T *user, uint32_t method, char* endpoint, uint32_t type) ;
+const char*     wshell_ctrl (HTTP_USER_T *user, uint32_t method, char* endpoint, uint32_t type) ;
 
 #ifdef __cplusplus
 }

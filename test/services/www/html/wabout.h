@@ -55,7 +55,7 @@ extern "C" {
 int32_t         wabout_handler (HTTP_USER_T *user, uint32_t method, char* endpoint) ;
 int32_t         wserver_handler_about2 (HTTP_USER_T *user, uint32_t method, char* endpoint) ;
 int32_t         wserver_handler_about3 (HTTP_USER_T *user, uint32_t method, char* endpoint) ;
-const char*     wabout_metadata (HTTP_USER_T *user, uint32_t method, char* endpoint, uint32_t type) ;
+const char*     wabout_ctrl (HTTP_USER_T *user, uint32_t method, char* endpoint, uint32_t type) ;
 
 #ifdef __cplusplus
 }

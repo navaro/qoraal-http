@@ -52,7 +52,7 @@ extern "C" {
 
 int32_t		wnlog_handler (HTTP_USER_T *user, uint32_t method, char* endpoint) ;
 int32_t     wnlog_memlog_handler (HTTP_USER_T *user, uint32_t method, char* endpoint) ;
-const char*	wnlog_metadata (HTTP_USER_T *user, uint32_t method, char* endpoint, uint32_t type) ;
+const char*	wnlog_ctrl (HTTP_USER_T *user, uint32_t method, char* endpoint, uint32_t type) ;
 
 
 #ifdef __cplusplus

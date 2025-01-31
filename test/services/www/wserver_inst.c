@@ -199,7 +199,7 @@ wserver_handler_framework_end(HTTP_USER_T * user, uint32_t method, char* endpoin
 
 
 const char*
-windex_metadata (HTTP_USER_T *user, uint32_t method, char* endpoint, uint32_t type)
+windex_ctrl (HTTP_USER_T *user, uint32_t method, char* endpoint, uint32_t type)
 {
     if (type == WSERVER_CTRL_METADATA_HEADING) {
         return "Configuration" ;
@@ -317,12 +317,12 @@ wserver_start (uintptr_t arg)
     WSERVER_HANDLER              ("about3",  wserver_handler_about3,    WSERVER_ENDPOINT_ACCESS_OPEN,   0)
     WSERVER_HANDLER              ("image",   wimage_handler,            WSERVER_ENDPOINT_ACCESS_OPEN,   0)
     WSERVER_HANDLER              ("css",     wcss_handler,              WSERVER_ENDPOINT_ACCESS_OPEN,   0)
-    WSERVER_FRAMEWORK_HANDLER    ("",        windex_handler,            WSERVER_ENDPOINT_ACCESS_OPEN,   0, windex_metadata,    wserver_std)
-    WSERVER_FRAMEWORK_HANDLER    ("about",   wabout_handler,            WSERVER_ENDPOINT_ACCESS_OPEN,   0, wabout_metadata,    wserver_std)
-    WSERVER_FRAMEWORK_HANDLER    ("system",  wsystem_handler,           WSERVER_ENDPOINT_ACCESS_OPEN,   0, wsystem_metadata,   wserver_std)
-    WSERVER_FRAMEWORK_HANDLER    ("log",     wnlog_handler,             WSERVER_ENDPOINT_ACCESS_OPEN,   0, wnlog_metadata,     wserver_std)
-    WSERVER_FRAMEWORK_HANDLER    ("services", wservices_handler,        WSERVER_ENDPOINT_ACCESS_ADMIN,  0, wservices_metadata, wserver_std)
-    WSERVER_FRAMEWORK_HANDLER    ("shell",   wshell_handler,            WSERVER_ENDPOINT_ACCESS_ADMIN,  0, wshell_metadata,    wserver_std)
+    WSERVER_FRAMEWORK_HANDLER    ("",        windex_handler,            WSERVER_ENDPOINT_ACCESS_OPEN,   0, windex_ctrl,    wserver_std)
+    WSERVER_FRAMEWORK_HANDLER    ("about",   wabout_handler,            WSERVER_ENDPOINT_ACCESS_OPEN,   0, wabout_ctrl,    wserver_std)
+    WSERVER_FRAMEWORK_HANDLER    ("system",  wsystem_handler,           WSERVER_ENDPOINT_ACCESS_OPEN,   0, wsystem_ctrl,   wserver_std)
+    WSERVER_FRAMEWORK_HANDLER    ("log",     wnlog_handler,             WSERVER_ENDPOINT_ACCESS_OPEN,   0, wnlog_ctrl,     wserver_std)
+    WSERVER_FRAMEWORK_HANDLER    ("services", wservices_handler,        WSERVER_ENDPOINT_ACCESS_ADMIN,  0, wservices_ctrl, wserver_std)
+    WSERVER_FRAMEWORK_HANDLER    ("shell",   wshell_handler,            WSERVER_ENDPOINT_ACCESS_ADMIN,  0, wshell_ctrl,    wserver_std)
     WSERVER_HANDLERS_END()
 
     _wserver_inst = httpserver_wserver_create (port, ssl, handlers, wserver_authenticate) ;

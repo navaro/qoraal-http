@@ -53,7 +53,7 @@ extern "C" {
 #endif
 
 int32_t         wservices_handler (HTTP_USER_T *user, uint32_t method, char* endpoint) ;
-const char*     wservices_metadata (HTTP_USER_T *user, uint32_t method, char* endpoint, uint32_t type) ;
+const char*     wservices_ctrl (HTTP_USER_T *user, uint32_t method, char* endpoint, uint32_t type) ;
 
 #ifdef __cplusplus
 }

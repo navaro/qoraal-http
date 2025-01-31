@@ -30,7 +30,7 @@
 
 
 const char*
-wservices_metadata (HTTP_USER_T *user, uint32_t method, char* endpoint, uint32_t type)
+wservices_ctrl (HTTP_USER_T *user, uint32_t method, char* endpoint, uint32_t type)
 {
     if (type == WSERVER_CTRL_METADATA_HEADING) {
         return "Services" ;

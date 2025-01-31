@@ -51,7 +51,7 @@ extern "C" {
 #endif
 
 int32_t         wsystem_handler (HTTP_USER_T *user, uint32_t method, char* endpoint) ;
-const char*     wsystem_metadata (HTTP_USER_T *user, uint32_t method, char* endpoint, uint32_t type) ;
+const char*     wsystem_ctrl (HTTP_USER_T *user, uint32_t method, char* endpoint, uint32_t type) ;
 
 #ifdef __cplusplus
 }

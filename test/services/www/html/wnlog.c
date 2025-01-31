@@ -39,7 +39,7 @@
 
 
 const char*
-wnlog_metadata (HTTP_USER_T *user, uint32_t method, char* endpoint, uint32_t type)
+wnlog_ctrl (HTTP_USER_T *user, uint32_t method, char* endpoint, uint32_t type)
 {
     if (type == WSERVER_CTRL_METADATA_HEADING) {
         return "Log" ;
