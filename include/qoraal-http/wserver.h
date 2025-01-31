@@ -124,8 +124,10 @@ typedef struct WSERVER_HANDLER_S    {
 
 #define WSERVER_HANDLERS_START(name) \
         const WSERVER_HANDLERS_T name[] = {
-#define WSERVER_FRAMEWORK_HANDLER(ep, handler, access, flags, meta, framework) \
-        {framework##_headers, framework##_footers, meta, handler, ep, sizeof(ep) - 1, flags, access},
+#define WSERVER_FRAMEWORK_HANDLER(ep, handler, access, flags, ctrl, framework) \
+        {framework##_headers, framework##_footers, ctrl, handler, ep, sizeof(ep) - 1, flags, access},
+#define WSERVER_CTRL_HANDLER(ep, handler, access, flags, ctrl) \
+        {0, 0, ctrl, handler, ep, sizeof(ep) - 1, flags, access},
 #define WSERVER_HANDLER(ep, handler, access, flags) \
         {0, 0, 0, handler, ep, sizeof(ep) - 1, flags, access},
 #define WSERVER_HANDLERS_END() \
