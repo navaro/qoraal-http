@@ -474,7 +474,7 @@ httpserver_wserver_run (HTTPSERVER_INST_T * inst)
 
     DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_LOG,
             "WSERV : : web server running on port %d%s.\r\n",
-            inst->port, inst->ssl ? " with SSL" : "") ;
+            inst->port, inst->ssl ? " with SSL." : " without SSL!!") ;
 
     for (i=0; inst->handlers[i].endpoint; i++) {
         if ( inst->handlers[i].ctrl)  {
@@ -574,6 +574,7 @@ httpserver_wserver_run (HTTPSERVER_INST_T * inst)
 
     }
     httpserver_close (inst->server_sock) ;
+    inst->server_sock = -1 ;
 
     if (os_sem_count(&inst->count_sem) < CFG_UTILS_HTTP_SERVER_THREADS +1) {
         DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_REPORT,
