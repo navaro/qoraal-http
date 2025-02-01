@@ -161,9 +161,8 @@ httpserver_select (int server_sock, uint32_t timeout)
     FD_ZERO(&fdex) ;
     FD_SET(server_sock, &fdread);
     FD_SET(server_sock, &fdex);
-    tv.tv_sec = 0 ;
-    tv.tv_usec = timeout * 1000 ;
-
+    tv.tv_sec = timeout / 1000;
+    tv.tv_usec = (timeout % 1000) * 1000;
     result = select(server_sock+1, &fdread, 0, &fdex, &tv) ;
 
     if (FD_ISSET(server_sock, &fdex)) {
@@ -215,8 +214,8 @@ httpserver_user_select (HTTP_USER_T* user, uint32_t timeout)
     FD_ZERO(&fdex) ;
     FD_SET(user->socket, &fdread);
     FD_SET(user->socket, &fdex);
-    tv.tv_sec = 0 ;
-    tv.tv_usec = timeout * 1000 ;
+    tv.tv_sec = timeout / 1000;
+    tv.tv_usec = (timeout % 1000) * 1000;
 
     DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_REPORT,
                 "HTTPD : : user socket select %d...", user->socket);
@@ -515,8 +514,8 @@ httpserver_write (HTTP_USER_T* user, const uint8_t* buffer, uint32_t length)
         FD_ZERO(&fdex) ;
         FD_SET(user->socket, &fdwrite);
         FD_SET(user->socket, &fdex);
-        tv.tv_sec = 0 ;
-        tv.tv_usec = user->timeout * 1000 ;
+        tv.tv_sec = user->timeout / 1000;
+        tv.tv_usec = (user->timeout % 1000) * 1000;
 
         result = select(user->socket+1, 0, &fdwrite, &fdex, &tv) ;
 
