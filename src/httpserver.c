@@ -88,6 +88,12 @@ httpserver_init (uint16_t port)
 
     }
 
+    int yes = 1;
+    setsockopt(server_sock, SOL_SOCKET, SO_REUSEADDR, (const char *) &yes, sizeof(yes));
+    // optional on many systems: SO_REUSEPORT
+    //setsockopt(server_sock, SOL_SOCKET, SO_REUSEPORT, &yes, sizeof(yes));
+
+
     if ((res = bind (server_sock, (struct sockaddr *)&address, sizeof(address))) != EOK ) {
         DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_ERROR,
                 "HTTPD :E: failed %d to bind socket to port.", res);
