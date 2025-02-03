@@ -63,6 +63,16 @@ wsystem_handler (HTTP_USER_T *user, uint32_t method, char* endpoint)
 
     if (method == HTTP_HEADER_METHOD_GET) {
 
+        char* cmd[5]  = {0} ;
+        cmd[0] = strchr (endpoint, '/') ;
+        for (int i=0; i<5; i++) {
+            if (cmd[i]) *(cmd[i])++ = 0 ;
+            if (cmd[i]) cmd[i+1] = strchr (cmd[i], '/') ;
+            if (cmd[i+1] == 0) break ;
+
+        }
+
+
         WSERVER_CHECK_SEND(httpserver_chunked_append_fmtstr (user,
                     "<table class=\"u-full-width\">\r\n"
                     "<tbody>\r\n")) ;
@@ -101,10 +111,16 @@ wsystem_handler (HTTP_USER_T *user, uint32_t method, char* endpoint)
 
         WSERVER_CHECK_SEND(httpserver_chunked_append_fmtstr (user,
                 "</tbody></table><br>\r\n"
-                "<form action=\"\" method=\"get\"><input type=\"submit\" name=\"refresh\" value=\"Refresh\">\r\n"
+             )) ;
+        WSERVER_CHECK_SEND(httpserver_chunked_append_fmtstr (user,
+                "<A style=\"width:100%\" class=\"button button-primary\" href=\"system/shutdown\" >Shutdown</A>\r\n"
             )) ;
 
+        if (cmd[0] && strcmp(cmd[0], "shutdown") == 0) {
+            svc_service_stop_timeout (svc_service_get(QORAAL_SERVICE_WWW), 0) ;
 
+        }
+        
     } else {
         return HTTP_SERVER_WSERVER_E_METHOD ;
 
