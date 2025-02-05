@@ -410,12 +410,12 @@ httpserver_wserver_create (uint32_t port, bool ssl, const WSERVER_HANDLERS_T* ha
 {
     HTTPSERVER_INST_T * inst = HTTP_SERVER_MALLOC(sizeof(HTTPSERVER_INST_T)) ;
     if (inst) {
+        memset (inst, 0, sizeof(HTTPSERVER_INST_T)) ;
         if (os_sem_create (&inst->count_sem, CFG_UTILS_HTTP_SERVER_THREADS+1) != EOK) {
             HTTP_SERVER_FREE (inst) ;
             return 0 ;
             
         }
-        memset (inst, 0, sizeof(HTTPSERVER_INST_T)) ;
         inst->server_sock = -1 ;
         inst->authenticate = authenticate ;
         inst->port = port ;
