@@ -78,7 +78,6 @@ wsystem_handler (HTTP_USER_T *user, uint32_t method, char* endpoint)
                     "<tbody>\r\n")) ;
 
         WSERVER_CHECK_SEND(httpserver_chunked_append_fmtstr (user,
-                    "<tr><td><br><b>Device Identification<b></td></tr>"
                     "<tr><td><br><b>Version Information<b></td></tr>"
                     "<tr><td>Vesrion</td>"
                     "<td>v%.2d.%.2d%c B%.5d</td></tr>"
@@ -105,15 +104,15 @@ wsystem_handler (HTTP_USER_T *user, uint32_t method, char* endpoint)
         hours = minutes / 60 ;
         minutes = minutes % 60 ;
         WSERVER_CHECK_SEND(httpserver_chunked_append_fmtstr (user,
-                "<tr><td>Sys Time</td>"
+                    "<tr><td>Up Time</td>"
                 "<td> %d hours %d minutes %d seconds</td></tr>\r\n",
                 hours, minutes, seconds)) ;
 
         WSERVER_CHECK_SEND(httpserver_chunked_append_fmtstr (user,
                 "</tbody></table><br>\r\n"
              )) ;
-        WSERVER_CHECK_SEND(httpserver_chunked_append_fmtstr (user,
-                "<A style=\"width:100%\" class=\"button button-primary\" href=\"system/shutdown\" >Shutdown</A>\r\n"
+        WSERVER_CHECK_SEND(httpserver_chunked_append_str (user,
+                "<A style=\"width:100%\" class=\"button button-primary\" href=\"system/shutdown\" >Shutdown</A>\r\n", 0
             )) ;
 
         if (cmd[0] && strcmp(cmd[0], "shutdown") == 0) {

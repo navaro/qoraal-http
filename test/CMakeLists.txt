@@ -9,6 +9,7 @@ set(TEST_SRCS
     services/www/html/wservices.c
     services/www/html/wshell.c
     services/www/html/wsystem.c
+    services/www/html/wwebapi.c
     services/www/image/wimage.c
 )
 

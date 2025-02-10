@@ -35,6 +35,7 @@
 #include "html/wshell.h"
 #include "html/wnlog.h"
 #include "html/wrtlog.h"
+#include "html/wwebapi.h"
 #include "css/wcss.h"
 #include "image/wimage.h"
 #include "wserver_inst.h"
@@ -312,6 +313,7 @@ wserver_start (uintptr_t arg)
     static WSERVER_HANDLERS_START(handlers)
     WSERVER_HANDLER              ("rtlog",   wrtlog_handler,            WSERVER_ENDPOINT_ACCESS_OPEN,   WSERVER_ENDPOINT_FLAGS_DISABLE_WDT)
     WSERVER_HANDLER              ("memlog",  wnlog_memlog_handler,      WSERVER_ENDPOINT_ACCESS_OPEN,   0)
+    WSERVER_HANDLER              ("webapi",  wwebapi_handler,          WSERVER_ENDPOINT_ACCESS_ADMIN,  0)
     WSERVER_HANDLER              ("about2",  wserver_handler_about2,    WSERVER_ENDPOINT_ACCESS_ADMIN,  0)
     WSERVER_HANDLER              ("about3",  wserver_handler_about3,    WSERVER_ENDPOINT_ACCESS_OPEN,   0)
     WSERVER_HANDLER              ("image",   wimage_handler,            WSERVER_ENDPOINT_ACCESS_OPEN,   0)
