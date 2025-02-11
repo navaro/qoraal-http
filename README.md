@@ -20,7 +20,7 @@ For embedded targets, currently supported **RTOS options** include **ChibiOS, Fr
 
 ⚠️ **Note:** If running in **GitHub Codespaces**, the application will use **port forwarding**, and Codespaces will provide a link to access the web interface from your browser on port 8080.
 
-### Running Locally on Windows/Linux/Codespace  
+### Running on Windows/Linux/Codespace  
 
 1. Open your development environment and **checkout the repository**.  
 2. Run the appropriate script based on your OS:  
