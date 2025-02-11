@@ -342,7 +342,7 @@ This is a simple example of setting up and using a WebSocket. The API is thread-
 
 int main() {
     HTTP_CLIENT_T client;
-    const char *url = "ws://example.com/ws"; // Define a valid URL
+    const char *url = "https://example.com/ws"; // Define a valid URL
     int32_t status;
     uint8_t *response;
     int32_t res;
