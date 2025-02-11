@@ -18,9 +18,9 @@ The demo application can be compiled using the **POSIX port**, allowing you to e
 
 For embedded targets, currently supported **RTOS options** include **ChibiOS, FreeRTOS, and ThreadX**, provided you have an IP stack like **LwIP**.  
 
-⚠️ **Note:** If running in **GitHub Codespaces**, the application will use **port forwarding**, and Codespaces will provide a link to access the web interface in your browser on port 8080. 
+⚠️ **Note:** If running in **GitHub Codespaces**, the application will use **port forwarding**, and Codespaces will provide a link to access the web interface from your browser on port 8080.
 
-### Running Locally on Windows/Linux  
+### Running Locally on Windows/Linux/Codespace  
 
 1. Open your development environment and **checkout the repository**.  
 2. Run the appropriate script based on your OS:  
@@ -28,14 +28,15 @@ For embedded targets, currently supported **RTOS options** include **ChibiOS, Fr
      ```sh
      > build_and_run.bat
      ```  
-   - **Linux**:  
+   - **Linux/Codespcace**:  
      ```sh
      $ sh ./build_and_run.sh
      ```  
 3. When the application starts, a shell will open, displaying **startup logs**.  
-4. If building locally, you can access the web interface at:  
+4. You can access the web interface at:  
    - **http://127.0.0.1:8080** (for local builds)  
-   - Use **your build machine’s IP** if running remotely.  
+   - Use **your build machine’s IP** if running remotely.
+   - In a codespace, click on the link in your browser.
 
 That’s it—you're up and running! 🚀  
 
