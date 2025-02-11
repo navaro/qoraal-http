@@ -18,7 +18,7 @@ The demo application can be compiled using the **POSIX port**, allowing you to e
 
 For embedded targets, currently supported **RTOS options** include **ChibiOS, FreeRTOS, and ThreadX**, provided you have an IP stack like **LwIP**.  
 
-⚠️ **Note:** Since IP connectivity is required, you **cannot run this in GitHub Codespaces**.  
+⚠️ **Note:** If running in **GitHub Codespaces**, the application will use **port forwarding**, and Codespaces will provide a link to access the web interface in your browser on port 8080. 
 
 ### Running Locally on Windows/Linux  
 
