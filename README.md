@@ -2,7 +2,7 @@
 
 ## Features
 
-- **BSD Socket Network Interface** – Provides a lightweight and efficient networking stack.
+- **Using BSD Socket Network Interface** – Can be ported to most platforms.
 - **MBedTLS Integration** – Optional SSL/TLS support for secure communication.
 - **Authentication Backend Plugin** – Easily integrate custom authentication mechanisms.
 - **Basic Authentication Support (HTTP)** – Built-in support for HTTP Basic Authentication.
@@ -12,28 +12,60 @@
 - **Low Memory Footprint** – Optimized for embedded systems with constrained resources.
 - **Flexible Modular Design** – Framework supports modular development for maintainable and scalable applications.
 
+## Quick Start  
+
+The demo application can be compiled using the **POSIX port**, allowing you to evaluate it directly on your PC!  
+
+For embedded targets, currently supported **RTOS options** include **ChibiOS, FreeRTOS, and ThreadX**, provided you have an IP stack like **LwIP**.  
+
+⚠️ **Note:** Since IP connectivity is required, you **cannot run this in GitHub Codespaces**.  
+
+### Running Locally on Windows/Linux  
+
+1. Open your development environment and **checkout the repository**.  
+2. Run the appropriate script based on your OS:  
+   - **Windows**:  
+     ```sh
+     > build_and_run.bat
+     ```  
+   - **Linux**:  
+     ```sh
+     $ sh ./build_and_run.sh
+     ```  
+3. When the application starts, a shell will open, displaying **startup logs**.  
+4. If building locally, you can access the web interface at:  
+   - **http://127.0.0.1:8080** (for local builds)  
+   - Use **your build machine’s IP** if running remotely.  
+
+That’s it—you're up and running! 🚀  
+
+
 ## Overview
 The **Qoraal HTTP Module** is a lightweight and efficient HTTP implementation designed for embedded systems. It consists of three core components:
 
 - **HTTP Server** – A minimal and efficient HTTP server implementation.
-- **HTTP Client** – A small-footprint HTTP client, with optional WebSockets support.
-- **HTTP Parser** – A shared module used by both the server and the client.
+- **HTTP Client** – A lightweight HTTP client with optional WebSockets support.
+- **HTTP WebSockets** – Extends the HTTP Client, enabling WebSocket upgrades for real-time communication.
+- **HTTP WebAPI** – A standard JSON-over-HTTP API with automatic Swagger documentation generation.
+- **HTTP Parser** – A shared module used by both the server and client for request and response parsing.
 
-Additionally, a **multithreaded webserver implementation** is included, built using the HTTP Server API, making it easy to develop scalable network applications.
+Additionally, a **multithreaded web server implementation** is included, built on top of the HTTP Server API, making it easier to develop scalable network applications. When needed, it also provides a flexible framework for structured content management, supporting dynamic and modular implementations.
 
 This module is optimized for small memory usage, making it well-suited for embedded applications. Below is a memory usage comparison when compiled with and without WebSockets support:
 
 ### Memory Usage Summary
 
-| Module | TEXT (bytes) | DATA (bytes) | Without WebSockets | With WebSockets |
-|--------|------------|------------|------------------|----------------|
-| HTTP Client | 2764  | 1051 | ✅ | ❌ |
-| HTTP Client (Including WebSockets) | 3900 | 1541 | ❌ | ✅ |
-| HTTP Parser | 2074  | 276 | ✅ | ✅ |
-| HTTP Server | 2902  | 190 | ✅ | ✅ |
-| Multithreaded Webserver | 1102 | 307 | ✅ | ✅ |
+| Module | TEXT (bytes) | DATA (bytes) |
+|--------|------------|------------|
+| HTTP Parser (Required for all components) | 2074  | 276 | 
+| HTTP Client | 2764  | 1051 |
+| HTTP WebSockets (Requires HTTP Client) | 1136 | 490 | 
+| HTTP Server | 2902  | 190 |
+| Multithreaded Webserver (Requires HTTP Server) | 1102 | 307 | 
 
-With WebSockets enabled, the HTTP Client increases in size but remains compact and efficient. The other components remain unchanged, making the module an ideal choice for resource-constrained systems.
+ - Compiled for a Cortex M33 using GNU C, optimized for size (-Os).
+ - 4K RAM read/write buffer required per connection (configurable).
+ - Memory usage excludes IP stack and SSL stack.
 
 ## Using the Web Server
 
@@ -49,7 +81,7 @@ wserver_start (uintptr_t arg)
     uint32_t port = 8080; // Specify the port
     bool ssl = false;     // SSL configuration
 
-    // Define standard headers and footers
+    // Define headers and footers for the framework
     static const WSERVER_FRAMEWORK wserver_std_headers[] = {
             wserver_header_start,
             wserver_handler_framework_start,
@@ -62,7 +94,7 @@ wserver_start (uintptr_t arg)
             0
     };
 
-    // Define endpoint handlers
+    // Define endpoint handlers - will be called after the headers and before the footers.
     static WSERVER_HANDLERS_START(handlers)
     WSERVER_HANDLER              ("image",   wimage_handler,            WSERVER_ENDPOINT_ACCESS_OPEN,   0)
     WSERVER_HANDLER              ("css",     wcss_handler,              WSERVER_ENDPOINT_ACCESS_OPEN,   0)
@@ -160,7 +192,7 @@ int32_t simple_http_get(const char *url)
         return res;
     }
 
-    // Read response headers
+    // Read response and headers
     res = httpclient_read_response_ex(&client, 5000, &status);
     if (res < 0 || status / 100 != 2) {
         printf("Failed to read response\n");
@@ -205,7 +237,7 @@ The **Qoraal WebAPI** takes the pain out of API development. It provides an easy
    static WEBAPI_PROP_DECL(_wupgrade_prop_status, "status", PROPERTY_TYPE_INTEGER, "system status", upgrade_status_get, 0);
    static WEBAPI_PROP_DECL(_wupgrade_prop_version, "version", PROPERTY_TYPE_STRING, "current version", upgrade_version_get, 0);
    ```
-   These get/set functions needs to be implemented seperately.
+   These get/set functions need to be implemented separately.
    
 2. **Register the API in the Web Server** – Just a few calls to integrate it:
    ```c
@@ -294,5 +326,88 @@ With Qoraal WebAPI, you don’t need to manually define endpoints or worry about
 
 A full implementation of this example is in the `test\services\www\html\wwebapi.h/c` file.
 
+## Qoraal HTTP WebSocket Client
 
+The **Qoraal HTTP WebSocket Client** provides a simple and efficient way to establish and manage WebSocket connections over HTTP. Built on top of the Qoraal HTTP client, it allows seamless communication with WebSocket servers while supporting asynchronous reading and writing.
+
+This client enables sending and receiving messages over WebSockets, with an API designed for straightforward integration into your applications.
+
+### Example
+
+This is a simple example of setting up and using a WebSocket. The API is thread-safe for reading and writing, allowing these operations to be performed from different threads safely.
+
+```c
+#include "qoraal-http/httpclient.h"
+#include <stdio.h>
+
+int main() {
+    HTTP_CLIENT_T client;
+    const char *url = "ws://example.com/ws"; // Define a valid URL
+    int32_t status;
+    uint8_t *response;
+    int32_t res;
+
+    // Parse the URL
+    int https, port;
+    char *host, *path, *credentials = NULL;
+    res = httpdwnld_url_parse((char *)url, &https, &port, &host, &path, &credentials);
+    if (res != EOK) {
+        printf("Failed to parse URL: %s\n", url);
+        return res;
+    }
+
+    // Initialize HTTP client
+    httpclient_init(&client, 0);
+
+    // Set hostname
+    httpclient_set_hostname(&client, host);
+
+    // Connect to server
+    struct sockaddr_in addr = {0};
+    addr.sin_family = AF_INET;
+    addr.sin_port = htons(port);
+    addr.sin_addr.s_addr = inet_addr(host);
+    res = httpclient_connect(&client, &addr, https);
+    if (res != HTTP_CLIENT_E_OK) {
+        printf("Failed to connect to server\n");
+        httpclient_close(&client);
+        return res;
+    }
+
+    // Upgrade to WebSocket
+    res = httpclient_websock_get(&client, path, credentials);
+    if (res <= 0) {
+        printf("WebSocket connection failed\n");
+        httpclient_close(&client);
+        return res;
+    }
+
+    res = httpclient_websock_read_response(&client, 5000);
+    if (res != 101) {
+        printf("WebSocket handshake failed (Switching Protocols failed).\n");
+        httpclient_close(&client);
+        return res;
+    }
+
+    // Send WebSocket message
+    const char *message = "Hello, WebSocket!";
+    res = httpclient_websock_write_text(&client, message, strlen(message));
+    if (res < 0) {
+        printf("Failed to send WebSocket message\n");
+    }
+
+    // Read WebSocket response
+    res = httpclient_websock_read(&client, (char **)&response, 5000);
+    if (res > 0) {
+        printf("Received: %s\n", response);
+        httpclient_websock_free(&client, (char *)response);
+    }
+
+    // Close WebSocket
+    httpclient_websock_initiate_close(&client, 1000);
+    httpclient_close(&client);
+
+    return 0;
+}
+```
 
