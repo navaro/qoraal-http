@@ -45,6 +45,7 @@
  * @name    WServer Responses
  * @{
  */
+#if 1
 #define WSERVER_RESP_CONTENT_400    "<!DOCTYPE html><html lang=\"en\"><head><meta charset=\"UTF-8\"><title>400 Bad Request</title></head><body><h1>Oops! Bad Request</h1><p>It seems your request was a bit, well, scrambled. Maybe double-check and give it another shot? 🥚</p><p><a href=\"/\">Back to Safety</a></p></body></html>"
 #define WSERVER_RESP_CODE_400 400
 
@@ -56,6 +57,21 @@
 
 #define WSERVER_RESP_CONTENT_500 "<!DOCTYPE html><html lang=\"en\"><head><meta charset=\"UTF-8\"><title>500 Internal Server Error</title><style>body{font-family:Arial,sans-serif;color:#333;text-align:center;padding:50px;background-color:#fff3f3;}h1{font-size:48px;color:#e74c3c;margin-bottom:20px;}p{font-size:18px;line-height:1.6;}a{color:#007BFF;text-decoration:none;font-weight:bold;}a:hover{text-decoration:underline;}</style></head><body><h1>Oh No! Server Meltdown</h1><p>Looks like something went terribly wrong on our end. Our server might just be taking a coffee break ☕, or maybe it’s staging a silent protest. Either way, we’ll try to fix it soon!</p><p><a href=\"/\">Take Me Home</a> and let’s pretend this never happened.</p></body></html>"
 #define WSERVER_RESP_CODE_500 500
+#else
+
+#define WSERVER_RESP_CONTENT_400 "<!DOCTYPE html><html><head><title>400 Bad Request.</title></head><body><h1>400 Bad Request.</h1></body></html>"
+#define WSERVER_RESP_CODE_400 400
+
+#define WSERVER_RESP_CONTENT_401 "<!DOCTYPE html><html><head><title>401 Unauthorized.</title></head><body><h1>>401 Unauthorized.</h1></body></html>"
+#define WSERVER_RESP_CODE_401 401
+
+#define WSERVER_RESP_CONTENT_404 "<!DOCTYPE html><html><head><title>404 Not Found.</title></head><body><h1>404 Not Found.</h1></body></html>"
+#define WSERVER_RESP_CODE_404 404
+
+#define WSERVER_RESP_CONTENT_500 "<!DOCTYPE html><html><head><title>500 Internal Server Error.</title></head><body><h1>500 Internal Server Error.</h1></body></html>"
+#define WSERVER_RESP_CODE_500 500
+
+#endif
 /** @} */
 
 

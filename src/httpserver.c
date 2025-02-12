@@ -207,7 +207,7 @@ httpserver_select (int server_sock, uint32_t timeout)
 int32_t
 httpserver_user_select (HTTP_USER_T* user, uint32_t timeout)
 {
-    int32_t result ;
+    int32_t res ;
      fd_set   fdread;
      fd_set   fdex;
     struct timeval tv;
@@ -226,7 +226,9 @@ httpserver_user_select (HTTP_USER_T* user, uint32_t timeout)
     DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_REPORT,
                 "HTTPD : : user socket select %d...", user->socket);
 
-    result = select(user->socket+1, &fdread, 0, &fdex, &tv) ;
+    res = select(user->socket+1, &fdread, 0, &fdex, &tv) ;
+    (void) res ;
+
     DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_REPORT,
                 "HTTPD : : user socket select %d complete.", user->socket);
 
@@ -237,7 +239,7 @@ httpserver_user_select (HTTP_USER_T* user, uint32_t timeout)
 
     } else if (!FD_ISSET(user->socket, &fdread)) {
         DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_LOG,
-                    "HTTPD : : user select failed with %d", result);
+                    "HTTPD : : user select failed with %d", res);
         return HTTP_SERVER_E_CONNECTION ;
 
     }
@@ -405,6 +407,7 @@ httpserver_user_ssl_accept (HTTP_USER_T* user, uint32_t timeout)
                     tv.tv_usec = 0 ;
 
                     int received = select(user->socket+1, &fdread, 0, &fdex, &tv) ;
+                    (void) received ;
 
                     if (!FD_ISSET(user->socket, &fdread)) {
                         DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_LOG,
@@ -580,6 +583,7 @@ httpserver_wait_read(HTTP_USER_T* user, uint32_t timeout)
     tv.tv_usec = (timeout % 1000) * 1000 ;
 
     res = select(user->socket+1, &fdread, 0, &fdex, &tv) ;
+    (void) res ;
 
     if (FD_ISSET(user->socket, &fdread)) {
         return EOK ;
@@ -615,7 +619,7 @@ httpserver_wait_read(HTTP_USER_T* user, uint32_t timeout)
 int32_t
 httpserver_read (HTTP_USER_T* user, void* buffer, uint32_t length, uint32_t timeout)
 {
-    int received ;
+    int received = EOK;
 #if !defined CFG_HTTPSERVER_TLS_DISABLE
     if (user->ssl) {
         if (!mbedtls_ssl_get_bytes_avail ((mbedtls_ssl_context *)user->ssl)) {

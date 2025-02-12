@@ -251,6 +251,7 @@ httpclient_connect (HTTP_CLIENT_T* client, const struct sockaddr_in* addr, uint3
                 tv.tv_usec = 0 ;
 
                 int received = select(client->socket+1, &fdread, 0, &fdex, &tv) ;
+                (void) received ;
 
                 if (!FD_ISSET(client->socket, &fdread)) {
                        DBG_MESSAGE_HTTP_CLIENT (DBG_MESSAGE_SEVERITY_LOG,
@@ -569,6 +570,7 @@ httpclient_wait_read(HTTP_CLIENT_T* client, uint32_t timeout)
     tv.tv_usec = (timeout % 1000) * 1000 ;
 
     res = select(client->socket+1, &fdread, 0, &fdex, &tv) ;
+    (void) res ;
 
     if (FD_ISSET(client->socket, &fdread)) {
         return EOK ;
@@ -1862,7 +1864,7 @@ int32_t httpclient_websock_read(HTTP_CLIENT_T* client, char** buffer, uint32_t t
 
     int32_t payload_length = websock_decode(client, &opcode, &fin, timeout);
 
-    if (payload_length == NINA_E_TIMEOUT)
+    if (payload_length == E_TIMEOUT)
     {
         payload_length = 0;
     }
@@ -1937,15 +1939,7 @@ int32_t httpclient_websock_read(HTTP_CLIENT_T* client, char** buffer, uint32_t t
                 // if the closesocket was initiated from the serve, we send the expected closesocket response
                 // and wait for the server to closesocket the socket.
                 httpclient_websock_initiate_close(client, code);
-#    if 0  // retest for nina
-				payload_length = (A_STATUS )t_select(athwifi_get_handle(), client->socket, timeout);
-				if (payload_length != A_SOCK_INVALID) {
-					// If polling (timeout == 0) we dont wait for the server to closesocket the underlying TCP connection first.
-					DBG_MESSAGE_HTTP_CLIENT (DBG_MESSAGE_SEVERITY_WARNING,
-									"HTTP  :W: websock_read server did not closesocket connection...\r\n", code) ;
 
-				}
-#    endif
             }
             // return A_SOCK_INVALID so the user can shutdown the socket.
             payload_length = -2;  // A_SOCK_INVALID ;

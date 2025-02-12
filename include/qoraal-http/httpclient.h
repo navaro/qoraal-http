@@ -41,6 +41,7 @@
 #endif
 
 #include <stdint.h>
+#include "qoraal/qoraal.h"
 #include "qoraal-http/qoraal.h"
 
 /*===========================================================================*/
@@ -122,7 +123,7 @@
  * @name    Rand
  * @{
  */
-#define HTTP_CLIENT_RAND                nhal_rand31 
+#define HTTP_CLIENT_RAND                qoraal_rand
 /** @} */
 
 /*===========================================================================*/

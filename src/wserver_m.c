@@ -384,11 +384,12 @@ _wserver_thread (void *arg)
  */
 void _wserver_thread_complete(SVC_THREADS_T * service_thread, void* arg)
 {
+#ifndef NDEBUG
     HTTPSERVER_THREAD_T*    thread = (HTTPSERVER_THREAD_T* )arg ;
     HTTPSERVER_INST_T *     inst = thread->inst ;
-
     DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_INFO,
         "WSERV : : complete (%d)\r\n", os_sem_count(&inst->count_sem)) ;
+#endif
     HTTP_SERVER_FREE (service_thread) ;
 
 }
