@@ -14,29 +14,28 @@
 
 ## Quick Start  
 
-The demo application can be compiled using the **POSIX port**, allowing you to evaluate it directly on your PC!  
+The demo application can be compiled using the **POSIX port**, allowing you to evaluate it directly in a **GitHub Codespace** or on your PC! For embedded targets, the following RTOS options are supported: **ChibiOS, FreeRTOS, and ThreadX** (provided you have an IP stack like **LwIP**).  
 
-For embedded targets, currently supported **RTOS options** include **ChibiOS, FreeRTOS, and ThreadX**, provided you have an IP stack like **LwIP**.  
-
-⚠️ **Note:** If running in **GitHub Codespaces**, the application will use **port forwarding**, and Codespaces will provide a link to access the web interface from your browser on port 8080.
+⚠️ **Note:** If running in **GitHub Codespaces**, the application will use **port forwarding**. Once the server starts on port 8080, you'll get a browser link for accessing the web interface on that port.
 
 ### Running on Windows/Linux/Codespace  
 
-1. Open your development environment and **checkout the repository**.  
+1. Open your development environment and **clone the repository**. If you open a **GitHub Codespace**, the repository is preloaded—just open a terminal (ctrl+`). 
 2. Run the appropriate script based on your OS:  
-   - **Windows**:  
-     ```sh
-     > build_and_run.bat
-     ```  
-   - **Linux/Codespcace**:  
-     ```sh
-     $ sh ./build_and_run.sh
-     ```  
-3. When the application starts, a shell will open, displaying **startup logs**.  
-4. You can access the web interface at:  
-   - **http://127.0.0.1:8080** (for local builds)  
-   - Use **your build machine’s IP** if running remotely.
-   - In a codespace, click on the link in your browser.
+
+```sh
+# For Linux or Codespace:
+$ sh ./build_and_run.sh  
+
+# For Windows:
+> build_and_run.bat  
+```
+
+3. When the application starts, a shell will open in the terminal, displaying **startup logs**. Look for `WSERV : : web server running on port 8080 without SSL!!`. 
+4. Now you can access the web interface:
+   - In a codespace, click on the link for the forwarded port. This should show in the `PORTS` tab of your terminal.
+   - On your local PC, use **http://127.0.0.1:8080** (or your build machine’s local IP if running remotely).
+
 
 That’s it—you're up and running! 🚀  
 
@@ -65,7 +64,7 @@ This module is optimized for small memory usage, making it well-suited for embed
 | Multithreaded Webserver (Requires HTTP Server) | 1102 | 307 | 
 
  - Compiled for a Cortex M33 using GNU C, optimized for size (-Os).
- - 4K RAM read/write buffer required per connection (configurable).
+ - An aditional 4K RAM read/write buffer required per connection (configurable).
  - Memory usage excludes IP stack and SSL stack.
 
 ## Using the Web Server
