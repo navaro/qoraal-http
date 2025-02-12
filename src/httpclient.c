@@ -128,9 +128,6 @@
 int32_t
 httpclient_init (HTTP_CLIENT_T* client, int32_t mss)
 {
-    DBG_MESSAGE_HTTP_CLIENT (DBG_MESSAGE_SEVERITY_DEBUG,
-                    "-->>httpclient_init") ;
-
     memset (client, 0, sizeof (HTTP_CLIENT_T)) ;
     client->mss = mss ;
     client->socket = -1 ;
@@ -1423,7 +1420,6 @@ int32_t httpclient_websock_get(HTTP_CLIENT_T* client, const char* endpoint, cons
     char* host;
     char key[BASE64_OUTPUT_LENGTH(16) + 1];
 
-    DBG_MESSAGE_HTTP_CLIENT(DBG_MESSAGE_SEVERITY_DEBUG, "-->> httpclient_websock_get\r\n");
     DBG_CHECK_HTTP_CLIENT(client->socket, EFAIL, "httpclient_websock_get : CHECK : unexpected - socket not valid.\r\n!");
     DBG_CHECK_HTTP_CLIENT(endpoint, EFAIL, "httpclient_websock_get : CHECK : unexpected - endpoint not valid.\r\n!");
 
@@ -1526,7 +1522,6 @@ int32_t httpclient_websock_read_response(HTTP_CLIENT_T* client, uint32_t timeout
         //{HTTP_HEADER_KEY_AUTHENTICATE, 0},
     };
 
-    DBG_MESSAGE_HTTP_CLIENT(DBG_MESSAGE_SEVERITY_DEBUG, "-->> httpclient_websock_read_response\r\n");
     DBG_CHECK_HTTP_CLIENT(client->socket, EFAIL,
                           "httpclient_websock_read_response : CHECK : unexpected - socket not valid.\r\n!");
 

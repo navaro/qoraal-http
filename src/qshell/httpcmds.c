@@ -24,12 +24,20 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdint.h>
 #include "qoraal/config.h"
 #include "qoraal/qoraal.h"
+#include "qoraal-http/qoraal.h"
 #include "qoraal/svc/svc_shell.h"
 #include "qoraal-http/httpdwnld.h"
+#include "qoraal-http/httpparse.h"
+
 
 SVC_SHELL_CMD_DECL("wsource", qshell_wsource, "<url>");
+#ifdef CFG_OS_POSIX
+SVC_SHELL_CMD_DECL("wget", qshell_wget, "<url>");
+#endif
+
 
 static int32_t
 qshell_wsource (SVC_SHELL_IF_T * pif, char** argv, int argc)
@@ -73,8 +81,129 @@ qshell_wsource (SVC_SHELL_IF_T * pif, char** argv, int argc)
 
 }
 
+#ifdef CFG_OS_POSIX
+int resolve_hostname(const char *hostname, uint32_t *ip) {
+    struct addrinfo hints, *res = NULL;
+    memset(&hints, 0, sizeof(hints));
+    hints.ai_family = AF_INET; // IPv4 only
+    hints.ai_socktype = SOCK_STREAM; // TCP connection
+
+    if (getaddrinfo(hostname, NULL, &hints, &res) != 0) {
+        return HTTP_CLIENT_E_HOST; // Failed to resolve
+    }
+
+    struct sockaddr_in *addr = (struct sockaddr_in *)res->ai_addr;
+    *ip = addr->sin_addr.s_addr;
+
+    freeaddrinfo(res);
+    return EOK;
+}
+
+
+int32_t qshell_wget(SVC_SHELL_IF_T *pif, char **argv, int argc) 
+{
+    HTTP_CLIENT_T client;
+    int32_t status;
+    uint8_t *response;
+    int32_t res;
+    uint32_t ip;
+    struct sockaddr_in addr;
+    int https, port;
+    char *host, *path, *credentials;
+    FILE *file = NULL;
+
+    if (argc < 2) {
+        return SVC_SHELL_CMD_E_PARMS;
+    }
+
+    // Parse the URL
+    res = httpparse_url_parse(argv[1], &https, &port, &host, &path, &credentials);
+    if (res != EOK) {
+        svc_shell_print(pif, SVC_SHELL_OUT_STD, "Failed to parse URL: %s\n", argv[1]);
+        return res;
+    }
+
+    // Extract the filename
+    const char *filename = "index.html" ;
+    if (path) {
+        filename = strrchr(path, '/');
+        filename = (filename && *(filename + 1)) ? filename + 1 : path; 
+    }
+
+    // Open file for writing
+    file = fopen(filename, "wb");
+    if (!file) {
+        svc_shell_print(pif, SVC_SHELL_OUT_STD, "Failed to open file: %s\n", filename);
+        return -1;
+    }
+
+    // Resolve hostname
+    memset(&addr, 0, sizeof(addr));
+    addr.sin_family = AF_INET;
+    addr.sin_port = htons(port);
+
+    if (resolve_hostname(host, &ip) != EOK) {
+        svc_shell_print(pif, SVC_SHELL_OUT_STD, "HTTP  : : resolving %s failed!\n", host);
+        fclose(file);
+        return HTTP_CLIENT_E_HOST;
+    }
+    addr.sin_addr.s_addr = ip;
+
+    // initialise the client
+    httpclient_init (&client, 0) ;
+    // for name-based virtual hosting
+    httpclient_set_hostname (&client, host) ; 
+    // Connect to the server
+    res = httpclient_connect(&client, &addr, https);
+    if (res != HTTP_CLIENT_E_OK) {
+        svc_shell_print(pif, SVC_SHELL_OUT_STD, "Failed to connect to server\n");
+        fclose(file);
+        httpclient_close(&client);
+        return res;
+    }
+
+    // Send GET request
+    res = httpclient_get(&client, path, credentials);
+    if (res < 0) {
+        svc_shell_print(pif, SVC_SHELL_OUT_STD, "GET %s failed\n", path);
+        fclose(file);
+        httpclient_close(&client);
+        return res;
+    }
+
+    // Read response and headers
+    res = httpclient_read_response_ex(&client, 5000, &status);
+    if (res < 0 || status / 100 != 2) {
+        svc_shell_print(pif, SVC_SHELL_OUT_STD, 
+                "Failed to read response status %d result %d\n", status, res);
+        if (res < 0) {
+            fclose(file);
+            httpclient_close(&client);
+            return res;
+        }
+    }
+
+    // Read response body and write to file
+    while ((res = httpclient_read_next_ex(&client, 5000, &response)) > 0) {
+        fwrite(response, 1, res, file);
+    }
+
+    // Clean up
+    fclose(file);
+    httpclient_close(&client);
+
+    svc_shell_print(pif, SVC_SHELL_OUT_STD, "Download complete: %s\n", filename);
+    
+    return res >= EOK ? SVC_SHELL_CMD_E_OK : res;
+}
+#endif
+
+
 void
 keep_httpcmds (void)
 {
     (void)qshell_wsource ; 
+#ifdef CFG_OS_POSIX
+    (void)qshell_wget ;
+#endif
 }

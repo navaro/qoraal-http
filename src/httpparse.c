@@ -626,6 +626,21 @@ httpparse_get_multipart_separator( const HTTP_HEADER_T* headers,int headers_coun
 
 }
 
+static inline int myspace(int c)
+{
+    // Step 1: force to unsigned, since signed chars can be negative and mess with checks
+    unsigned char uc = (unsigned char)c;
+
+    // Step 2: compare explicitly to the classic whitespace characters
+    return (uc == ' '  ||
+            uc == '\t' ||
+            uc == '\n' ||
+            uc == '\v' ||
+            uc == '\f' ||
+            uc == '\r');
+}
+
+
 /**
  * @brief   httpparse_url_parse
  * @details Parse a url in the form "http://[credentials@]host[:port]/name".
@@ -652,13 +667,10 @@ httpparse_url_parse (char* url, int *https, int *port, char** host,
 
     char* pport ;
     char* pcred ;
-    int32_t res = EOK ;
-    //static char _last_host[96] = {0};
-    //static int  _last_port = 0 ;
 
     // *endpoint = 0 ;
     // *host = "" ;
-    if (!host || !endpoint || !https || !port) {
+    if (!url || !host || !endpoint || !https || !port) {
         return E_PARM ;
     }
     *port = 0 ;
@@ -667,83 +679,75 @@ httpparse_url_parse (char* url, int *https, int *port, char** host,
     if (credentials) *credentials = 0 ;
     (*host) = url ;
 
-    if (!url) {
+    while (*(*host) != '\0' && myspace((unsigned char)*(*host))) {
+        (*host)++;
+    }
+    if (strncmp ((*host), "http:", 5) == 0) {
+        *https = 0 ;
+        (*host) += 5 ;
+        //*port =  _last_port ? _last_port : 80 ;
+    } else if (strncmp ((*host), "https:", 6) == 0) {
+        *https = 1 ;
+        (*host) += 6 ;
+        //*port =  _last_port ? _last_port : 443 ;
+    } else {
         return E_PARM ;
+
+    }
+    while (*(*host) != '\0' && myspace((unsigned char)*(*host))) {
+        (*host)++;
+    }
+    
+    if (((*host)[0] == '/') && ((*host)[1] == '/'))  (*host) += 2 ;
+
+
+    if (credentials) *credentials = 0 ;
+    pcred = strstr((*host), "@") ;
+    if (pcred) {
+        *pcred = 0 ;
+        pcred++ ;
+        if (credentials)  *credentials = *host ;
+        *host = pcred ;
+
     }
 
-    do {
-
-
-        while (isspace ((int)*(*host))) (*host)++ ;
-        if (strncmp ((*host), "http:", 5) == 0) {
-            *https = 0 ;
-            (*host) += 5 ;
-            //*port =  _last_port ? _last_port : 80 ;
-        } else if (strncmp ((*host), "https:", 6) == 0) {
-            *https = 1 ;
-            (*host) += 6 ;
-            //*port =  _last_port ? _last_port : 443 ;
-        } else {
-            res = E_PARM ;
-            break ;
+    pport = strstr((*host), ":") ;
+    if (pport) {
+        *pport = 0 ;
+        pport++ ;
+        while (*pport != '\0' && myspace((unsigned char)*pport)) {
+            pport++;
         }
+        (*endpoint) = strstr(pport, "/") ;
+    }
+    else {
+        (*endpoint) = strstr((*host), "/") ;
+    }
+
+    if ((*endpoint)) {
+        *(*endpoint) = 0 ;
+        (*endpoint)++ ;
+    }
+    //else {
+    //  res = E_PARM ;
+    //  break ;
+    //}
 
 
-        while (isspace ((int)*(*host))) (*host)++ ;
-        if (((*host)[0] == '/') && ((*host)[1] == '/'))  (*host) += 2 ;
 
+    while ((*endpoint) && isspace ((int)*(*endpoint))) (*endpoint)++ ;
 
-        if (credentials) *credentials = 0 ;
-        pcred = strstr((*host), "@") ;
-        if (pcred) {
-            *pcred = 0 ;
-            pcred++ ;
-            if (credentials)  *credentials = *host ;
-            *host = pcred ;
+    if (strlen(*host) > 0) {
 
+        if (pport == 0) {
+            *port = *https ? 443 : 80 ;
         }
-
-        pport = strstr((*host), ":") ;
-        if (pport) {
-            *pport = 0 ;
-            pport++ ;
-            while (isspace ((int)*pport)) pport++ ;
-            (*endpoint) = strstr(pport, "/") ;
-        }
-        else {
-            (*endpoint) = strstr((*host), "/") ;
-        }
-
-        if ((*endpoint)) {
-            *(*endpoint) = 0 ;
-            (*endpoint)++ ;
-        }
-        //else {
-        //  res = E_PARM ;
-        //  break ;
-        //}
+    }
+    if (pport) {
+        *port = atoi(pport) ;
+    }
 
 
-
-        while ((*endpoint) && isspace ((int)*(*endpoint))) (*endpoint)++ ;
-
-        if (strlen(*host) > 0) {
-
-            if (pport == 0) {
-                *port = *https ? 443 : 80 ;
-            }
-        }
-        if (pport) {
-            *port = atoi(pport) ;
-        }
-
-
-
-
-        break ;
-    } while (0) ;
-
-
-    return res ;
+    return EOK ;
 }
 
