@@ -150,36 +150,64 @@ The **Qoraal HTTP Client** makes HTTP requests simple and efficient, designed fo
 #include <stdio.h>
 #include <stdlib.h>
 
-int32_t simple_http_get(const char *url)
+int32_t wget(char * url) 
 {
     HTTP_CLIENT_T client;
     int32_t status;
     uint8_t *response;
     int32_t res;
-
-    // Parse the URL
+    uint32_t ip;
+    struct sockaddr_in addr;
     int https, port;
     char *host, *path, *credentials;
-    res = httpdwnld_url_parse((char *)url, &https, &port, &host, &path, &credentials);
+    FILE *file = NULL;
+
+    if (argc < 2) {
+        return SVC_SHELL_CMD_E_PARMS;
+    }
+
+    // Parse the URL
+    res = httpparse_url_parse(argv[1], &https, &port, &host, &path, &credentials);
     if (res != EOK) {
-        printf("Failed to parse URL: %s\n", url);
+        printf("Failed to parse URL: %s\n", argv[1]);
         return res;
     }
 
-    // Initialize HTTP client
-    httpclient_init(&client, 0);
+    // Extract the filename
+    const char *filename = "index.html" ;
+    if (path) {
+        filename = strrchr(path, '/');
+        filename = (filename && *(filename + 1)) ? filename + 1 : path; 
+    }
 
-    // Set hostname
-    httpclient_set_hostname(&client, host);
+    // Open file for writing
+    file = fopen(filename, "wb");
+    if (!file) {
+        printf("Failed to open file: %s\n", filename);
+        return -1;
+    }
 
-    // Connect to server
-    struct sockaddr_in addr = {0};
+    // Resolve hostname
+    memset(&addr, 0, sizeof(addr));
     addr.sin_family = AF_INET;
     addr.sin_port = htons(port);
-    addr.sin_addr.s_addr = inet_addr(host);
+
+    if (resolve_hostname(host, &ip) != EOK) {
+        printf("HTTP  : : resolving %s failed!\n", host);
+        fclose(file);
+        return HTTP_CLIENT_E_HOST;
+    }
+    addr.sin_addr.s_addr = ip;
+
+    // initialise the client
+    httpclient_init (&client, 0) ;
+    // for name-based virtual hosting
+    httpclient_set_hostname (&client, host) ; 
+    // Connect to the server
     res = httpclient_connect(&client, &addr, https);
     if (res != HTTP_CLIENT_E_OK) {
         printf("Failed to connect to server\n");
+        fclose(file);
         httpclient_close(&client);
         return res;
     }
@@ -187,7 +215,8 @@ int32_t simple_http_get(const char *url)
     // Send GET request
     res = httpclient_get(&client, path, credentials);
     if (res < 0) {
-        printf("GET request failed\n");
+        printf("GET %s failed\n", path);
+        fclose(file);
         httpclient_close(&client);
         return res;
     }
@@ -195,20 +224,27 @@ int32_t simple_http_get(const char *url)
     // Read response and headers
     res = httpclient_read_response_ex(&client, 5000, &status);
     if (res < 0 || status / 100 != 2) {
-        printf("Failed to read response\n");
-        httpclient_close(&client);
-        return res;
+        printf("Failed to read response status %d result %d\n", status, res);
+        if (res < 0) {
+            fclose(file);
+            httpclient_close(&client);
+            return res;
+        }
+        // write html response to file even if the file dont donwload, like a 404
     }
 
-    // Read response body
+    // Read response body and write to file
     while ((res = httpclient_read_next_ex(&client, 5000, &response)) > 0) {
-        fwrite(response, 1, res, stdout);
+        fwrite(response, 1, res, file);
     }
 
-    // Close connection
+    // Clean up
+    fclose(file);
     httpclient_close(&client);
 
-    return EOK;
+    printf("Download complete: %s\n", filename);
+    
+    return res >= EOK ?  res;
 }
 ```
 
@@ -221,8 +257,10 @@ int32_t simple_http_get(const char *url)
 6. **Reads the response body** using `httpclient_read_next_ex`.
 7. **Closes the connection** with `httpclient_close`.
 
+Also try the `wget` qshell command in the shell to test this functionality.
+
 This makes fetching data incredibly simple and efficient. Whether you're retrieving configuration files, logging data, or fetching updates, the **Qoraal HTTP Client** provides a lightweight, modular way to handle HTTP requests.
-Alternatively, if there is enough memory available,the complete response can be read with `httpclient_read_response`.
+Alternatively, if there is enough memory available, the complete response can be read with `httpclient_read_response`.
 
 ## WebAPI - JSON Interface with Swagger Documentation
 
