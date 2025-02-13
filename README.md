@@ -57,11 +57,11 @@ This module is optimized for small memory usage, making it well-suited for embed
 
 | Module | TEXT (bytes) | DATA (bytes) |
 |--------|------------|------------|
-| HTTP Parser (Required for all components) | 2074  | 276 | 
-| HTTP Client | 2764  | 1051 |
-| HTTP WebSockets (Requires HTTP Client) | 1136 | 490 | 
+| HTTP Parser (Required by all components) | 2074  | 276 | 
 | HTTP Server | 2902  | 190 |
+| HTTP Client | 2764  | 1051 |
 | Multithreaded Webserver (Requires HTTP Server) | 1102 | 307 | 
+| HTTP WebSockets (Requires HTTP Client) | 1136 | 490 | 
 
  - Compiled for a Cortex M33 using GNU C, optimized for size (-Os).
  - An aditional 4K RAM read/write buffer required per connection (configurable).
