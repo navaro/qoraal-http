@@ -10,14 +10,14 @@
 
 
 /* CFG_HTTPSERVER_TLS_DISABLE 
-    If defined, the http server will enable mbedtls.
+    If defined, the http server will not use mbedtls.
 */
-#define CFG_HTTPSERVER_TLS_DISABLE    1
+// #define CFG_HTTPSERVER_TLS_DISABLE    1
 
 /* CFG_HTTPCLIENT_TLS_DISABLE 
-    If defined, the http server will enable mbedtls.
+    If defined, the http client will not use mbedtls.
 */
-#define CFG_HTTPCLIENT_TLS_DISABLE    1
+// #define CFG_HTTPCLIENT_TLS_DISABLE    1
 
 /* CFG_MBEDTLS_PLATFORM_INIT_ENABLE
     If defined, the mbedtls platform init function will be called.

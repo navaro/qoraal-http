@@ -382,7 +382,7 @@ httpserver_user_ssl_accept (HTTP_USER_T* user, uint32_t timeout)
 
             }
             mbedtls_ssl_set_bio( (mbedtls_ssl_context *)user->ssl, (void*)user->socket,
-                mbedtls_net_send, mbedtls_net_recv, 0 /*mbedtls_net_recv_timeout*/ )  ;
+                mbedtls_qoraal_send, mbedtls_qoraal_recv, 0 /*mbedtls_qoraal_recv_timeout*/ )  ;
 
        }
  

@@ -279,8 +279,8 @@ wabout_handler_post(HTTP_USER_T *user, uint32_t method, char* endpoint, char* co
     if (method == HTTP_HEADER_METHOD_POST) {
 
 
-        DBG_MESSAGE_WWW (DBG_MESSAGE_SEVERITY_LOG, "WSERVER HTTP POST REQEST:\r\n")  ;
-        DBG_MESSAGE_WWW (DBG_MESSAGE_SEVERITY_LOG, content) ;
+        wserver_log (DBG_MESSAGE_SEVERITY_LOG, "WSERVER HTTP POST REQEST:\r\n")  ;
+        wserver_log (DBG_MESSAGE_SEVERITY_LOG, content) ;
 
 
     } else {

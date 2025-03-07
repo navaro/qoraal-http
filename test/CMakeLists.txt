@@ -1,6 +1,5 @@
 # Collect all test source files
-set(TEST_SRCS
-    main.c
+set(WSERVER_SRCS
     services/www/wserver_inst.c
     services/www/css/wcss.c
     services/www/html/wabout.c
@@ -13,22 +12,20 @@ set(TEST_SRCS
     services/www/image/wimage.c
 )
 
-# Add the executable target
-add_executable(httptest ${TEST_SRCS})
+# Add the library target
+add_library(qoraal-wserver STATIC ${WSERVER_SRCS})
 
-# Link the qoraal library and pthread
-if(WIN32)
-    target_link_libraries(httptest qoraal qoraal-http pthread ws2_32)
-else()
-    target_link_libraries(httptest qoraal qoraal-http pthread)
-endif()
-target_compile_options(httptest PRIVATE -O0 -g)
-target_compile_options(qoraal PRIVATE -O0 -g)
-target_compile_options(qoraal-http PRIVATE -O0 -g)
+# Set compile-time definition CFG_OS_FREERTOS for the qoraal target
+target_compile_definitions(qoraal-wserver PRIVATE CFG_OS_FREERTOS)
 
-# Define CFG_OS_MEM_DEBUG_ENABLE for qoraal
-target_compile_definitions(qoraal PRIVATE CFG_OS_MEM_DEBUG_ENABLE CFG_PLATFORM_ENABLE_WS2)
+# Optional: Set include directories for the library if needed
+target_include_directories(qoraal-wserver PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
+# Add ../include as a PUBLIC include directory
+target_include_directories(qoraal-wserver PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/../include)
 
-# Generate a map file
-set_target_properties(httptest PROPERTIES LINK_FLAGS "-Wl,-Map=output.map -T ${CMAKE_SOURCE_DIR}/test/posix.ld")
+# Link necessary libraries
+# target_link_libraries(qoraal-http qoraal)
+
+# Inherit project-wide includes from sdk_intf_lib
+target_link_libraries(qoraal-wserver PUBLIC sdk_intf_lib qoraal qoraal-http)

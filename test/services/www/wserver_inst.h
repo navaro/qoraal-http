@@ -38,9 +38,10 @@
 
 
 #include <stdint.h>
+#include <stdarg.h>
 #include "qoraal-http/wserver.h"
 #include "qoraal/svc/svc_services.h"
-#include "../services.h"
+
 
 /*===========================================================================*/
 /* Client constants.                                                         */
@@ -52,13 +53,6 @@
  */
 #define HTTP_WSERVER_E_OK                                EOK
 
-/**
- * @name    Debug Level
- * @{
- */
-#define DBG_MESSAGE_WWW(severity, fmt_str, ...)     DBG_MESSAGE_T(SVC_LOGGER_TYPE(severity,0), QORAAL_SERVICE_WWW, fmt_str, ##__VA_ARGS__)
-#define DBG_ASSERT_WWW                              DBG_ASSERT_T
-/** @} */
 
 /** @} */
 
@@ -100,7 +94,7 @@ extern "C" {
 
     extern int32_t          wserver_service_ctrl (uint32_t code, uintptr_t arg) ;
     extern int32_t          wserver_service_run (uintptr_t arg) ;
-
+    extern int32_t          wserver_log (uint8_t severity, const char *format_str, ...) ;
 #ifdef __cplusplus
 }
 #endif

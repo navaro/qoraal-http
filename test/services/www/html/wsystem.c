@@ -116,7 +116,7 @@ wsystem_handler (HTTP_USER_T *user, uint32_t method, char* endpoint)
             )) ;
 
         if (cmd[0] && strcmp(cmd[0], "shutdown") == 0) {
-            svc_service_stop_timeout (svc_service_get(QORAAL_SERVICE_WWW), 0) ;
+            // svc_service_stop_timeout (svc_service_get(QORAAL_SERVICE_WWW), 0) ;
 
         }
         

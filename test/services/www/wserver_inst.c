@@ -40,6 +40,15 @@
 #include "image/wimage.h"
 #include "wserver_inst.h"
 
+/**
+ * @name    Debug Level
+ * @{
+ */
+static SVC_SERVICES_T      _wserver_service_id = SVC_SERVICES_INVALID ;   
+
+#define DBG_MESSAGE_WWW(severity, fmt_str, ...)     DBG_MESSAGE_T(SVC_LOGGER_TYPE(severity,0), _wserver_service_id, fmt_str, ##__VA_ARGS__)
+#define DBG_ASSERT_WWW                              DBG_ASSERT_T
+/** @} */
 
 static int32_t      wserver_init (uintptr_t arg) ;
 static int32_t      wserver_start (uintptr_t port) ;
@@ -249,6 +258,7 @@ int32_t     wserver_service_ctrl (uint32_t code, uintptr_t arg)
 
     switch (code) {
     case SVC_SERVICE_CTRL_INIT:
+    _wserver_service_id = svc_service_service ((SCV_SERVICE_HANDLE) arg ) ;
         res = wserver_init (arg) ;
         break ;
 
@@ -296,7 +306,7 @@ int32_t
 wserver_start (uintptr_t arg)
 {
     uint32_t port = 8080 ; //registry_get ("www.port", 80) ;
-    bool ssl = false ; // registry_get ("www.ssl", false) ;
+    bool ssl = true ; // registry_get ("www.ssl", false) ;
 
     static const WSERVER_FRAMEWORK wserver_std_headers[] = {
             wserver_header_start,
@@ -341,3 +351,12 @@ wserver_stop (uintptr_t arg)
 }
 
 
+int32_t
+wserver_log (uint8_t severity, const char *format_str, ...)
+{
+    va_list         args;
+    va_start(args, format_str);
+    int32_t res = svc_logger_type_vlog (SVC_LOGGER_TYPE(severity,0), _wserver_service_id, format_str, args) ;
+    va_end (args) ;
+    return res ;
+}

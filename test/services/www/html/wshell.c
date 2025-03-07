@@ -50,7 +50,7 @@ wshell_qshell_out(void* ctx, uint32_t out, const char* str)
     HTTP_USER_T *user = (HTTP_USER_T *)ctx ;
 
     if (out == SVC_SHELL_OUT_ERR) {
-        DBG_MESSAGE_WWW (DBG_MESSAGE_SEVERITY_INFO,
+        wserver_log (DBG_MESSAGE_SEVERITY_INFO,
                 "WWW   : : SHELL: %s", str ? str : "") ;
 
 
