@@ -418,7 +418,6 @@ httpserver_wserver_create (uint32_t port, bool ssl, const WSERVER_HANDLERS_T* ha
             
         }
         inst->server_sock = -1 ;
-        inst->authenticate = authenticate ;
         inst->port = port ;
         inst->ssl = ssl ;
         inst->handlers = handlers ;
