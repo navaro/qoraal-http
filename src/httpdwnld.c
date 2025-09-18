@@ -29,8 +29,9 @@
 #include "qoraal-http/httpclient.h"
 #include "qoraal-http/httpparse.h"
 #include "qoraal-http/network.h"
+#if !defined CFG_HTTPCLIENT_TLS_DISABLE
 #include "qoraal-http/mbedtls/mbedtlsutils.h"
-
+#endif
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdint.h>
