@@ -156,7 +156,9 @@ int32_t
 httpclient_connect (HTTP_CLIENT_T* client, const struct sockaddr_in* addr, void * ssl_config)
 {
     int32_t status ;
+#if !defined CFG_HTTPCLIENT_TLS_DISABLE
     mbedtls_ssl_config * pssl_config = (mbedtls_ssl_config *)ssl_config ;
+#endif
 
     DBG_CHECK_HTTP_CLIENT (client->socket == -1, EFAIL,
                     "HTTP  :E: httpclient_connect unexpected\r\n!") ;
