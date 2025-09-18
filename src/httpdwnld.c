@@ -29,12 +29,15 @@
 #include "qoraal-http/httpclient.h"
 #include "qoraal-http/httpparse.h"
 #include "qoraal-http/network.h"
+#include "qoraal-http/mbedtls/mbedtlsutils.h"
 
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdint.h>
 #include <string.h>
 #include <ctype.h>
+
+
 
 
 void
@@ -149,7 +152,20 @@ httpdwnld_download (HTTPDWNLD_T * dwnld,
 
     }
 
-    res = httpclient_connect (&client, &addr, dwnld->https) ;
+    void * pssl_config = 0 ;
+#if !defined CFG_HTTPCLIENT_TLS_DISABLED
+    if (dwnld->https) {
+        pssl_config = mbedtlsutils_get_client_config () ;
+        if (!pssl_config) {
+            DBG_MESSAGE_HTTP_CLIENT (DBG_MESSAGE_SEVERITY_ERROR,
+                        "HTTP  : : mbedtlsutils_get_client_config failed!") ;
+            return HTTP_CLIENT_E_SSL_CONNECT ;
+
+        }
+
+    }
+#endif
+    res = httpclient_connect (&client, &addr, pssl_config) ;
 
     if (res != HTTP_CLIENT_E_OK) {
         DBG_MESSAGE_HTTP_CLIENT (DBG_MESSAGE_SEVERITY_REPORT,

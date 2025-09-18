@@ -44,7 +44,7 @@ wrtlog_ctrl (HTTP_USER_T *user, uint32_t method, char* endpoint, uint32_t type)
 }
 
 static void
-logger_cb (void* channel, LOGGERT_TYPE_T type, uint8_t facility, const char* msg)
+logger_cb (void* channel, LOGGER_TYPE_T type, uint8_t facility, const char* msg)
 {
     HTTP_USER_T *user = (HTTP_USER_T *) ((LOGGER_CHANNEL_T*)channel)->user ;
     if (user && msg && strlen(msg)) {

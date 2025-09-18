@@ -153,9 +153,10 @@ httpclient_init (HTTP_CLIENT_T* client, int32_t mss)
  * @http
  */
 int32_t
-httpclient_connect (HTTP_CLIENT_T* client, const struct sockaddr_in* addr, uint32_t use_ssl)
+httpclient_connect (HTTP_CLIENT_T* client, const struct sockaddr_in* addr, void * ssl_config)
 {
     int32_t status ;
+    mbedtls_ssl_config * pssl_config = (mbedtls_ssl_config *)ssl_config ;
 
     DBG_CHECK_HTTP_CLIENT (client->socket == -1, EFAIL,
                     "HTTP  :E: httpclient_connect unexpected\r\n!") ;
@@ -170,7 +171,7 @@ httpclient_connect (HTTP_CLIENT_T* client, const struct sockaddr_in* addr, uint3
     }
 
 #if !defined CFG_HTTPCLIENT_TLS_DISABLE
-    if (use_ssl) {
+    if (pssl_config) {
         if (!client->ssl) {
             client->ssl = HTTP_CLIENT_MALLOC(sizeof(mbedtls_ssl_context)) ;
             if (!client->ssl) {
@@ -178,7 +179,7 @@ httpclient_connect (HTTP_CLIENT_T* client, const struct sockaddr_in* addr, uint3
 
             }
             mbedtls_ssl_init((mbedtls_ssl_context *)client->ssl) ;
-            if (mbedtls_ssl_setup( (mbedtls_ssl_context *)client->ssl, mbedtlsutils_get_client_config() ) != 0) {
+            if (mbedtls_ssl_setup( (mbedtls_ssl_context *)client->ssl, pssl_config) != 0) {
                 HTTP_CLIENT_FREE(client->ssl) ;
                 client->ssl = 0 ;
                 return E_NOMEM ;
@@ -198,7 +199,7 @@ httpclient_connect (HTTP_CLIENT_T* client, const struct sockaddr_in* addr, uint3
     DBG_MESSAGE_HTTP_CLIENT (DBG_MESSAGE_SEVERITY_INFO,
                     "HTTP  : : connect to %s:%d (%d) using %s",
                     client->host, (int)ntohs((uint16_t)addr->sin_port), 
-                    client->socket, use_ssl ? "SSL" : "NO SSL");
+                    client->socket, ssl_config ? "SSL" : "NO SSL");
 
 #if 0
     if (client->mss > 0) {
@@ -267,11 +268,13 @@ httpclient_connect (HTTP_CLIENT_T* client, const struct sockaddr_in* addr, uint3
                 }
             }
 
-        } while(status != 0 &&
-                (status == MBEDTLS_ERR_SSL_WANT_READ ||
+            DBG_MESSAGE_HTTP_CLIENT (DBG_MESSAGE_SEVERITY_INFO,
+                "ongoing mbedtls_ssl_handshake() returned -0x%04X", -status);
+
+        } while(status == MBEDTLS_ERR_SSL_WANT_READ ||
                 status == MBEDTLS_ERR_SSL_WANT_WRITE ||
                 status == MBEDTLS_ERR_SSL_ASYNC_IN_PROGRESS ||
-                status == MBEDTLS_ERR_SSL_CRYPTO_IN_PROGRESS));
+                status == MBEDTLS_ERR_SSL_CRYPTO_IN_PROGRESS);
 
         if (status < 0) {
             if (status != MBEDTLS_ERR_SSL_FATAL_ALERT_MESSAGE) {
@@ -633,7 +636,7 @@ httpclient_read (HTTP_CLIENT_T* client, void* buffer, uint32_t length, uint32_t 
 
     if(received <= 0) {
         DBG_MESSAGE_HTTP_CLIENT (DBG_MESSAGE_SEVERITY_REPORT,
-                "HTTP  : : httpclient_read  %d",received);
+                "HTTP  : : httpclient_read  %d (-0x%x)", received, -received);
 
     }
 
@@ -950,7 +953,7 @@ httpclient_free_response (HTTP_CLIENT_T* client, void* response)
 int32_t
 httpclient_read_response (HTTP_CLIENT_T* client, uint32_t timeout, char** response, int32_t* status)
 {
-    uint32_t        received ;
+    int32_t         received ;
     char*           content ;
     char*           payload ;
     unsigned int    offset = 0 ;
@@ -986,8 +989,6 @@ httpclient_read_response (HTTP_CLIENT_T* client, uint32_t timeout, char** respon
 
         received = httpclient_read(client, &header[offset], HTTP_CLIENT_MAX_RECV_HEADER_LENGTH - offset, timeout); //1550 is RX size
         if(received <= 0) {
-            DBG_MESSAGE_HTTP_CLIENT (DBG_MESSAGE_SEVERITY_LOG,
-                        "HTTP  : : httpclient_read_response  %d", received);
             HTTP_CLIENT_FREE(header) ;
             return HTTP_CLIENT_E_CONNECTION ;
         }

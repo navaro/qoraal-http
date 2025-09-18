@@ -177,7 +177,7 @@ extern "C" {
 #endif
 
     extern int32_t      httpclient_init (HTTP_CLIENT_T* client, int32_t mss) ;
-    extern int32_t      httpclient_connect (HTTP_CLIENT_T* client, const struct sockaddr_in* addr, uint32_t use_ssl ) ;
+    extern int32_t      httpclient_connect (HTTP_CLIENT_T* client, const struct sockaddr_in* addr, void * ssl_config ) ;
     extern int32_t      httpclient_set_hostname (HTTP_CLIENT_T* client, const char* hostname) ;
     extern int32_t      httpclient_is_connected (HTTP_CLIENT_T* client) ;
     extern void         httpclient_close (HTTP_CLIENT_T* client) ;
