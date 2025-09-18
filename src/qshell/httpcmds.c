@@ -156,7 +156,7 @@ int32_t qshell_wget(SVC_SHELL_IF_T *pif, char **argv, int argc)
     // Connect to the server
 
     void * pssl_config = 0 ;
-#if !defined CFG_HTTPCLIENT_TLS_DISABLED
+#if !defined CFG_HTTPCLIENT_TLS_DISABLE    
     if (https) {
         pssl_config = mbedtlsutils_get_client_config () ;
         if (!pssl_config) {
@@ -169,7 +169,7 @@ int32_t qshell_wget(SVC_SHELL_IF_T *pif, char **argv, int argc)
     }
 #endif
 
-    res = httpclient_connect(&client, &addr, https);
+    res = httpclient_connect(&client, &addr, pssl_config);
     if (res != HTTP_CLIENT_E_OK) {
         svc_shell_print(pif, SVC_SHELL_OUT_STD, "Failed to connect to server\n");
         fclose(file);

@@ -11,7 +11,9 @@ extern void    keep_httpcmds (void) ;
 
 void qoraal_http_keep_server(void) ;
 void qoraal_http_keep_client(void) ;
+#if HTTP_WEBSOCK
 void qoraal_http_keep_websocket(void) ;
+#endif
 void qoraal_http_keep_webapi(void) ;
 
 
@@ -21,6 +23,7 @@ int32_t qoraal_http_init_default ()
     return EOK ;
 }
 
+#if HTTP_WEBSOCK
 void
 qoraal_http_keep_websocket(void)
 {
@@ -34,6 +37,7 @@ qoraal_http_keep_websocket(void)
     httpclient_websock_initiate_close (0,  0) ;
 
 }
+#endif
 
 void
 qoraal_http_keep_client(void)

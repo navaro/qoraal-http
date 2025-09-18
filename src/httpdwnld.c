@@ -154,7 +154,7 @@ httpdwnld_download (HTTPDWNLD_T * dwnld,
     }
 
     void * pssl_config = 0 ;
-#if !defined CFG_HTTPCLIENT_TLS_DISABLED
+#if !defined CFG_HTTPCLIENT_TLS_DISABLE
     if (dwnld->https) {
         pssl_config = mbedtlsutils_get_client_config () ;
         if (!pssl_config) {
