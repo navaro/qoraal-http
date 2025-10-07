@@ -547,14 +547,13 @@ httpparse_content (char* data, int len, HTTP_HEADER_T* headers, int count, char*
        if (headers[i].value && (strcmp(headers[i].key, HTTP_HEADER_KEY_CONTENT_LENGTH) == 0)) {
             if (sscanf(headers[i].value, "%u", (unsigned int*)&length)) {
                 if (*content == 0) {
-                *content = data ;
+                    *content = data ;
                 }
             }
             DBG_MESSAGE_HTTP_PARSE (DBG_MESSAGE_SEVERITY_INFO,
-                "httpparse_content : content length %d", *content_length) ;
-                break ;
+                "httpparse_content : content length %u", length) ;
             break ;
-        }
+       }
     }
 
     if (!chunk_length) {
