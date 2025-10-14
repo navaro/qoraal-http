@@ -34,7 +34,7 @@
 
 
 SVC_SHELL_CMD_DECL("wsource", qshell_wsource, "<url>");
-#ifdef CFG_OS_POSIX
+#if defined(CFG_OS_POSIX) || defined(CONFIG_ZEPHYR)
 SVC_SHELL_CMD_DECL("wget", qshell_wget, "<url>");
 #endif
 
@@ -81,7 +81,7 @@ qshell_wsource (SVC_SHELL_IF_T * pif, char** argv, int argc)
 
 }
 
-#ifdef CFG_OS_POSIX
+#if defined(CFG_OS_POSIX) || defined(CONFIG_ZEPHYR)
 int resolve_hostname(const char *hostname, uint32_t *ip) {
     struct addrinfo hints, *res = NULL;
     memset(&hints, 0, sizeof(hints));
@@ -100,7 +100,7 @@ int resolve_hostname(const char *hostname, uint32_t *ip) {
 }
 
 
-int32_t qshell_wget(SVC_SHELL_IF_T *pif, char **argv, int argc) 
+int32_t qshell_wget(SVC_SHELL_IF_T *pif, char **argv, int argc)
 {
     HTTP_CLIENT_T client;
     int32_t status;
@@ -217,8 +217,8 @@ int32_t qshell_wget(SVC_SHELL_IF_T *pif, char **argv, int argc)
 void
 keep_httpcmds (void)
 {
-    (void)qshell_wsource ; 
-#ifdef CFG_OS_POSIX
+    (void)qshell_wsource ;
+#if defined(CFG_OS_POSIX) || defined(CONFIG_ZEPHYR)
     (void)qshell_wget ;
 #endif
 }

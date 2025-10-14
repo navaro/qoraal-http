@@ -14,7 +14,17 @@
 
 ## Quick Start  
 
-The demo application can be compiled using the **POSIX port**, allowing you to evaluate it directly in a **GitHub Codespace** or on your PC! For embedded targets, the following RTOS options are supported: **ChibiOS, FreeRTOS, and ThreadX** (provided you have an IP stack like **LwIP**).  
+The demo application can be compiled using the **POSIX port**, allowing you to evaluate it directly in a **GitHub Codespace** or on your PC! For embedded targets, the following RTOS options are supported: **ChibiOS, FreeRTOS, and ThreadX** (provided you have an IP stack like **LwIP**).
+
+### Zephyr RTOS
+
+Initial Zephyr support is now available. The existing POSIX abstractions can be reused by enabling Zephyr's BSD socket stack. When building under Zephyr ensure the following Kconfig options are selected:
+
+- `CONFIG_NET_SOCKETS=y`
+- `CONFIG_DNS_RESOLVER=y`
+- `CONFIG_NET_HOSTNAME_ENABLE=y` (optional but recommended if hostname resolution is required)
+
+No additional source changes are required beyond including this module in your Zephyr CMake build and linking it against your Zephyr application target.
 
 ⚠️ **Note:** If running in **GitHub Codespaces**, the application will use **port forwarding**. Once the server starts on port 8080, you'll get a browser link for accessing the web interface on that port.
 
