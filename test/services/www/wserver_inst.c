@@ -295,7 +295,7 @@ wserver_authenticate (const char * user, const char * passwd)
 int32_t
 wserver_start (uintptr_t arg)
 {
-    uint32_t port = 8080 ; //registry_get ("www.port", 80) ;
+    uint32_t port = 80 ; //registry_get ("www.port", 80) ;
     bool ssl = false ; // registry_get ("www.ssl", false) ;
 
     static const WSERVER_FRAMEWORK wserver_std_headers[] = {
@@ -313,7 +313,9 @@ wserver_start (uintptr_t arg)
     static WSERVER_HANDLERS_START(handlers)
     WSERVER_HANDLER              ("rtlog",   wrtlog_handler,            WSERVER_ENDPOINT_ACCESS_OPEN,   WSERVER_ENDPOINT_FLAGS_DISABLE_WDT)
     WSERVER_HANDLER              ("memlog",  wnlog_memlog_handler,      WSERVER_ENDPOINT_ACCESS_OPEN,   0)
-    WSERVER_HANDLER              ("webapi",  wwebapi_handler,          WSERVER_ENDPOINT_ACCESS_ADMIN,  0)
+#if !defined(CFG_JSON_DISABLE)
+    WSERVER_HANDLER              ("webapi",  wwebapi_handler,           WSERVER_ENDPOINT_ACCESS_ADMIN,  0)
+#endif
     WSERVER_HANDLER              ("about2",  wserver_handler_about2,    WSERVER_ENDPOINT_ACCESS_ADMIN,  0)
     WSERVER_HANDLER              ("about3",  wserver_handler_about3,    WSERVER_ENDPOINT_ACCESS_OPEN,   0)
     WSERVER_HANDLER              ("image",   wimage_handler,            WSERVER_ENDPOINT_ACCESS_OPEN,   0)

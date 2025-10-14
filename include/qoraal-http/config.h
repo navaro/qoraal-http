@@ -6,7 +6,7 @@
 /* CFG_JSON_DISABLE
     If defined, littlefs filesystem will be disabled.
 */
-// #define CFG_JSON_DISABLE    1
+#define CFG_JSON_DISABLE    1
 
 
 /* CFG_HTTPSERVER_TLS_DISABLE 
