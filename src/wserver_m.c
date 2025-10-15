@@ -62,7 +62,7 @@ typedef struct HTTPSERVER_INST_S {
 #define HTTPSERVER_USE_KEEPALIVE                    1
 #define HTTPSERVER_USER_MAX                         96
 #ifndef CFG_UTILS_HTTP_SERVER_THREADS
-#define CFG_UTILS_HTTP_SERVER_THREADS               6
+#define CFG_UTILS_HTTP_SERVER_THREADS               4
 #endif
 
 /**
