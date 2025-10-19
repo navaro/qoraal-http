@@ -22,6 +22,20 @@
  */
 
 
+ #include <stdio.h>
+#include <stdbool.h>
+#include <stdint.h>
+#include "qoraal/qoraal.h"
+#include "qoraal-http/config.h"
+#include "qoraal-http/qoraal.h"
+#include "qoraal-http/httpclient.h"
+#include "qoraal-http/httpparse.h"
+#include "qoraal-http/httpserver.h"
+#if !defined CFG_HTTPSERVER_TLS_DISABLE
+#include "qoraal-http/mbedtls/mbedtlsutils.h"
+#endif
+
+
 #include <string.h>
 #include <stdio.h>
 #include "qoraal/qoraal.h"
@@ -29,7 +43,7 @@
 #include "qoraal-http/qoraal.h"
 #include "qoraal-http/httpclient.h"
 #include "qoraal-http/httpparse.h"
-#if !defined CFG_HTTPCLIENT_TLS_DISABLE
+#if  !defined CFG_HTTPCLIENT_TLS_DISABLE
 #include "qoraal-http/mbedtls/mbedtlsutils.h"
 #endif
 
@@ -237,8 +251,8 @@ httpclient_connect (HTTP_CLIENT_T* client, const struct sockaddr_in* addr, void 
 #if !defined CFG_HTTPCLIENT_TLS_DISABLE
     if (client->ssl) {
         do {
-            struct fd_set   fdread;
-            struct fd_set   fdex;
+             fd_set   fdread;
+             fd_set   fdex;
             struct timeval tv;
 
             status = mbedtls_ssl_handshake((mbedtls_ssl_context *)client->ssl);

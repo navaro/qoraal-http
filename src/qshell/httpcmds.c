@@ -21,10 +21,12 @@
     SOFTWARE.
  */
 
+ #if 0
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
+#include "config.h"
 #include "qoraal/config.h"
 #include "qoraal/qoraal.h"
 #include "qoraal-http/qoraal.h"
@@ -222,3 +224,4 @@ keep_httpcmds (void)
     (void)qshell_wget ;
 #endif
 }
+#endif // 0
