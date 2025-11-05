@@ -21,25 +21,78 @@
     SOFTWARE.
  */
 
- #if 0
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
-#include "config.h"
 #include "qoraal/config.h"
 #include "qoraal/qoraal.h"
+#include "qoraal/qfs_port.h"
 #include "qoraal-http/qoraal.h"
 #include "qoraal/svc/svc_shell.h"
 #include "qoraal-http/httpdwnld.h"
 #include "qoraal-http/httpparse.h"
+#if defined(CFG_OS_ZEPHYR)
+#include <zephyr/fs/fs.h>
+#endif
 
 
 SVC_SHELL_CMD_DECL("wsource", qshell_wsource, "<url>");
-#if defined(CFG_OS_POSIX) || defined(CONFIG_ZEPHYR)
+#if defined(CFG_OS_POSIX) || defined(CFG_OS_ZEPHYR)
 SVC_SHELL_CMD_DECL("wget", qshell_wget, "<url>");
 #endif
 
+
+typedef struct qfs_stream_s {
+#if defined(CFG_OS_ZEPHYR) || defined(CFG_OS_ZEPHYR)
+    struct fs_file_t zf;
+#else
+    FILE *fp;
+#endif
+    char abs[QFS_PATH_MAX];
+} qfs_stream_t;
+
+/* Open a stream for binary write at a path (normalized through qfs_make_abs) */
+static int qfs_stream_open(qfs_stream_t *st, const char *path)
+{
+    memset(st, 0, sizeof(*st));
+    if (qfs_make_abs(st->abs, sizeof(st->abs), path) != 0) {
+        return -1;
+    }
+
+#if defined(CFG_OS_ZEPHYR) 
+    fs_file_t_init(&st->zf);
+    int rc = fs_open(&st->zf, st->abs, FS_O_CREATE | FS_O_WRITE);
+    if (rc) return rc;
+    /* Truncate if pre-existing */
+    rc = fs_truncate(&st->zf, 0);
+    return rc;
+#else
+    st->fp = fopen(st->abs, "wb");
+    return (st->fp != NULL) ? 0 : -1;
+#endif
+}
+
+static int qfs_stream_write(qfs_stream_t *st, const void *buf, size_t len)
+{
+#if defined(CFG_OS_ZEPHYR)
+    ssize_t w = fs_write(&st->zf, buf, len);
+    return (w < 0) ? (int)w : 0;
+#else
+    size_t w = fwrite(buf, 1, len, st->fp);
+    return (w == len) ? 0 : -1;
+#endif
+}
+
+static void qfs_stream_close(qfs_stream_t *st)
+{
+#if defined(CFG_OS_ZEPHYR)
+    (void)fs_close(&st->zf);
+#else
+    if (st->fp) fclose(st->fp);
+#endif
+}
 
 static int32_t
 qshell_wsource (SVC_SHELL_IF_T * pif, char** argv, int argc)
@@ -60,7 +113,7 @@ qshell_wsource (SVC_SHELL_IF_T * pif, char** argv, int argc)
     if (res < 0) {
         svc_shell_print (pif, SVC_SHELL_OUT_STD,
                 "ERROR: script downloading %s failed with %d!\r\n",
-                script.dwnld.name, res) ;
+                script.dwnld.name?script.dwnld.name:"unknown", res) ;
         qoraal_free(script.heap, script.mem) ;
 
     } else  {
@@ -73,7 +126,7 @@ qshell_wsource (SVC_SHELL_IF_T * pif, char** argv, int argc)
 
         svc_shell_print (pif, SVC_SHELL_OUT_STD,
                 "script %s complete with %d\r\n",
-                script.dwnld.name, res) ;
+                script.dwnld.name?script.dwnld.name:"unknown", res) ;
 
         qoraal_free(script.heap, script.mem) ;
 
@@ -83,24 +136,23 @@ qshell_wsource (SVC_SHELL_IF_T * pif, char** argv, int argc)
 
 }
 
-#if defined(CFG_OS_POSIX) || defined(CONFIG_ZEPHYR)
-int resolve_hostname(const char *hostname, uint32_t *ip) {
-    struct addrinfo hints, *res = NULL;
+
+
+static int resolve_hostname(const char *hostname, uint32_t *ip)
+{
+    struct addrinfo hints, *res0 = NULL;
     memset(&hints, 0, sizeof(hints));
-    hints.ai_family = AF_INET; // IPv4 only
-    hints.ai_socktype = SOCK_STREAM; // TCP connection
+    hints.ai_family   = AF_INET;      /* IPv4 */
+    hints.ai_socktype = SOCK_STREAM;  /* TCP */
 
-    if (getaddrinfo(hostname, NULL, &hints, &res) != 0) {
-        return HTTP_CLIENT_E_HOST; // Failed to resolve
-    }
+    int rc = getaddrinfo(hostname, NULL, &hints, &res0);
+    if (rc != 0) return HTTP_CLIENT_E_HOST;
 
-    struct sockaddr_in *addr = (struct sockaddr_in *)res->ai_addr;
+    struct sockaddr_in *addr = (struct sockaddr_in *)res0->ai_addr;
     *ip = addr->sin_addr.s_addr;
-
-    freeaddrinfo(res);
+    freeaddrinfo(res0);
     return EOK;
 }
-
 
 int32_t qshell_wget(SVC_SHELL_IF_T *pif, char **argv, int argc)
 {
@@ -112,116 +164,114 @@ int32_t qshell_wget(SVC_SHELL_IF_T *pif, char **argv, int argc)
     struct sockaddr_in addr;
     int https, port;
     char *host, *path, *credentials;
-    FILE *file = NULL;
 
     if (argc < 2) {
         return SVC_SHELL_CMD_E_PARMS;
     }
 
-    // Parse the URL
+    /* Parse the URL */
     res = httpparse_url_parse(argv[1], &https, &port, &host, &path, &credentials);
     if (res != EOK) {
-        svc_shell_print(pif, SVC_SHELL_OUT_STD, "Failed to parse URL: %s\n", argv[1]);
+        svc_shell_print(pif, SVC_SHELL_OUT_STD, "Failed to parse URL: %s\r\n", argv[1]);
         return res;
     }
 
-    // Extract the filename
-    const char *filename = "index.html" ;
-    if (path) {
-        filename = strrchr(path, '/');
-        filename = (filename && *(filename + 1)) ? filename + 1 : path; 
+    /* Derive a file name from the URL path */
+    const char *leaf = "index.html";
+    if (path && *path) {
+        const char *slash = strrchr(path, '/');
+        leaf = (slash && *(slash + 1)) ? (slash + 1) : path;
     }
 
-    // Open file for writing
-    file = fopen(filename, "wb");
-    if (!file) {
-        svc_shell_print(pif, SVC_SHELL_OUT_STD, "Failed to open file: %s\n", filename);
+    /* Build absolute path via qfs and open stream */
+    qfs_stream_t st;
+    if (qfs_stream_open(&st, leaf) != 0) {
+        svc_shell_print(pif, SVC_SHELL_OUT_STD, "Failed to open file for write: %s\r\n", leaf);
         return -1;
     }
 
-    // Resolve hostname
+    /* Resolve hostname */
     memset(&addr, 0, sizeof(addr));
     addr.sin_family = AF_INET;
-    addr.sin_port = htons(port);
+    addr.sin_port   = htons(port);
 
     if (resolve_hostname(host, &ip) != EOK) {
-        svc_shell_print(pif, SVC_SHELL_OUT_STD, "HTTP  : : resolving %s failed!\n", host);
-        fclose(file);
+        svc_shell_print(pif, SVC_SHELL_OUT_STD, "HTTP: resolving %s failed!\r\n", host);
+        qfs_stream_close(&st);
         return HTTP_CLIENT_E_HOST;
     }
     addr.sin_addr.s_addr = ip;
 
-    // initialise the client
-    httpclient_init (&client, 0) ;
-    // for name-based virtual hosting
-    httpclient_set_hostname (&client, host) ; 
-    // Connect to the server
+    /* Init client */
+    httpclient_init(&client, 0);
+    httpclient_set_hostname(&client, host);
 
-    void * pssl_config = 0 ;
-#if !defined CFG_HTTPCLIENT_TLS_DISABLE    
+    void *pssl_config = 0;
+#if !defined(CFG_HTTPCLIENT_TLS_DISABLE)
     if (https) {
-        pssl_config = mbedtlsutils_get_client_config () ;
+        pssl_config = mbedtlsutils_get_client_config();
         if (!pssl_config) {
-            svc_shell_print(pif, SVC_SHELL_OUT_STD, 
-                        "ssl config failed!") ;
-            return HTTP_CLIENT_E_SSL_CONNECT ;
-
+            svc_shell_print(pif, SVC_SHELL_OUT_STD, "ssl config failed!\r\n");
+            qfs_stream_close(&st);
+            return HTTP_CLIENT_E_SSL_CONNECT;
         }
-
     }
 #endif
 
     res = httpclient_connect(&client, &addr, pssl_config);
     if (res != HTTP_CLIENT_E_OK) {
-        svc_shell_print(pif, SVC_SHELL_OUT_STD, "Failed to connect to server\n");
-        fclose(file);
+        svc_shell_print(pif, SVC_SHELL_OUT_STD, "Failed to connect to server\r\n");
+        qfs_stream_close(&st);
         httpclient_close(&client);
         return res;
     }
 
-    // Send GET request
+    /* GET */
     res = httpclient_get(&client, path, credentials);
     if (res < 0) {
-        svc_shell_print(pif, SVC_SHELL_OUT_STD, "GET %s failed\n", path);
-        fclose(file);
+        svc_shell_print(pif, SVC_SHELL_OUT_STD, "GET %s failed\r\n", path);
+        qfs_stream_close(&st);
         httpclient_close(&client);
         return res;
     }
 
-    // Read response and headers
+    /* Read status/headers */
     res = httpclient_read_response_ex(&client, 5000, &status);
     if (res < 0 || status / 100 != 2) {
-        svc_shell_print(pif, SVC_SHELL_OUT_STD, 
-                "Failed to read response status %d result %d\n", status, res);
-        if (res < 0) {
-            fclose(file);
+        svc_shell_print(pif, SVC_SHELL_OUT_STD,
+                        "Failed to read response (status %d, rc %d)\r\n", status, res);
+        qfs_stream_close(&st);
+        httpclient_close(&client);
+        return (res < 0) ? res : -1;
+    }
+
+    /* Stream body to file using qfs-normalized path */
+    while ((res = httpclient_read_next_ex(&client, 5000, &response)) > 0) {
+        int wrc = qfs_stream_write(&st, response, (size_t)res);
+        if (wrc != 0) {
+            svc_shell_print(pif, SVC_SHELL_OUT_STD, "Write failed to %s\r\n", st.abs);
             httpclient_close(&client);
-            return res;
+            qfs_stream_close(&st);
+            return -1;
         }
     }
 
-    // Read response body and write to file
-    while ((res = httpclient_read_next_ex(&client, 5000, &response)) > 0) {
-        fwrite(response, 1, res, file);
-    }
-
-    // Clean up
-    fclose(file);
+    qfs_stream_close(&st);
     httpclient_close(&client);
 
-    svc_shell_print(pif, SVC_SHELL_OUT_STD, "Download complete: %s\n", filename);
-    
+    svc_shell_print(pif, SVC_SHELL_OUT_STD, "Download complete: %s\r\n", leaf);
     return res >= EOK ? SVC_SHELL_CMD_E_OK : res;
 }
-#endif
 
 
-void
-keep_httpcmds (void)
+/* -------------------------------------------------------------------------- */
+/* Keep                                                                       */
+/* -------------------------------------------------------------------------- */
+
+void keep_httpcmds(void)
 {
-    (void)qshell_wsource ;
-#if defined(CFG_OS_POSIX) || defined(CONFIG_ZEPHYR)
-    (void)qshell_wget ;
+    (void)qshell_wsource;
+#if defined(CFG_OS_POSIX) || defined(CFG_OS_ZEPHYR)
+    (void)qshell_wget;
 #endif
 }
-#endif // 0

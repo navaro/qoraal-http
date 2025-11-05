@@ -305,6 +305,27 @@ mbedtlsutils_start (void)
     return ret ;
 }
 
+int hardware_poll(void *data, unsigned char *output, size_t len, size_t *olen)
+{
+    (void)data;
+    *olen = 0;
+
+    while (len >= 4) {
+        uint32_t r = platform_rand();
+        output[0] = (unsigned char)((r >> 24) & 0xFF);
+        output[1] = (unsigned char)((r >> 16) & 0xFF);
+        output[2] = (unsigned char)((r >>  8) & 0xFF);
+        output[3] = (unsigned char)( r        & 0xFF);
+        output += 4; len -= 4; *olen += 4;
+    }
+    if (len) {
+        uint32_t r = platform_rand();
+        for (size_t i = 0; i < len; i++) output[i] = (unsigned char)(r >> (24 - i*8));
+        *olen += len;
+    }
+    return 0;
+}
+
 int32_t
 mbedtls_client_inst_init (mbedtls_ssl_config * ssl_config)
 {
@@ -329,8 +350,20 @@ mbedtls_client_inst_init (mbedtls_ssl_config * ssl_config)
         }
 
         mbedtls_ssl_conf_authmode(pconf, MBEDTLS_SSL_VERIFY_OPTIONAL);
-        mbedtls_ssl_conf_rng( pconf, mbedtls_ctr_drbg_random, &_ssl_ctr_drbg );
-        mbedtls_ssl_conf_dbg( pconf, mbedtls_debug_cb, NULL );
+        mbedtls_ssl_conf_rng( pconf, mbedtls_ctr_drbg_random, 0 );
+
+
+        mbedtls_entropy_init(&_ssl_entropy);
+        mbedtls_entropy_add_source( &_ssl_entropy, hardware_poll, NULL,
+                                    12, MBEDTLS_ENTROPY_SOURCE_STRONG);
+        mbedtls_ctr_drbg_init(&_ssl_ctr_drbg);
+        mbedtls_ctr_drbg_seed(&_ssl_ctr_drbg, mbedtls_entropy_func, &_ssl_entropy,
+                        (const unsigned char *)"qoraal", strlen("qoraal"));
+
+        mbedtls_ssl_conf_rng(pconf,
+    		mbedtls_entropy_func, &_ssl_ctr_drbg);                        
+
+        // mbedtls_ssl_conf_dbg( pconf, mbedtls_debug_cb, NULL );
 
 #if defined(MBEDTLS_SSL_CACHE_C)
         mbedtls_ssl_conf_session_cache( pconf, &_ssl_cache,
@@ -475,6 +508,7 @@ mbedtls_release_server_config (void)
 }
 
 #if 1 // defined QORAAL_CFG_USE_LWIP
+#if 0
 int 
 mbedtls_net_recv_timeout( void *ctx, unsigned char *buf, size_t len, uint32_t timeout)
 {
@@ -526,6 +560,7 @@ mbedtls_net_recv_timeout( void *ctx, unsigned char *buf, size_t len, uint32_t ti
     return( ret );
 
 }
+#endif
 
 int 
 mbedtls_net_recv( void *ctx, unsigned char *buf, size_t len)
