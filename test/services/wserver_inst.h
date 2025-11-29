@@ -40,7 +40,7 @@
 #include <stdint.h>
 #include "qoraal-http/wserver.h"
 #include "qoraal/svc/svc_services.h"
-#include "../services.h"
+//#include "../services.h"
 
 /*===========================================================================*/
 /* Client constants.                                                         */

@@ -9,7 +9,7 @@ include(FetchContent)
 FetchContent_Declare(
     qoraal
     GIT_REPOSITORY https://github.com/navaro/qoraal.git
-    GIT_TAG        main  # or whatever branch/commit you need
+    GIT_TAG        zephyr-port  # or whatever branch/commit you need
     SOURCE_SUBDIR  .
 )
 FetchContent_MakeAvailable(qoraal)

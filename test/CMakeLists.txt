@@ -1,20 +1,22 @@
 # Collect all test source files
 set(TEST_SRCS
     main.c
-    services/www/wserver_inst.c
-    services/www/css/wcss.c
-    services/www/html/wabout.c
-    services/www/html/wnlog.c
-    services/www/html/wrtlog.c
-    services/www/html/wservices.c
-    services/www/html/wshell.c
-    services/www/html/wsystem.c
-    services/www/html/wwebapi.c
-    services/www/image/wimage.c
+    platform.c
+    services/wserver_inst.c
+    ../example/css/wcss.c
+    ../example/html/wabout.c
+    ../example/html/wnlog.c
+    ../example/html/wrtlog.c
+    ../example/html/wservices.c
+    ../example/html/wshell.c
+    ../example/html/wsystem.c
+    ../example/html/wwebapi.c
+    ../example/image/wimage.c
 )
 
 # Add the executable target
 add_executable(httptest ${TEST_SRCS})
+target_compile_definitions(httptest PRIVATE CFG_OS_POSIX)
 
 # Link the qoraal library and pthread
 if(WIN32)
@@ -25,6 +27,8 @@ endif()
 target_compile_options(httptest PRIVATE -O0 -g)
 target_compile_options(qoraal PRIVATE -O0 -g)
 target_compile_options(qoraal-http PRIVATE -O0 -g)
+
+
 
 # Define CFG_OS_MEM_DEBUG_ENABLE for qoraal
 target_compile_definitions(qoraal PRIVATE CFG_OS_MEM_DEBUG_ENABLE CFG_PLATFORM_ENABLE_WS2)

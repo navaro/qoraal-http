@@ -22,22 +22,10 @@
  */
 
 
+#include <string.h>
  #include <stdio.h>
 #include <stdbool.h>
 #include <stdint.h>
-#include "qoraal/qoraal.h"
-#include "qoraal-http/config.h"
-#include "qoraal-http/qoraal.h"
-#include "qoraal-http/httpclient.h"
-#include "qoraal-http/httpparse.h"
-#include "qoraal-http/httpserver.h"
-#if !defined CFG_HTTPSERVER_TLS_DISABLE
-#include "qoraal-http/mbedtls/mbedtlsutils.h"
-#endif
-
-
-#include <string.h>
-#include <stdio.h>
 #include "qoraal/qoraal.h"
 #include "qoraal-http/config.h"
 #include "qoraal-http/qoraal.h"

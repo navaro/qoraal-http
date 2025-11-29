@@ -3,10 +3,10 @@
 #include <string.h>
 #include "qoraal/qoraal.h"
 #include "qoraal/svc/svc_services.h"
-#include "services/www/wserver_inst.h"
-#include "qoraal/example/platform.h"
-#include "qoraal/example/console.h"
+#include "qoraal/qshell/console.h"
 #include "services/services.h"
+#include "services/wserver_inst.h"
+#include "platform.h"
 
 /*===========================================================================*/
 /* Macros and Defines                                                        */
