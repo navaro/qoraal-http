@@ -3,15 +3,7 @@ set(TEST_SRCS
     main.c
     platform.c
     services/wserver_inst.c
-    ../example/css/wcss.c
-    ../example/html/wabout.c
-    ../example/html/wnlog.c
-    ../example/html/wrtlog.c
-    ../example/html/wservices.c
-    ../example/html/wshell.c
-    ../example/html/wsystem.c
-    ../example/html/wwebapi.c
-    ../example/image/wimage.c
+
 )
 
 # Add the executable target
