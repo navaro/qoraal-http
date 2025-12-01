@@ -28,8 +28,7 @@
 #include "qoraal/svc/svc_shell.h"
 #include "qoraal/common/rtclib.h"
 #include "qoraal-http/wserver.h"
-#include "../wserver_inst.h"
-#include "wshell.h"
+
 
 
 
@@ -50,8 +49,8 @@ wshell_qshell_out(void* ctx, uint32_t out, const char* str)
     HTTP_USER_T *user = (HTTP_USER_T *)ctx ;
 
     if (out == SVC_SHELL_OUT_ERR) {
-        DBG_MESSAGE_WWW (DBG_MESSAGE_SEVERITY_INFO,
-                "WWW   : : SHELL: %s", str ? str : "") ;
+        //DBG_MESSAGE_WWW (DBG_MESSAGE_SEVERITY_INFO,
+        //        "WWW   : : SHELL: %s", str ? str : "") ;
 
 
     } else if (out == SVC_SHELL_IN_STD) {

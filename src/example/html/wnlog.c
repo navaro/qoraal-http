@@ -28,7 +28,7 @@
 #include "qoraal/svc/svc_logger.h"
 #include "qoraal/common/mlog.h"
 #include "qoraal-http/wserver.h"
-#include "wnlog.h"
+
 
 
 

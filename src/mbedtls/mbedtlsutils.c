@@ -21,10 +21,10 @@
     SOFTWARE.
  */
 
-#include "../config.h"
+#include "qoraal-http/config.h"
 #if !defined CFG_HTTPSERVER_TLS_DISABLE || !defined CFG_HTTPCLIENT_TLS_DISABLE
 #include <time.h>
-#include "mbedtlsutils.h"
+#include "qoraal-http/mbedtls/mbedtlsutils.h"
 #include "threading_alt.h"
 #include "qoraal/qoraal.h"
 #include "qoraal-http/qoraal.h"
@@ -122,13 +122,15 @@ mbedtls_debug_cb ( void *ctx, int level, const char *file, int line,
             "TLS   : : %s:%d: %s",file,line,str) ;
 }
 
+#if 0
 static mbedtls_time_t
 mbedtls_time_cb ( mbedtls_time_t* time )
 {
     return rtc_time () ;
 }
+#endif
 
-#if defined(MBEDTLS_THREADING_ALT)
+#if 0 // defined(MBEDTLS_THREADING_ALT)
 static void
 mutex_init( mbedtls_threading_mutex_t * mtx)
 {
@@ -231,7 +233,7 @@ mbedtlsutils_start (void)
             mbedtls_free_cb ) ;
 #endif
 
-#if defined(MBEDTLS_THREADING_ALT)
+#if 0 //defined(MBEDTLS_THREADING_ALT)
     mbedtls_threading_set_alt(mutex_init, mutex_free, mutex_lock, mutex_unlock );
 #endif
 
@@ -255,7 +257,7 @@ mbedtlsutils_start (void)
     mbedtls_debug_set_threshold( 1 );
 #endif
 
-    mbedtls_platform_set_time (mbedtls_time_cb) ;
+    // mbedtls_platform_set_time (mbedtls_time_cb) ;
 
 #if defined(MBEDTLS_SSL_CACHE_C)
     mbedtls_ssl_cache_set_max_entries( &_ssl_cache, 5 );
@@ -303,6 +305,27 @@ mbedtlsutils_start (void)
     return ret ;
 }
 
+int hardware_poll(void *data, unsigned char *output, size_t len, size_t *olen)
+{
+    (void)data;
+    *olen = 0;
+
+    while (len >= 4) {
+        uint32_t r = platform_rand();
+        output[0] = (unsigned char)((r >> 24) & 0xFF);
+        output[1] = (unsigned char)((r >> 16) & 0xFF);
+        output[2] = (unsigned char)((r >>  8) & 0xFF);
+        output[3] = (unsigned char)( r        & 0xFF);
+        output += 4; len -= 4; *olen += 4;
+    }
+    if (len) {
+        uint32_t r = platform_rand();
+        for (size_t i = 0; i < len; i++) output[i] = (unsigned char)(r >> (24 - i*8));
+        *olen += len;
+    }
+    return 0;
+}
+
 int32_t
 mbedtls_client_inst_init (mbedtls_ssl_config * ssl_config)
 {
@@ -327,8 +350,20 @@ mbedtls_client_inst_init (mbedtls_ssl_config * ssl_config)
         }
 
         mbedtls_ssl_conf_authmode(pconf, MBEDTLS_SSL_VERIFY_OPTIONAL);
-        mbedtls_ssl_conf_rng( pconf, mbedtls_ctr_drbg_random, &_ssl_ctr_drbg );
-        mbedtls_ssl_conf_dbg( pconf, mbedtls_debug_cb, NULL );
+        mbedtls_ssl_conf_rng( pconf, mbedtls_ctr_drbg_random, 0 );
+
+
+        mbedtls_entropy_init(&_ssl_entropy);
+        mbedtls_entropy_add_source( &_ssl_entropy, hardware_poll, NULL,
+                                    12, MBEDTLS_ENTROPY_SOURCE_STRONG);
+        mbedtls_ctr_drbg_init(&_ssl_ctr_drbg);
+        mbedtls_ctr_drbg_seed(&_ssl_ctr_drbg, mbedtls_entropy_func, &_ssl_entropy,
+                        (const unsigned char *)"qoraal", strlen("qoraal"));
+
+        mbedtls_ssl_conf_rng(pconf,
+    		mbedtls_entropy_func, &_ssl_ctr_drbg);                        
+
+        // mbedtls_ssl_conf_dbg( pconf, mbedtls_debug_cb, NULL );
 
 #if defined(MBEDTLS_SSL_CACHE_C)
         mbedtls_ssl_conf_session_cache( pconf, &_ssl_cache,
@@ -472,14 +507,15 @@ mbedtls_release_server_config (void)
     }
 }
 
-#if defined QORAAL_CFG_USE_LWIP
+#if 1 // defined QORAAL_CFG_USE_LWIP
+#if 0
 int 
 mbedtls_net_recv_timeout( void *ctx, unsigned char *buf, size_t len, uint32_t timeout)
 {
     int ret = 0 ;
     int fd = (int)ctx;
-    struct fd_set readSet;
-    struct fd_set exceptSet;
+     fd_set readSet;
+     fd_set exceptSet;
     struct timeval tv;
 
     if( fd < 0 ) {
@@ -496,7 +532,7 @@ mbedtls_net_recv_timeout( void *ctx, unsigned char *buf, size_t len, uint32_t ti
         tv.tv_sec = timeout/1000 ; // TIMEOUT_PER_IDLE_SELECT_SEC;
         tv.tv_usec = timeout%1000 ;
 
-        lwip_select(fd+1, &readSet, NULL, &exceptSet, &tv) ;
+        select(fd+1, &readSet, NULL, &exceptSet, &tv) ;
 
         if (FD_ISSET(fd, &readSet)) {
             break ;
@@ -524,56 +560,55 @@ mbedtls_net_recv_timeout( void *ctx, unsigned char *buf, size_t len, uint32_t ti
     return( ret );
 
 }
+#endif
 
 int 
 mbedtls_net_recv( void *ctx, unsigned char *buf, size_t len)
 {
-    int ret = 0 ;
-    int fd = (int)ctx;
-
-    if( fd < 0 ) {
-        return( MBEDTLS_ERR_NET_INVALID_CONTEXT );
+    int fd = (int)(intptr_t)ctx;
+    if (fd < 0) {
+        return MBEDTLS_ERR_NET_INVALID_CONTEXT;
     }
 
-    ret = (int) lwip_recv( fd, buf, len, MSG_DONTWAIT);
-    if (ret <= 0) {
-        if (errno == EWOULDBLOCK) {
-            DBG_MESSAGE_MBEDTLS(DBG_MESSAGE_SEVERITY_INFO,  "mbedtls_net_recv WANT_READ") ;
-            return MBEDTLS_ERR_SSL_WANT_READ ;
-        }
-        else {
-            DBG_MESSAGE_MBEDTLS(DBG_MESSAGE_SEVERITY_REPORT,  "TLS   : : mbedtls_net_recv CONN_EOF (%d)", ret) ;
-            return ret == 0 ? MBEDTLS_ERR_NET_RECV_FAILED : MBEDTLS_ERR_NET_CONN_RESET ;
-        }
-
-    } else {
-        DBG_MESSAGE_MBEDTLS(DBG_MESSAGE_SEVERITY_INFO,  "TLS   : : mbedtls_net_recv read %d!", ret) ;
-
+    int r = (int)zsock_recv(fd, buf, len, MSG_DONTWAIT);
+    if (r > 0) {
+        return r;
+    }
+    if (r == 0) {
+        return MBEDTLS_ERR_NET_RECV_FAILED;   /* peer closed */
     }
 
-    return( ret );
+    /* r < 0 */
+    if (errno == EAGAIN || errno == EWOULDBLOCK) {
+        return MBEDTLS_ERR_SSL_WANT_READ;
+    }
+    if (errno == ECONNRESET) {
+        return MBEDTLS_ERR_NET_CONN_RESET;
+    }
+    return MBEDTLS_ERR_NET_RECV_FAILED;
+
 }
 
 int 
 mbedtls_net_send( void *ctx, const unsigned char *buf, size_t len )
 {
-    int ret;
-    int fd = (int)ctx;
-
-    if( fd < 0 )
-        return( MBEDTLS_ERR_NET_INVALID_CONTEXT );
-
-    ret = (int) lwip_write( fd, buf, len );
-
-    if( ret < 0 )
-    {
-        //if( net_would_block( ctx ) != 0 )
-            return( MBEDTLS_ERR_SSL_CONN_EOF );
-
-        //return( MBEDTLS_ERR_NET_SEND_FAILED );
+    int fd = (int)(intptr_t)ctx;
+    if (fd < 0) {
+        return MBEDTLS_ERR_NET_INVALID_CONTEXT;
     }
 
-    return( ret );
+    int r = (int)zsock_send(fd, buf, len, 0);
+    if (r >= 0) {
+        return r;
+    }
+
+    if (errno == EAGAIN || errno == EWOULDBLOCK) {
+        return MBEDTLS_ERR_SSL_WANT_WRITE;
+    }
+    if (errno == ECONNRESET) {
+        return MBEDTLS_ERR_NET_CONN_RESET;
+    }
+    return MBEDTLS_ERR_NET_SEND_FAILED;
 }
 #endif
 

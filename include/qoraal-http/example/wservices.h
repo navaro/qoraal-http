@@ -22,73 +22,27 @@
  */
 
 
-/**
- * @file        wserver.h
- * @author      Natie van Rooyen <natie@navaro.nl>
- * @date        January 1, 2015
- * @version     0.0.0.1 (alpha)
- *
- * @section DESCRIPTION
- *
- * Simple web server for provisioning.
- */
 
-#ifndef __WSERVER_INST_H__
-#define __WSERVER_INST_H__
+#ifndef __WSERVICES_H__
+#define __WSERVICES_H__
+
 
 
 #include <stdint.h>
-#include "qoraal-http/wserver.h"
-#include "qoraal/svc/svc_services.h"
-#include "../services.h"
+
 
 /*===========================================================================*/
 /* Client constants.                                                         */
 /*===========================================================================*/
 
-/**
- * @name    Error Codes
- * @{
- */
-#define HTTP_WSERVER_E_OK                                EOK
-
-/**
- * @name    Debug Level
- * @{
- */
-#define DBG_MESSAGE_WWW(severity, fmt_str, ...)     DBG_MESSAGE_T(SVC_LOGGER_TYPE(severity,0), QORAAL_SERVICE_WWW, fmt_str, ##__VA_ARGS__)
-#define DBG_ASSERT_WWW                              DBG_ASSERT_T
-/** @} */
-
-/** @} */
-
 /*===========================================================================*/
 /* Client pre-compile time settings.                                         */
 /*===========================================================================*/
 
-/**
- * @name    HTML text
- * @{
- */
-#define WSERVER_TITLE_TEXT      "Qoraal"
-
-/** @} */
-
-
-#define WSERVER_CHECK_SEND(x)   if ((x) < HTTP_WSERVER_E_OK) return -2
-
-/** @} */
-
-
-
-
-
-#define WSERVER_HTML_404    "<!DOCTYPE html><html><head><meta charset=\"UTF-8\"><title>404 - Page Not Found</title></style></head><body><h1>404 - Page Not Found</h1><p>The page you're looking for is on a secret mission...</p></body></html>"
 
 /*===========================================================================*/
 /* Client data structures and types.                                         */
 /*===========================================================================*/
-
 
 /*===========================================================================*/
 /* External declarations.                                                    */
@@ -98,12 +52,12 @@
 extern "C" {
 #endif
 
-    extern int32_t          wserver_service_ctrl (uint32_t code, uintptr_t arg) ;
-    extern int32_t          wserver_service_run (uintptr_t arg) ;
+int32_t         wservices_handler (HTTP_USER_T *user, uint32_t method, char* endpoint) ;
+const char*     wservices_ctrl (HTTP_USER_T *user, uint32_t method, char* endpoint, uint32_t type) ;
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* __WSERVER_INST_H__ */
+#endif /* __WSERVICES_H__ */
 

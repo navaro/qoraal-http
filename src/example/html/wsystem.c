@@ -26,8 +26,10 @@
 #include "qoraal/qoraal.h"
 #include "qoraal/common/rtclib.h"
 #include "qoraal-http/wserver.h"
-#include "wsystem.h"
-#include "../wserver_inst.h"
+
+
+
+#define WSERVER_CHECK_SEND(x)   if ((x) < EOK) return -2
 
 
 const char*
@@ -116,7 +118,7 @@ wsystem_handler (HTTP_USER_T *user, uint32_t method, char* endpoint)
             )) ;
 
         if (cmd[0] && strcmp(cmd[0], "shutdown") == 0) {
-            svc_service_stop_timeout (svc_service_get(QORAAL_SERVICE_WWW), 0) ;
+            // svc_service_stop_timeout (svc_service_get(QORAAL_SERVICE_WWW), 0) ;
 
         }
         

@@ -22,27 +22,68 @@
  */
 
 
+/**
+ * @file        wserver.h
+ * @author      Natie van Rooyen <natie@navaro.nl>
+ * @date        January 1, 2015
+ * @version     0.0.0.1 (alpha)
+ *
+ * @section DESCRIPTION
+ *
+ * Simple web server for provisioning.
+ */
 
-#ifndef __WSERVICES_H__
-#define __WSERVICES_H__
-
+#ifndef __WSERVER_INST_H__
+#define __WSERVER_INST_H__
 
 
 #include <stdint.h>
-#include "../wserver_inst.h"
+#include "qoraal-http/wserver.h"
+#include "qoraal/svc/svc_services.h"
+//#include "../services.h"
 
 /*===========================================================================*/
 /* Client constants.                                                         */
 /*===========================================================================*/
 
+/**
+ * @name    Error Codes
+ * @{
+ */
+
+/**
+ * @name    Debug Level
+ * @{
+ */
+
+ /** @} */
+
+/** @} */
+
 /*===========================================================================*/
 /* Client pre-compile time settings.                                         */
 /*===========================================================================*/
+
+/**
+ * @name    HTML text
+ * @{
+ */
+#define WSERVER_TITLE_TEXT      "Qoraal"
+
+/** @} */
+
+
+
+/** @} */
+
+
+
 
 
 /*===========================================================================*/
 /* Client data structures and types.                                         */
 /*===========================================================================*/
+
 
 /*===========================================================================*/
 /* External declarations.                                                    */
@@ -52,12 +93,12 @@
 extern "C" {
 #endif
 
-int32_t         wservices_handler (HTTP_USER_T *user, uint32_t method, char* endpoint) ;
-const char*     wservices_ctrl (HTTP_USER_T *user, uint32_t method, char* endpoint, uint32_t type) ;
+    extern int32_t          wserver_service_ctrl (uint32_t code, uintptr_t arg) ;
+    extern int32_t          wserver_service_run (uintptr_t arg) ;
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* __WSERVICES_H__ */
+#endif /* __WSERVER_INST_H__ */
 

@@ -33,7 +33,7 @@
 #include "qoraal/qoraal.h"
 #include "qoraal/common/rtclib.h"
 #include "qoraal-http/wserver.h"
-#include "wimage.h"
+
 #define PROGMEM
 #include "logo.inc"
 

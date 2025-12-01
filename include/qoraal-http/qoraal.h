@@ -35,12 +35,38 @@
     #include <ws2tcpip.h>
     #pragma comment(lib, "ws2_32.lib")
     typedef int socklen_t;
+#elif defined(CONFIG_ZEPHYR)
+    #include <zephyr/kernel.h>
+    #include <zephyr/net/socket.h>
+    #include <zephyr/net/net_ip.h>
+    #include <zephyr/net/hostname.h>
+    #include <zephyr/sys/fdtable.h>
+
+    #define closesocket             zsock_close
+    #define ioctlsocket             zsock_ioctl
+
+    #ifndef getaddrinfo
+    #define getaddrinfo             zsock_getaddrinfo
+    #endif
+
+    #ifndef freeaddrinfo
+    #define freeaddrinfo            zsock_freeaddrinfo
+    #endif
+
+    #ifndef gai_strerror
+    #define gai_strerror            zsock_gai_strerror
+    #endif
+
+    #ifndef addrinfo
+    #define addrinfo                zsock_addrinfo
+    #endif
+
 #elif __has_include(<lwip/inet.h>) || (defined QORAAL_CFG_USE_LWIP && QORAAL_CFG_USE_LWIP)
     // Looks like LWIP is present
-	#include <lwip/opt.h>
-	#include <lwip/def.h>
-	#include <lwip/mem.h>
-	#include <lwip/pbuf.h>
+        #include <lwip/opt.h>
+        #include <lwip/def.h>
+        #include <lwip/mem.h>
+        #include <lwip/pbuf.h>
 	#include <lwip/sys.h>
 	#include <lwip/stats.h>
 	#include <lwip/snmp.h>

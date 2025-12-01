@@ -26,6 +26,9 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include <string.h>
+#include <errno.h> 
+
 #include "qoraal/qoraal.h"
 #include "qoraal-http/config.h"
 #include "qoraal-http/qoraal.h"
@@ -331,7 +334,7 @@ httpserver_user_accept (int server_sock, HTTP_USER_T* user, uint32_t timeout)
 #if QORAAL_CFG_USE_LWIP
                 *__errno());
 #else
-                0) ;
+                errno) ;
 #endif
         return HTTP_SERVER_E_ERROR ;
 

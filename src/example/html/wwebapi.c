@@ -29,7 +29,7 @@
 #include "qoraal/svc/svc_logger.h"
 #include "qoraal-http/wserver.h"
 #include "qoraal-http/httpwebapi.h"
-#include "wwebapi.h"
+
 
 static bool _upgrade_init = false ;
 
