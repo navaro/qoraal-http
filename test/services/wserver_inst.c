@@ -29,6 +29,7 @@
 #include <string.h>
 #include "qoraal/qoraal.h"
 #include "qoraal/svc/svc_services.h"
+#include "qoraal-http/wserver.h"
 #include "qoraal-http/example/wsystem.h"
 #include "qoraal-http/example/wservices.h"
 #include "qoraal-http/example/wabout.h"
