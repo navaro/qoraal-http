@@ -294,7 +294,17 @@ wserver_authenticate (const char * user, const char * passwd)
 int32_t
 wserver_start (uintptr_t arg)
 {
-    uint32_t port = 80 ; //registry_get ("www.port", 80) ;
+#if defined CFG_OS_POSIX
+    uint32_t port = 8000 ; 
+#else
+    uint32_t port = 0 ;
+#endif
+#if defined CFG_HTTPSERVER_TLS_DISABLE
+    port += 80 ;
+#else
+    port += 443;
+#endif
+
     bool ssl = false ; // registry_get ("www.ssl", false) ;
 
     static const WSERVER_FRAMEWORK wserver_std_headers[] = {

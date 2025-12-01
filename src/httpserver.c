@@ -26,6 +26,9 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include <string.h>
+#include <errno.h> 
+
 #include "qoraal/qoraal.h"
 #include "qoraal-http/config.h"
 #include "qoraal-http/qoraal.h"
