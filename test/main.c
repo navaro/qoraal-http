@@ -2,11 +2,11 @@
 #include <stdlib.h>
 #include <string.h>
 #include "qoraal/qoraal.h"
+#include "qoraal/platform.h"
 #include "qoraal/svc/svc_services.h"
 #include "qoraal/qshell/console.h"
 #include "services/services.h"
 #include "services/wserver_inst.h"
-#include "platform.h"
 
 /*===========================================================================*/
 /* Macros and Defines                                                        */
