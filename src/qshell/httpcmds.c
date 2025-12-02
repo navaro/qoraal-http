@@ -28,7 +28,7 @@
 #include <stdint.h>
 #include "qoraal/config.h"
 #include "qoraal/qoraal.h"
-#include "qoraal/qfs_port.h"
+#include "qoraal/qfs.h"
 #include "qoraal-http/qoraal.h"
 #include "qoraal/svc/svc_shell.h"
 #include "qoraal-http/httpdwnld.h"
