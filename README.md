@@ -14,7 +14,7 @@
 
 ## Quick Start  
 
-The demo application can be compiled using the **POSIX port**, allowing you to evaluate it directly in a **GitHub Codespace** or on your PC! For embedded targets, the following RTOS options are supported: **ChibiOS, FreeRTOS, and ThreadX** (provided you have an IP stack like **LwIP**).
+The demo application can be compiled using the **POSIX port**, allowing you to evaluate it directly in a **GitHub Codespace** or on your PC! For embedded targets, the following RTOS options are supported: **Zephyr, ThreadX, FreeRTOS, and ChibiOS** (provided you have an IP stack like **LwIP** or **NetX**).
 
 ### Zephyr RTOS
 
