@@ -1,7 +1,7 @@
 ifeq ($(OS),Windows_NT)
-	CMAKE = cmake .. -DBUILD_TESTS=ON -G "MinGW Makefiles"
+	CMAKE = cmake .. -DBUILD_HTTP_TESTS=ON -G "MinGW Makefiles"
 else
-	CMAKE = cmake .. -DBUILD_TESTS=ON
+	CMAKE = cmake .. -DBUILD_HTTP_TESTS=ON
 endif
 MKDIR = mkdir -p build
 EXECUTABLE = ./build/test/httptest

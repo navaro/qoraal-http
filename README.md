@@ -34,11 +34,8 @@ No additional source changes are required beyond including this module in your Z
 2. Run the appropriate script based on your OS:  
 
 ```sh
-# For Linux or Codespace:
-$ sh ./build_and_run.sh  
-
-# For Windows:
-> build_and_run.bat  
+# For Linux or Codespace or Windows:
+$ make all  
 ```
 
 3. When the application starts, a shell will open in the terminal, displaying **startup logs**. Look for `WSERV : : web server running on port 8080 without SSL!!`. 

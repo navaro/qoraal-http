@@ -23,9 +23,9 @@ add_subdirectory(src)
 
 
 # Option to build tests
-option(BUILD_TESTS "Build the test directory" OFF)
+option(BUILD_HTTP_TESTS "Build the test directory" OFF)
 
-if(BUILD_TESTS)
+if(BUILD_HTTP_TESTS)
     add_subdirectory(test)
 endif()
 
