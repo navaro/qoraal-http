@@ -30,5 +30,5 @@ add_library(qoraal-http STATIC ${FLASH_SRC})
 target_link_libraries(qoraal-http qoraal)
 
 # Set target include dirs
-target_include_directories(qoraal-http PUBLIC ${CMAKE_SOURCE_DIR}/include)
+target_include_directories(qoraal-http PUBLIC ${PROJECT_SOURCE_DIR}/include)
 
