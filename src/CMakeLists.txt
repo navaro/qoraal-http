@@ -23,10 +23,12 @@ set(FLASH_SRC
     example/image/wimage.c
 )
 
-
 # Add the library target
 add_library(qoraal-http STATIC ${FLASH_SRC})
 
 # Link necessary libraries
 target_link_libraries(qoraal-http qoraal)
+
+# Set target include dirs
+target_include_directories(qoraal-http PUBLIC ${CMAKE_SOURCE_DIR}/include)
 

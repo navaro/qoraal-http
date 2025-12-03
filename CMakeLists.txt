@@ -15,12 +15,10 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(qoraal)
 
 # Include directories
-include_directories(include)
 include_directories("${qoraal_SOURCE_DIR}/include")
 
 # Add subdirectories
 add_subdirectory(src)
-
 
 # Option to build tests
 option(BUILD_HTTP_TESTS "Build the test directory" OFF)
