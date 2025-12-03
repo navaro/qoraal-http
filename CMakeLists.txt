@@ -26,7 +26,6 @@ add_subdirectory(src)
 option(BUILD_HTTPTEST "Build the test directory" OFF)
 
 if(BUILD_HTTPTEST)
-    target_compile_definitions(qoraal-http PRIVATE CFG_OS_POSIX)
     add_subdirectory(test)
 endif()
 
