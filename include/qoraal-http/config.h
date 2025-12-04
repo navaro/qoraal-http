@@ -15,14 +15,14 @@
     If defined, the http server will enable mbedtls.
 */
 #if !defined(CFG_HTTPSERVER_TLS_DISABLE)
-#define CFG_HTTPSERVER_TLS_DISABLE    1
+// #define CFG_HTTPSERVER_TLS_DISABLE    1
 #endif
 
 /* CFG_HTTPCLIENT_TLS_DISABLE 
     If defined, the http server will enable mbedtls.
 */
 #if !defined(CFG_HTTPCLIENT_TLS_DISABLE)
-#define CFG_HTTPCLIENT_TLS_DISABLE    1
+// #define CFG_HTTPCLIENT_TLS_DISABLE    1
 #endif
 
 /* CFG_MBEDTLS_PLATFORM_INIT_ENABLE
