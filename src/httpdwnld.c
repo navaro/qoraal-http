@@ -21,8 +21,8 @@
     SOFTWARE.
  */
 
-
 #include "qoraal/qoraal.h"
+#include "qoraal/qfs.h"
 #include "qoraal-http/config.h"
 #include "qoraal-http/qoraal.h"
 #include "qoraal-http/httpdwnld.h"
@@ -38,9 +38,6 @@
 #include <string.h>
 #include <ctype.h>
 
-
-
-
 void
 httpdwnld_init (HTTPDWNLD_T * dwnld)
 {
@@ -55,17 +52,15 @@ httpdwnld_mem_init (HTTPDWNLD_MEM_T * dwnld)
     httpdwnld_init (&dwnld->dwnld) ;
 }
 
-#if !defined(CFG_LITTLEFS_DISABLE) || !CFG_LITTLEFS_DISABLE
 void
-httpdwnld_fs_init (HTTPDWNLD_FS_T * dwnld, lfs_t *   drive, const char * path)
+httpdwnld_fs_init (HTTPDWNLD_FS_T * dwnld, const char * path)
 {
     memset (dwnld, 0, sizeof(HTTPDWNLD_FS_T)) ;
-    dwnld->drive = drive ;
     dwnld->path = path ;
+    dwnld->file   = NULL ;
+    dwnld->opened = 0 ;
     httpdwnld_init (&dwnld->dwnld) ;
-
 }
-#endif
 
 void
 httpdwnld_cancel (HTTPDWNLD_T * dwnld)
@@ -82,41 +77,8 @@ httpdwnld_bytes (HTTPDWNLD_T * dwnld)
 /**
  * @brief   httpdwnld_download
  * @details Download a complete file using the callback to add downloaded chunks.
-
  *
- * @param[in] hostname
- * @param[in] ipv4
- * @param[in] port
- * @param[in] ssl
- * @param[in] mss                       "Maximum Segment Size"
- * @param[in] url
- * @param[in] credentials
- * @param[in] timeout
- * @param[in] cb
- * @param[in] parm
- *
- * @return                              Number of bytes in read or < 0 indicates an error.
- * @retval HTTP_CLIENT_E_ERROR          Error occurred during select, possible timeout.
- * @retval HTTP_CLIENT_E_CONNECTION     Socket was closed.
- * @retval HTTP_CLIENT_E_HEADER         Error parsing HTTP header.
- * @retval HTTP_CLIENT_E_CONTENT        Error reading content, unexpected length.
- * @retval HTTP_CLIENT_E_MEMORY         Failed to allocate a receive buffer.
- * @retval HTTP_CLIENT_E_HOST           Failed to resolve host name.
- * @retval HTTP_CLIENT_E_ERROR          socket error.
- * @retval HTTP_CLIENT_E_SSL_CONNECT    SSL connect error.
- * @retval HTTP_CLIENT_E_SSL_TRUST      SSL certificate error.
- *
- *
-    int             https ;
-    int             port  ;
-    char *          host;
-    char *          name  ;
-    char *          credentials ;
-    char *          postdata ;
-    uint32_t        postlen ;
- *
- *
- * @http
+ * @return  Number of bytes read or < 0 indicates an error.
  */
 int32_t
 httpdwnld_download (HTTPDWNLD_T * dwnld,
@@ -124,7 +86,6 @@ httpdwnld_download (HTTPDWNLD_T * dwnld,
 {
     HTTP_CLIENT_T client ;
     struct sockaddr_in addr  ;
-    // int i = 0 ;
     int32_t res ;
     int32_t status ;
     int32_t read = 0 ;
@@ -142,7 +103,6 @@ httpdwnld_download (HTTPDWNLD_T * dwnld,
         DBG_MESSAGE_HTTP_CLIENT (DBG_MESSAGE_SEVERITY_ERROR,
                                    "HTTP  : : resolving %s failed!", dwnld->host) ;
         return HTTP_CLIENT_E_HOST ;
-
     }
     addr.sin_addr.s_addr = /*ntohl*/(ip) ;
 
@@ -186,12 +146,11 @@ httpdwnld_download (HTTPDWNLD_T * dwnld,
     do {
 
 
-
         if (dwnld->postlen) {
             DBG_MESSAGE_HTTP_CLIENT (DBG_MESSAGE_SEVERITY_LOG,
                         "HTTP  : : POST %s %s", dwnld->host, dwnld->https ? "usinng SSL" : "");
-            res = httpclient_post_stream(&client, dwnld->name, dwnld->stream, dwnld->parm, dwnld->postlen, dwnld->credentials) ;
-
+            res = httpclient_post_stream(&client, dwnld->name, dwnld->stream, dwnld->parm,
+                                         dwnld->postlen, dwnld->credentials) ;
         } else {
             DBG_MESSAGE_HTTP_CLIENT (DBG_MESSAGE_SEVERITY_LOG,
                         "HTTP  : : GET %s %s", dwnld->host, dwnld->https ? "usinng SSL" : "");
@@ -223,7 +182,7 @@ httpdwnld_download (HTTPDWNLD_T * dwnld,
                     }
                     read += res ;
 
-                    res = cb (0, response, res, parm) ;
+                    res = cb (0, response, (uint32_t)res, parm) ;
                     if (res != EOK) {
                         break;
 
@@ -305,7 +264,7 @@ httpdwnld_mem_download_cb (int32_t status, uint8_t * buffer, uint32_t len, uintp
     int i ;
     char* tmp ;
 
-    if (status/100 == 2) { // connected an open
+    if (status/100 == 2) { // connected and open
         return EOK ;
 
     }
@@ -360,7 +319,8 @@ httpdwnld_mem_download (char* url, HTTPDWNLD_MEM_T* mem, uint32_t timeout)
 
     HTTPDWNLD_T * dwmld = &mem->dwnld ;
 
-    res = httpdwnld_url_parse (url, &dwmld->https, &dwmld->port, &dwmld->host, &dwmld->name, &dwmld->credentials) ;
+    res = httpdwnld_url_parse (url, &dwmld->https, &dwmld->port, &dwmld->host,
+                               &dwmld->name, &dwmld->credentials) ;
 
     if (res < 0) {
         DBG_MESSAGE_HTTPDWNLD (DBG_MESSAGE_SEVERITY_LOG,
@@ -369,7 +329,8 @@ httpdwnld_mem_download (char* url, HTTPDWNLD_MEM_T* mem, uint32_t timeout)
 
     }
 
-    res = httpdwnld_download (dwmld, timeout, httpdwnld_mem_download_cb, (uintptr_t) mem) ;
+    res = httpdwnld_download (dwmld, timeout, httpdwnld_mem_download_cb,
+                              (uintptr_t) mem) ;
 
     DBG_MESSAGE_HTTPDWNLD (DBG_MESSAGE_SEVERITY_REPORT,
         "HTTP  : : download complete return %d bytes", res);
@@ -378,7 +339,8 @@ httpdwnld_mem_download (char* url, HTTPDWNLD_MEM_T* mem, uint32_t timeout)
 }
 
 int32_t
-httpdwnld_mem_post (char* url, HTTP_STREAM_NEXT_T stream, uint32_t parm, uint32_t len, HTTPDWNLD_MEM_T* mem, uint32_t timeout)
+httpdwnld_mem_post (char* url, HTTP_STREAM_NEXT_T stream, uint32_t parm,
+                    uint32_t len, HTTPDWNLD_MEM_T* mem, uint32_t timeout)
 {
     int32_t res ;
 
@@ -387,7 +349,8 @@ httpdwnld_mem_post (char* url, HTTP_STREAM_NEXT_T stream, uint32_t parm, uint32_
     dwnld->parm = parm ;
     dwnld->postlen = len ;
 
-    res = httpdwnld_url_parse (url, &dwnld->https, &dwnld->port, &dwnld->host, &dwnld->name, &dwnld->credentials) ;
+    res = httpdwnld_url_parse (url, &dwnld->https, &dwnld->port, &dwnld->host,
+                               &dwnld->name, &dwnld->credentials) ;
 
     if (res < 0) {
         DBG_MESSAGE_HTTPDWNLD (DBG_MESSAGE_SEVERITY_LOG,
@@ -396,43 +359,39 @@ httpdwnld_mem_post (char* url, HTTP_STREAM_NEXT_T stream, uint32_t parm, uint32_
 
     }
 
-    res = httpdwnld_download (dwnld, timeout, httpdwnld_mem_download_cb, (uintptr_t) mem) ;
-
+    res = httpdwnld_download (dwnld, timeout, httpdwnld_mem_download_cb,
+                              (uintptr_t) mem) ;
 
     DBG_MESSAGE_HTTPDWNLD (DBG_MESSAGE_SEVERITY_LOG,
         "HTTP  : : '%s' complete %d", dwnld->name, res);
 
 
     return res  ;
-
 }
 
-#if !defined(CFG_LITTLEFS_DISABLE) || !CFG_LITTLEFS_DISABLE
+/* ==== qfs-backed file download ==== */
+
 int32_t
 httpdwnld_fs_download_cb (int32_t status, uint8_t * buffer, uint32_t len, uintptr_t parm)
 {
     HTTPDWNLD_FS_T * fs = (HTTPDWNLD_FS_T *) parm ;
     int32_t res = EOK ;
-    //int i ;
-    //char* tmp ;
-    lfs_ssize_t writelen ;
-    //UINT bw ;
+    int wret ;
 
-    if (status/100 == 2) { // connected an open
+    if (status/100 == 2) { // connected and open
 
-        if (fs->drive && fs->path) {
-            res = lfs_file_open(fs->drive, &fs->f, fs->path, LFS_O_CREAT|LFS_O_TRUNC|LFS_O_WRONLY);
-            if (res == LFS_ERR_OK) {
+        if (fs->path && !fs->opened) {
+            qfs_file_t *f = NULL;
+            int rc = qfs_open(&f, fs->path, 0);
+            if (rc == 0) {
+                fs->file   = f ;
                 fs->opened = 1 ;
-
             } else {
                 DBG_MESSAGE_HTTPDWNLD (DBG_MESSAGE_SEVERITY_ERROR,
-                    "HTTP  : : fail open '%s' with %d", fs->path, res);
+                    "HTTP  : : fail open '%s' via qfs_open, rc=%d",
+                    fs->path, rc);
                 res = E_FILE ;
-
             }
-        } else {
-            // fs->opened = 1 ;
         }
 
     } else if (status/100 > 0) {
@@ -446,34 +405,28 @@ httpdwnld_fs_download_cb (int32_t status, uint8_t * buffer, uint32_t len, uintpt
 
         }
 
-        //res = f_write (&fs->f, buffer, len, &bw);
-        if (fs->opened) {
-            writelen = lfs_file_write(fs->drive, &fs->f,
-                buffer, len);
+        if (fs->opened && fs->file) {
+            wret = qfs_write(fs->file, buffer, len);
         } else {
-            writelen = len ;
+            /* no file opened: discard but pretend success */
+            wret = (int)len;
         }
 
-        if (writelen < 0) {
+        if (wret < 0) {
             DBG_MESSAGE_HTTPDWNLD (DBG_MESSAGE_SEVERITY_ERROR,
-                "HTTP  : : fail writing '%s' with %d after %d bytes",
-                fs->path, writelen, fs->dwnld.bytes);
+                "HTTP  : : fail writing '%s' via qfs_write, err=%d after %d bytes",
+                fs->path, wret, fs->dwnld.bytes);
             res = EFAIL ;
         } else {
-
-            fs->dwnld.bytes += writelen ;
+            fs->dwnld.bytes += (uint32_t)wret ;
             if (!(fs->dwnld.cnt%25)) {
                 DBG_MESSAGE_HTTPDWNLD (DBG_MESSAGE_SEVERITY_REPORT|DBG_MESSAGE_FLAG_PROGRESS,
-                        "HTTP  : : '%s' %d bytes downloaded...\r\n", fs->dwnld.name, fs->dwnld.bytes);
-
+                        "HTTP  : : '%s' %d bytes downloaded...\r\n",
+                        fs->dwnld.name, fs->dwnld.bytes);
             }
             fs->dwnld.cnt++ ;
 
         }
-
-
-
-
     }
 
     return  fs->dwnld.cancel ? E_CANCELED : res ;
@@ -486,7 +439,8 @@ httpdwnld_fs_download (char* url, HTTPDWNLD_FS_T* fs, uint32_t timeout)
 
     HTTPDWNLD_T * dwmld = &fs->dwnld ;
 
-   res = httpdwnld_url_parse (url, &dwmld->https, &dwmld->port, &dwmld->host, &dwmld->name, 0) ;
+    res = httpdwnld_url_parse (url, &dwmld->https, &dwmld->port, &dwmld->host,
+                               &dwmld->name, 0) ;
 
     if (res < 0) {
         DBG_MESSAGE_HTTPDWNLD (DBG_MESSAGE_SEVERITY_LOG,
@@ -495,15 +449,20 @@ httpdwnld_fs_download (char* url, HTTPDWNLD_FS_T* fs, uint32_t timeout)
 
     }
 
-    res = httpdwnld_download (dwmld, timeout, httpdwnld_fs_download_cb, (uintptr_t) fs) ;
+    res = httpdwnld_download (dwmld, timeout, httpdwnld_fs_download_cb,
+                              (uintptr_t) fs) ;
 
-    if (fs->opened) {
-        lfs_file_close(fs->drive, &fs->f);
-
+    if (fs->opened && fs->file) {
+        int c_res = qfs_close(fs->file);
+        if (c_res < 0) {
+            DBG_MESSAGE_HTTPDWNLD (DBG_MESSAGE_SEVERITY_ERROR,
+                "HTTP  : : qfs_close('%s') failed %d", fs->path, c_res);
+        }
+        fs->file   = NULL;
+        fs->opened = 0;
     }
 
     if (res < 0) {
-//      lfs_remove(fs_drives_get(fs->drive), fs->filename);
         DBG_MESSAGE_HTTPDWNLD (DBG_MESSAGE_SEVERITY_ERROR,
             "HTTP  : : downloading '%s' failed %d", dwmld->name, res);
 
@@ -511,12 +470,12 @@ httpdwnld_fs_download (char* url, HTTPDWNLD_FS_T* fs, uint32_t timeout)
         DBG_MESSAGE_HTTPDWNLD (DBG_MESSAGE_SEVERITY_REPORT,
             "HTTP  : : downloading '%s' completed", dwmld->name);
 
-
     }
 
     return res  ;
 }
-#endif
+
+/* ==== test download ==== */
 
 int32_t
 httpdwnld_test_download_cb (int32_t status, uint8_t * buffer, uint32_t len, uintptr_t parm)
@@ -524,8 +483,7 @@ httpdwnld_test_download_cb (int32_t status, uint8_t * buffer, uint32_t len, uint
     int32_t res = EOK ;
     HTTPDWNLD_T * dwnld = (HTTPDWNLD_T *) parm ;
 
-    if (status/100 == 2) { // connected an open
-
+    if (status/100 == 2) { // connected and open
         return EOK ;
     }
 
@@ -534,8 +492,8 @@ httpdwnld_test_download_cb (int32_t status, uint8_t * buffer, uint32_t len, uint
         dwnld->bytes += len ;
         if (!(dwnld->cnt%25)) {
             DBG_MESSAGE_HTTPDWNLD (DBG_MESSAGE_SEVERITY_REPORT|DBG_MESSAGE_FLAG_PROGRESS,
-                    "HTTP  : : '%s' %d bytes downloaded...\r\n", dwnld->name, dwnld->bytes);
-
+                    "HTTP  : : '%s' %d bytes downloaded...\r\n",
+                    dwnld->name, dwnld->bytes);
         }
         dwnld->cnt++ ;
 #if 0
@@ -554,7 +512,8 @@ httpdwnld_test_download (char* url, HTTPDWNLD_T* dwmld, uint32_t timeout)
 {
     int32_t res ;
 
-   res = httpdwnld_url_parse (url, &dwmld->https, &dwmld->port, &dwmld->host, &dwmld->name, &dwmld->credentials) ;
+    res = httpdwnld_url_parse (url, &dwmld->https, &dwmld->port, &dwmld->host,
+                               &dwmld->name, &dwmld->credentials) ;
 
     if (res < 0) {
         DBG_MESSAGE_HTTPDWNLD (DBG_MESSAGE_SEVERITY_LOG,
@@ -563,8 +522,8 @@ httpdwnld_test_download (char* url, HTTPDWNLD_T* dwmld, uint32_t timeout)
 
     }
 
-    res = httpdwnld_download (dwmld, timeout, httpdwnld_test_download_cb, (uintptr_t) dwmld) ;
-
+    res = httpdwnld_download (dwmld, timeout, httpdwnld_test_download_cb,
+                              (uintptr_t) dwmld) ;
 
     DBG_MESSAGE_HTTPDWNLD (DBG_MESSAGE_SEVERITY_REPORT,
         "HTTP  : : '%s' complete return %d bytes", dwmld->name, res);
@@ -573,7 +532,3 @@ httpdwnld_test_download (char* url, HTTPDWNLD_T* dwmld, uint32_t timeout)
     return res  ;
 
 }
-
-
-
-
