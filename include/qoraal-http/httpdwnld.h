@@ -28,7 +28,7 @@
 #include "config.h"
 #include "qoraal/qoraal.h"
 #include "qoraal-http/httpclient.h"
-#if !defined CFG_LITTLEFS_DISABLE
+#if !defined(CFG_LITTLEFS_DISABLE) || !CFG_LITTLEFS_DISABLE
 #include <lfs.h>
 #endif
 
@@ -76,7 +76,7 @@ typedef struct HTTPDWNLD_MEM_S {
 
 
 
-#if !defined CFG_LITTLEFS_DISABLE
+#if !defined(CFG_LITTLEFS_DISABLE) || !CFG_LITTLEFS_DISABLE
 typedef struct HTTPDWNLD_FS_S {
 
     HTTPDWNLD_T     dwnld ;
@@ -98,7 +98,7 @@ extern "C" {
 
 void        httpdwnld_init (HTTPDWNLD_T * dwnld) ;
 void        httpdwnld_mem_init (HTTPDWNLD_MEM_T * dwnld) ;
-#if !defined CFG_LITTLEFS_DISABLE
+#if !defined(CFG_LITTLEFS_DISABLE) || !CFG_LITTLEFS_DISABLE
 void        httpdwnld_fs_init (HTTPDWNLD_FS_T * dwnld, lfs_t *   drive, const char * path) ;
 #endif
 void        httpdwnld_cancel (HTTPDWNLD_T * dwnld) ;
@@ -107,7 +107,7 @@ uint32_t    httpdwnld_bytes (HTTPDWNLD_T * dwnld) ;
 
 
 int32_t     httpdwnld_mem_download (char* url, HTTPDWNLD_MEM_T* file, uint32_t timeout) ;
-#if !defined CFG_LITTLEFS_DISABLE
+#if !defined(CFG_LITTLEFS_DISABLE) || !CFG_LITTLEFS_DISABLE
 int32_t     httpdwnld_fs_download (char* url, HTTPDWNLD_FS_T* fs, uint32_t timeout) ;
 #endif
 int32_t     httpdwnld_test_download (char* url, HTTPDWNLD_T* dwmld, uint32_t timeout) ;

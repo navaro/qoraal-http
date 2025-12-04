@@ -22,7 +22,7 @@
  */
 
 #include "qoraal-http/config.h"
-#if !defined CFG_JSON_DISABLE
+#if !defined(CFG_JSON_DISABLE) || !CFG_JSON_DISABLE
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdint.h>

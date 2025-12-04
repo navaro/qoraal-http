@@ -300,7 +300,7 @@ wserver_start (uintptr_t arg)
 #else
     uint32_t port = 0 ;
 #endif
-#if defined CFG_HTTPSERVER_TLS_DISABLE
+#if defined CFG_HTTPSERVER_TLS_DISABLE || !CFG_HTTPSERVER_TLS_DISABLE
     port += 80 ;
 #else
     port += 443;
@@ -323,7 +323,7 @@ wserver_start (uintptr_t arg)
     static WSERVER_HANDLERS_START(handlers)
     WSERVER_HANDLER              ("rtlog",   wrtlog_handler,            WSERVER_ENDPOINT_ACCESS_OPEN,   WSERVER_ENDPOINT_FLAGS_DISABLE_WDT)
     WSERVER_HANDLER              ("memlog",  wnlog_memlog_handler,      WSERVER_ENDPOINT_ACCESS_OPEN,   0)
-#if !defined(CFG_JSON_DISABLE)
+#if !defined CFG_JSON_DISABLE || !CFG_JSON_DISABLE
     WSERVER_HANDLER              ("webapi",  wwebapi_handler,           WSERVER_ENDPOINT_ACCESS_ADMIN,  0)
 #endif
     WSERVER_HANDLER              ("about2",  wserver_handler_about2,    WSERVER_ENDPOINT_ACCESS_ADMIN,  0)

@@ -35,7 +35,7 @@
 #include "qoraal-http/httpclient.h"
 #include "qoraal-http/httpparse.h"
 #include "qoraal-http/httpserver.h"
-#if !defined CFG_HTTPSERVER_TLS_DISABLE
+#if !defined(CFG_HTTPSERVER_TLS_DISABLE) || !CFG_HTTPSERVER_TLS_DISABLE
 #include "qoraal-http/mbedtls/mbedtlsutils.h"
 #endif
 
@@ -132,7 +132,7 @@ httpserver_close (int server_sock)
 
     }
 
-#if !defined CFG_HTTPSERVER_TLS_DISABLE
+#if !defined(CFG_HTTPSERVER_TLS_DISABLE) || !CFG_HTTPSERVER_TLS_DISABLE
     mbedtls_release_server_config () ;
 #endif
 
@@ -369,7 +369,7 @@ httpserver_user_accept (int server_sock, HTTP_USER_T* user, uint32_t timeout)
 int32_t
 httpserver_user_ssl_accept (HTTP_USER_T* user, uint32_t timeout)
 {
-#if !defined CFG_HTTPSERVER_TLS_DISABLE
+#if !defined(CFG_HTTPSERVER_TLS_DISABLE) || !CFG_HTTPSERVER_TLS_DISABLE
     if (mbedtlsutils_get_server_config() != 0) {
         if (!user->ssl) {
             user->ssl = HTTP_SERVER_MALLOC(sizeof(mbedtls_ssl_context)) ;
@@ -474,7 +474,7 @@ httpserver_user_close (HTTP_USER_T* user)
 #if defined WSERVER_CLOSE_WAIT_TIME /*&& WSERVER_CLOSE_WAIT_TIME*/
     httpserver_user_select(user, WSERVER_CLOSE_WAIT_TIME) ;
 #endif
-#if !defined CFG_HTTPSERVER_TLS_DISABLE
+#if !defined(CFG_HTTPSERVER_TLS_DISABLE) || !CFG_HTTPSERVER_TLS_DISABLE
     if (user->ssl) {
         mbedtls_ssl_close_notify ((mbedtls_ssl_context *)user->ssl) ;
 
@@ -483,7 +483,7 @@ httpserver_user_close (HTTP_USER_T* user)
     res = closesocket (user->socket);
     user->socket = -1 ;
 
-#if !defined CFG_HTTPSERVER_TLS_DISABLE
+#if !defined(CFG_HTTPSERVER_TLS_DISABLE) || !CFG_HTTPSERVER_TLS_DISABLE
     if (user->ssl) {
         mbedtls_ssl_free ((mbedtls_ssl_context *)user->ssl) ;
         HTTP_SERVER_FREE(user->ssl) ;
@@ -543,7 +543,7 @@ httpserver_write (HTTP_USER_T* user, const uint8_t* buffer, uint32_t length)
 
         }
 
-    #if !defined CFG_HTTPSERVER_TLS_DISABLE
+    #if !defined(CFG_HTTPSERVER_TLS_DISABLE) || !CFG_HTTPSERVER_TLS_DISABLE
         if (user->ssl) {
             sent_bytes = mbedtls_ssl_write ((mbedtls_ssl_context *)user->ssl, (unsigned char*)&buffer[total], length) ;
              
@@ -551,7 +551,7 @@ httpserver_write (HTTP_USER_T* user, const uint8_t* buffer, uint32_t length)
         else {
     #endif
             sent_bytes = send (user->socket, (unsigned char*)&buffer[total], length, 0 /*MSG_DONTWAIT*/);
-    #if !defined CFG_HTTPSERVER_TLS_DISABLE
+    #if !defined(CFG_HTTPSERVER_TLS_DISABLE) || !CFG_HTTPSERVER_TLS_DISABLE
         }
     #endif
         if (sent_bytes <= 0) {
@@ -623,7 +623,7 @@ int32_t
 httpserver_read (HTTP_USER_T* user, void* buffer, uint32_t length, uint32_t timeout)
 {
     int received = EOK;
-#if !defined CFG_HTTPSERVER_TLS_DISABLE
+#if !defined(CFG_HTTPSERVER_TLS_DISABLE) || !CFG_HTTPSERVER_TLS_DISABLE
     if (user->ssl) {
         if (!mbedtls_ssl_get_bytes_avail ((mbedtls_ssl_context *)user->ssl)) {
             received = httpserver_wait_read (user, timeout) ;

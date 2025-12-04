@@ -31,7 +31,7 @@
 #include "qoraal-http/qoraal.h"
 #include "qoraal-http/httpclient.h"
 #include "qoraal-http/httpparse.h"
-#if  !defined CFG_HTTPCLIENT_TLS_DISABLE
+#if !defined(CFG_HTTPCLIENT_TLS_DISABLE) || !CFG_HTTPCLIENT_TLS_DISABLE
 #include "qoraal-http/mbedtls/mbedtlsutils.h"
 #endif
 
@@ -158,7 +158,7 @@ int32_t
 httpclient_connect (HTTP_CLIENT_T* client, const struct sockaddr_in* addr, void * ssl_config)
 {
     int32_t status ;
-#if !defined CFG_HTTPCLIENT_TLS_DISABLE
+#if !defined(CFG_HTTPCLIENT_TLS_DISABLE) || !CFG_HTTPCLIENT_TLS_DISABLE
     mbedtls_ssl_config * pssl_config = (mbedtls_ssl_config *)ssl_config ;
 #endif
 
@@ -174,7 +174,7 @@ httpclient_connect (HTTP_CLIENT_T* client, const struct sockaddr_in* addr, void 
         return HTTP_CLIENT_E_ERROR;
     }
 
-#if !defined CFG_HTTPCLIENT_TLS_DISABLE
+#if !defined(CFG_HTTPCLIENT_TLS_DISABLE) || !CFG_HTTPCLIENT_TLS_DISABLE
     if (pssl_config) {
         if (!client->ssl) {
             client->ssl = HTTP_CLIENT_MALLOC(sizeof(mbedtls_ssl_context)) ;
@@ -236,7 +236,7 @@ httpclient_connect (HTTP_CLIENT_T* client, const struct sockaddr_in* addr, void 
         return HTTP_CLIENT_E_CONNECTION;
     }
 #endif
-#if !defined CFG_HTTPCLIENT_TLS_DISABLE
+#if !defined(CFG_HTTPCLIENT_TLS_DISABLE) || !CFG_HTTPCLIENT_TLS_DISABLE
     if (client->ssl) {
         do {
              fd_set   fdread;
@@ -366,14 +366,14 @@ httpclient_close (HTTP_CLIENT_T* client)
     DBG_MESSAGE_HTTP_CLIENT (DBG_MESSAGE_SEVERITY_INFO,
                     "HTTP  : : closesocket sock 0x%x", client->socket) ;
 
-#if !defined CFG_HTTPCLIENT_TLS_DISABLE
+#if !defined(CFG_HTTPCLIENT_TLS_DISABLE) || !CFG_HTTPCLIENT_TLS_DISABLE
     if (client->ssl) {
         mbedtls_ssl_close_notify ((mbedtls_ssl_context *)client->ssl) ;
     }
 #endif
     if (client->socket>=0) {
         shutdown (client->socket, /*SHUT_RDWR*/2) ;
-#if !defined CFG_HTTPCLIENT_TLS_DISABLE
+#if !defined(CFG_HTTPCLIENT_TLS_DISABLE) || !CFG_HTTPCLIENT_TLS_DISABLE
         if (client->ssl) {
             mbedtls_ssl_free ((mbedtls_ssl_context *)client->ssl) ;
             HTTP_CLIENT_FREE(client->ssl) ;
@@ -409,7 +409,7 @@ httpclient_write (HTTP_CLIENT_T* client, uint8_t* buffer, uint32_t length, uint3
     setsockopt (client->socket, SOL_SOCKET, SO_SNDTIMEO, (char *)&timeout, sizeof(timeout));
 
     while (length) {
-#if !defined CFG_HTTPCLIENT_TLS_DISABLE
+#if !defined(CFG_HTTPCLIENT_TLS_DISABLE) || !CFG_HTTPCLIENT_TLS_DISABLE
         if (client->ssl) {
             sent_bytes = mbedtls_ssl_write ((mbedtls_ssl_context *)client->ssl, (unsigned char*)&buffer[total], length) ;
         } else
@@ -463,7 +463,7 @@ httpclient_write_chunked (HTTP_CLIENT_T* client, uint8_t* buffer, uint32_t lengt
 
     while (length) {
 
-#if !defined CFG_HTTPCLIENT_TLS_DISABLE
+#if !defined(CFG_HTTPCLIENT_TLS_DISABLE) || !CFG_HTTPCLIENT_TLS_DISABLE
         if (client->ssl) {
             sent_bytes = mbedtls_ssl_write ((mbedtls_ssl_context *)client->ssl,
             		(unsigned char*)&buffer[total], length) ;
@@ -486,7 +486,7 @@ httpclient_write_chunked (HTTP_CLIENT_T* client, uint8_t* buffer, uint32_t lengt
 
         }
     }
-#if !defined CFG_HTTPCLIENT_TLS_DISABLE
+#if !defined(CFG_HTTPCLIENT_TLS_DISABLE) || !CFG_HTTPCLIENT_TLS_DISABLE
         if (client->ssl) {
             sent_bytes = mbedtls_ssl_write ((mbedtls_ssl_context *)client->ssl,
             			(const unsigned char *)"\r\n", 2) ;
@@ -504,7 +504,7 @@ socket_send(uint32_t ctx, const void* data, int32_t len)
     return send ((int)ctx, data, len, 0);
 }
 
-#if !defined CFG_HTTPCLIENT_TLS_DISABLE
+#if !defined(CFG_HTTPCLIENT_TLS_DISABLE) || !CFG_HTTPCLIENT_TLS_DISABLE
 static int32_t
 ssl_socket_send(uint32_t ctx, const  void* data, int32_t len)
 {
@@ -533,7 +533,7 @@ httpclient_write_stream (HTTP_CLIENT_T* client, HTTP_STREAM_NEXT_T stream, uint3
     setsockopt (client->socket, SOL_SOCKET, SO_SNDTIMEO, (char *)&timeout, sizeof(timeout));
 
     do {
-#if !defined CFG_HTTPCLIENT_TLS_DISABLE
+#if !defined(CFG_HTTPCLIENT_TLS_DISABLE) || !CFG_HTTPCLIENT_TLS_DISABLE
         if (client->ssl) {
             sent_bytes = stream((HTTP_STREAM_WRITE)ssl_socket_send,
                     (uint32_t) client->ssl, parm, len-total) ;
@@ -613,7 +613,7 @@ httpclient_read (HTTP_CLIENT_T* client, void* buffer, uint32_t length, uint32_t 
 {
     int32_t received = EOK ;
 
-#if !defined CFG_HTTPCLIENT_TLS_DISABLE
+#if !defined(CFG_HTTPCLIENT_TLS_DISABLE) || !CFG_HTTPCLIENT_TLS_DISABLE
     if (client->ssl) {
         if (!mbedtls_ssl_get_bytes_avail ((mbedtls_ssl_context *)client->ssl)) {
             received = httpclient_wait_read (client, timeout) ;

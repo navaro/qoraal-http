@@ -29,7 +29,7 @@
 #include "qoraal-http/httpclient.h"
 #include "qoraal-http/httpparse.h"
 #include "qoraal-http/network.h"
-#if !defined CFG_HTTPCLIENT_TLS_DISABLE
+#if !defined(CFG_HTTPCLIENT_TLS_DISABLE) || !CFG_HTTPCLIENT_TLS_DISABLE
 #include "qoraal-http/mbedtls/mbedtlsutils.h"
 #endif
 #include <stdlib.h>
@@ -55,7 +55,7 @@ httpdwnld_mem_init (HTTPDWNLD_MEM_T * dwnld)
     httpdwnld_init (&dwnld->dwnld) ;
 }
 
-#if !defined CFG_LITTLEFS_DISABLE
+#if !defined(CFG_LITTLEFS_DISABLE) || !CFG_LITTLEFS_DISABLE
 void
 httpdwnld_fs_init (HTTPDWNLD_FS_T * dwnld, lfs_t *   drive, const char * path)
 {
@@ -154,7 +154,7 @@ httpdwnld_download (HTTPDWNLD_T * dwnld,
     }
 
     void * pssl_config = 0 ;
-#if !defined CFG_HTTPCLIENT_TLS_DISABLE
+#if !defined(CFG_HTTPCLIENT_TLS_DISABLE) || !CFG_HTTPCLIENT_TLS_DISABLE
     if (dwnld->https) {
         pssl_config = mbedtlsutils_get_client_config () ;
         if (!pssl_config) {
@@ -407,7 +407,7 @@ httpdwnld_mem_post (char* url, HTTP_STREAM_NEXT_T stream, uint32_t parm, uint32_
 
 }
 
-#if !defined CFG_LITTLEFS_DISABLE
+#if !defined(CFG_LITTLEFS_DISABLE) || !CFG_LITTLEFS_DISABLE
 int32_t
 httpdwnld_fs_download_cb (int32_t status, uint8_t * buffer, uint32_t len, uintptr_t parm)
 {

@@ -183,7 +183,7 @@ typedef struct HTTP_USER_S {
 
     char*                   content ;
     
-#if !defined CFG_HTTPSERVER_TLS_DISABLE
+#if !defined(CFG_HTTPSERVER_TLS_DISABLE) || !CFG_HTTPSERVER_TLS_DISABLE
     void*                  ssl ;
 #endif
 

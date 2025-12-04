@@ -207,7 +207,7 @@ int32_t qshell_wget(SVC_SHELL_IF_T *pif, char **argv, int argc)
     httpclient_set_hostname(&client, host);
 
     void *pssl_config = 0;
-#if !defined(CFG_HTTPCLIENT_TLS_DISABLE)
+#if !defined(CFG_HTTPCLIENT_TLS_DISABLE) || !CFG_HTTPCLIENT_TLS_DISABLE
     if (https) {
         pssl_config = mbedtlsutils_get_client_config();
         if (!pssl_config) {
