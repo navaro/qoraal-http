@@ -8,12 +8,17 @@ set(TEST_SRCS
 
 # Add the executable target
 add_executable(httptest ${TEST_SRCS})
+target_compile_definitions(qoraal-http PUBLIC CFG_HTTPSERVER_TLS_DISABLE=1)
+target_compile_definitions(qoraal-http PUBLIC CFG_HTTPCLIENT_TLS_DISABLE=1)
+target_compile_definitions(qoraal-http PUBLIC CFG_LITTLEFS_DISABLE=1)
 target_compile_definitions(httptest PRIVATE CFG_OS_POSIX)
 target_compile_definitions(qoraal PRIVATE CFG_OS_POSIX)
 target_compile_definitions(qoraal-http PRIVATE CFG_OS_POSIX)
 target_compile_options(httptest PRIVATE -O0 -g)
 target_compile_options(qoraal PRIVATE -O0 -g)
 target_compile_options(qoraal-http PRIVATE -O0 -g)
+
+
 
 # Link the qoraal library and pthread
 if(WIN32)
