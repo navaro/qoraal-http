@@ -21,7 +21,6 @@
 /* CFG_HTTPCLIENT_TLS_DISABLE 
     If defined, the http server will enable mbedtls.
 */
-#if defined CFG_OS_POSIX
 #if !defined(CFG_HTTPCLIENT_TLS_DISABLE)
 #define CFG_HTTPCLIENT_TLS_DISABLE    1
 #endif
