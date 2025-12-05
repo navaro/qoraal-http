@@ -10,7 +10,6 @@ set(TEST_SRCS
 add_executable(httptest ${TEST_SRCS})
 target_compile_definitions(qoraal-http PUBLIC CFG_HTTPSERVER_TLS_DISABLE=1)
 target_compile_definitions(qoraal-http PUBLIC CFG_HTTPCLIENT_TLS_DISABLE=1)
-target_compile_definitions(qoraal-http PUBLIC CFG_LITTLEFS_DISABLE=1)
 target_compile_definitions(httptest PRIVATE CFG_OS_POSIX)
 target_compile_definitions(qoraal PRIVATE CFG_OS_POSIX)
 target_compile_definitions(qoraal-http PRIVATE CFG_OS_POSIX)
