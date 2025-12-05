@@ -393,8 +393,8 @@ httpserver_user_ssl_accept (HTTP_USER_T* user, uint32_t timeout)
             int32_t status ;
 
             do {
-                struct fd_set   fdread;
-                struct fd_set   fdex;
+                fd_set   fdread;
+                fd_set   fdex;
                 struct timeval tv;
 
                 status = mbedtls_ssl_handshake((mbedtls_ssl_context *)user->ssl);
