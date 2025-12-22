@@ -4,7 +4,7 @@ else
 	CMAKE = cmake .. -DBUILD_HTTP_TESTS=ON
 endif
 MKDIR = mkdir -p build
-EXECUTABLE = ./build/test/httptest
+EXECUTABLE = ./build/test/posix/httptest
 RM = rm -rf
 
 .PHONY: all build run clean

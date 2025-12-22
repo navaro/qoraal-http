@@ -25,6 +25,6 @@ add_subdirectory(src)
 option(BUILD_HTTP_TESTS "Build the test directory" OFF)
 
 if(BUILD_HTTP_TESTS)
-    add_subdirectory(test)
+    add_subdirectory(test/posix)
 endif()
 

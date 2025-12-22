@@ -1,0 +1,6 @@
+
+lfs_ext:
+  region:  external_flash
+  address: 0x000                  # contiguous after secondary
+  size:    0x00710000                  # 0x800000 - 0xF0000 = 0x710000
+  align:   0x1000
