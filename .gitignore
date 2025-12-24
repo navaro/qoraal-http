@@ -6,3 +6,4 @@ output.map
 /.vscode/
 
 test.txt
+test/zephyr/prj.conf

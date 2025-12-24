@@ -62,8 +62,6 @@ LOG_MODULE_REGISTER(sta, CONFIG_LOG_DEFAULT_LEVEL);
 #error "PM is not enabled; you will NOT get the PM flash map."
 #endif
 
-#define WIFI_CREDENTIALS_STATIC_SSID        "MERCUSYS_6982"
-#define WIFI_CREDENTIALS_STATIC_PASSWORD    "Cr@zyangel!!!!!!!!"
 #define WIFI_SHELL_MGMT_EVENTS              (NET_EVENT_WIFI_CONNECT_RESULT | NET_EVENT_WIFI_DISCONNECT_RESULT)
 
 static void wifi_ready_cb(bool wifi_ready);
@@ -284,10 +282,10 @@ static void wifi_connect_work_handler(struct k_work *work)
 	wifi_context.connect_result = false;
 
     struct wifi_connect_req_params params = { 0 };
-    params.ssid = WIFI_CREDENTIALS_STATIC_SSID;
-    params.ssid_length = strlen(WIFI_CREDENTIALS_STATIC_SSID);
-    params.psk = WIFI_CREDENTIALS_STATIC_PASSWORD;
-    params.psk_length = strlen(WIFI_CREDENTIALS_STATIC_PASSWORD);
+    params.ssid = CONFIG_WIFI_CREDENTIALS_STATIC_SSID;
+    params.ssid_length = strlen(CONFIG_WIFI_CREDENTIALS_STATIC_SSID);
+    params.psk = CONFIG_WIFI_CREDENTIALS_STATIC_PASSWORD;
+    params.psk_length = strlen(CONFIG_WIFI_CREDENTIALS_STATIC_PASSWORD);
     params.security = WIFI_SECURITY_TYPE_PSK;
     params.channel = WIFI_CHANNEL_ANY;
     params.mfp = WIFI_MFP_OPTIONAL;
