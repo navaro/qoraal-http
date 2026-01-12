@@ -22,7 +22,7 @@
  */
 
 #include "qoraal-http/config.h"
-#if !defined CFG_HTTPSERVER_TLS_DISABLE || !defined CFG_HTTPCLIENT_TLS_DISABLE
+#if !defined(CFG_HTTPCLIENT_TLS_DISABLE) || !CFG_HTTPCLIENT_TLS_DISABLE
 #include <time.h>
 #include "qoraal-http/mbedtls/mbedtlsutils.h"
 #include "threading_alt.h"
