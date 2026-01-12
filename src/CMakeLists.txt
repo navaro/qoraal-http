@@ -12,6 +12,7 @@ set(FLASH_SRC
     json/jsmn.c
     json/jsmn_tools.c
     qshell/httpcmds.c
+    mbedtls/mbedtlsutils.c
     example/css/wcss.c
     example/html/wabout.c
     example/html/wnlog.c
