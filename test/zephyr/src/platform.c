@@ -187,6 +187,9 @@ platform_start(void)
 {
     ARG_UNUSED(_platform_flash_size);
     platform_init_wifi();
+
+    mbedtlsutils_start () ;
+    
     return 0;
 }
 

@@ -1,5 +1,7 @@
 cmake_minimum_required(VERSION 3.20.0)
 
+set(EXTRA_CONF_FILE "secrets.conf")
+
 find_package(Zephyr REQUIRED HINTS $ENV{ZEPHYR_BASE})
 project(qoraal_test)
 

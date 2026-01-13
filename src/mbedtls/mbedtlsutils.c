@@ -349,6 +349,7 @@ mbedtls_client_inst_init (mbedtls_ssl_config * ssl_config)
             break;
         }
 
+#if 0
         mbedtls_ssl_conf_authmode(pconf, MBEDTLS_SSL_VERIFY_OPTIONAL);
         mbedtls_ssl_conf_rng( pconf, mbedtls_ctr_drbg_random, 0 );
 
@@ -360,8 +361,10 @@ mbedtls_client_inst_init (mbedtls_ssl_config * ssl_config)
         mbedtls_ctr_drbg_seed(&_ssl_ctr_drbg, mbedtls_entropy_func, &_ssl_entropy,
                         (const unsigned char *)"qoraal", strlen("qoraal"));
 
+
         mbedtls_ssl_conf_rng(pconf,
     		mbedtls_entropy_func, &_ssl_ctr_drbg);                        
+#endif
 
         // mbedtls_ssl_conf_dbg( pconf, mbedtls_debug_cb, NULL );
 
