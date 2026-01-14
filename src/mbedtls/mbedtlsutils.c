@@ -114,6 +114,17 @@ mbedtls_hw_entropy_poll( void *data,
     return( 0 );
 }
 
+
+static int pkilib_psa_rng(void *ctx, unsigned char *output, size_t len)
+{
+#if !defined(MBEDTLS_USE_PSA_CRYPTO)
+    // Use mbedtls_ctr_drbg_random with the global DRBG context
+    return mbedtls_ctr_drbg_random(&_ssl_ctr_drbg, output, len);
+#else
+    return psa_generate_random(output, len) == PSA_SUCCESS ? 0 : MBEDTLS_ERR_ENTROPY_SOURCE_FAILED;
+#endif 
+}
+
 static void 
 mbedtls_debug_cb ( void *ctx, int level, const char *file, int line,
                       const char *str )
@@ -349,9 +360,9 @@ mbedtls_client_inst_init (mbedtls_ssl_config * ssl_config)
             break;
         }
 
-#if 0
+#if 1
         mbedtls_ssl_conf_authmode(pconf, MBEDTLS_SSL_VERIFY_OPTIONAL);
-        mbedtls_ssl_conf_rng( pconf, mbedtls_ctr_drbg_random, 0 );
+
 
 
         mbedtls_entropy_init(&_ssl_entropy);
@@ -361,9 +372,7 @@ mbedtls_client_inst_init (mbedtls_ssl_config * ssl_config)
         mbedtls_ctr_drbg_seed(&_ssl_ctr_drbg, mbedtls_entropy_func, &_ssl_entropy,
                         (const unsigned char *)"qoraal", strlen("qoraal"));
 
-
-        mbedtls_ssl_conf_rng(pconf,
-    		mbedtls_entropy_func, &_ssl_ctr_drbg);                        
+        mbedtls_ssl_conf_rng( pconf, pkilib_psa_rng, 0 );                    
 #endif
 
         // mbedtls_ssl_conf_dbg( pconf, mbedtls_debug_cb, NULL );
