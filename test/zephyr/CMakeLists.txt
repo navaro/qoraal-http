@@ -27,7 +27,9 @@ target_link_libraries(qoraal-http PUBLIC zephyr_interface)
 target_compile_definitions(qoraal PRIVATE CFG_OS_ZEPHYR=1)
 target_compile_definitions(qoraal-http PUBLIC CFG_OS_ZEPHYR=1 
                                 CFG_HTTPSERVER_TLS_DISABLE=1  
-                                CFG_HTTPCLIENT_TLS_DISABLE=0)
+                                CFG_HTTPCLIENT_TLS_DISABLE=0
+                                CFG_MBEDTLS_PLATFORM_INIT_ENABLE=1
+                                )
 
 target_compile_options(app PRIVATE -O0 -g)
 target_compile_options(qoraal PRIVATE -O0 -g)
