@@ -7,3 +7,4 @@ output.map
 
 test.txt
 test/zephyr/prj.conf
+test/zephyr/zephyr.code-workspace

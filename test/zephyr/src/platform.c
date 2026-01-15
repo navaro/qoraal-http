@@ -186,7 +186,9 @@ int32_t
 platform_start(void)
 {
     ARG_UNUSED(_platform_flash_size);
-    mbedtlsutils_start () ;
+
+    mbedtls_platform_set_calloc_free( calloc,
+            free ) ;
     platform_init_wifi();
 
     
