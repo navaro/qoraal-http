@@ -10,6 +10,7 @@ set(TEST_SRCS
     ../common/main.c
     ../common/services/wserver_inst.c
     src/platform.c
+
 )
 target_sources(app PRIVATE ${TEST_SRCS})
 
@@ -26,7 +27,7 @@ target_link_libraries(qoraal-http PUBLIC zephyr_interface)
 
 target_compile_definitions(qoraal PRIVATE CFG_OS_ZEPHYR=1)
 target_compile_definitions(qoraal-http PUBLIC CFG_OS_ZEPHYR=1 
-                                CFG_HTTPSERVER_TLS_DISABLE=1  
+                                CFG_HTTPSERVER_TLS_DISABLE=0  
                                 CFG_HTTPCLIENT_TLS_DISABLE=0
                                 CFG_MBEDTLS_PLATFORM_INIT_ENABLE=1
                                 )

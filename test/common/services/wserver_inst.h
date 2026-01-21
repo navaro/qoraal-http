@@ -84,6 +84,8 @@
 /* Client data structures and types.                                         */
 /*===========================================================================*/
 
+#define WSERVER_PORT_MASK    0xFFFF
+#define WSERVER_SSL          (1 << 16)
 
 /*===========================================================================*/
 /* External declarations.                                                    */

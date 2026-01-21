@@ -36,7 +36,8 @@
 
 typedef enum  {
     QORAAL_SERVICE_SHELL = SVC_SERVICES_USER,
-    QORAAL_SERVICE_WWW
+    QORAAL_SERVICE_WWW,
+    QORAAL_SERVICE_ESTREQ
 } QORAAL_SERVICES ;
 
 /*===========================================================================*/

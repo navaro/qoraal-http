@@ -180,6 +180,7 @@ platform_init(uint32_t flash_size)
 {
     _platform_flash_size = flash_size;
     console_init();
+    mbedtlsutils_init();
     return 0;
 }
 
@@ -188,7 +189,7 @@ platform_start(void)
 {
     ARG_UNUSED(_platform_flash_size);
 
-    mbedtls_platform_set_calloc_free( calloc, free ) ;
+    mbedtlsutils_start( calloc, free ) ;
     platform_init_wifi();
 
     

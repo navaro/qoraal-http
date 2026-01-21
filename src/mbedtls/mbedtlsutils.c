@@ -107,6 +107,10 @@ mbedtls_hw_entropy_poll( void *data,
         output += 4 ;
         len -= 4 ;
     }
+    if (len) {
+        uint32_t random = qoraal_rand () ;
+        memcpy (output, &random, len) ;
+    }
 
     DBG_MESSAGE_MBEDTLS(DBG_MESSAGE_SEVERITY_INFO,  
             "TLS   : : mbedtls_hw_entropy_poll %d bytes", *olen );
@@ -115,7 +119,8 @@ mbedtls_hw_entropy_poll( void *data,
 }
 
 
-static int pkilib_psa_rng(void *ctx, unsigned char *output, size_t len)
+static int 
+pkilib_psa_rng(void *ctx, unsigned char *output, size_t len)
 {
 #if !defined(MBEDTLS_USE_PSA_CRYPTO)
     // Use mbedtls_ctr_drbg_random with the global DRBG context
@@ -138,37 +143,6 @@ static mbedtls_time_t
 mbedtls_time_cb ( mbedtls_time_t* time )
 {
     return rtc_time () ;
-}
-#endif
-
-#if 0 // defined(MBEDTLS_THREADING_ALT)
-static void
-mutex_init( mbedtls_threading_mutex_t * mtx)
-{
-    os_mutex_create (mtx) ;
-}
-static void
-mutex_free( mbedtls_threading_mutex_t * mtx)
-{
-    os_mutex_delete (mtx) ;
-}
-static int
-mutex_lock( mbedtls_threading_mutex_t * mtx)
-{
-    if (!*mtx) {
-        return -1 ;
-    }
-    os_mutex_lock (mtx) ;
-    return 0 ;
-}
-static int
-mutex_unlock( mbedtls_threading_mutex_t * mtx)
-{
-    if (!*mtx) {
-        return -1 ;
-    }
-    os_mutex_unlock (mtx) ;
-    return 0 ;
 }
 #endif
 
@@ -244,10 +218,6 @@ mbedtlsutils_start (void)
             mbedtls_free_cb ) ;
 #endif
 
-#if 0 //defined(MBEDTLS_THREADING_ALT)
-    mbedtls_threading_set_alt(mutex_init, mutex_free, mutex_lock, mutex_unlock );
-#endif
-
     mbedtls_entropy_init( &_ssl_entropy );
     mbedtls_entropy_add_source( &_ssl_entropy, mbedtls_hw_entropy_poll, NULL,
                                 12, MBEDTLS_ENTROPY_SOURCE_STRONG );
@@ -316,27 +286,6 @@ mbedtlsutils_start (void)
     return ret ;
 }
 
-int hardware_poll(void *data, unsigned char *output, size_t len, size_t *olen)
-{
-    (void)data;
-    *olen = 0;
-
-    while (len >= 4) {
-        uint32_t r = platform_rand();
-        output[0] = (unsigned char)((r >> 24) & 0xFF);
-        output[1] = (unsigned char)((r >> 16) & 0xFF);
-        output[2] = (unsigned char)((r >>  8) & 0xFF);
-        output[3] = (unsigned char)( r        & 0xFF);
-        output += 4; len -= 4; *olen += 4;
-    }
-    if (len) {
-        uint32_t r = platform_rand();
-        for (size_t i = 0; i < len; i++) output[i] = (unsigned char)(r >> (24 - i*8));
-        *olen += len;
-    }
-    return 0;
-}
-
 int32_t
 mbedtls_client_inst_init (mbedtls_ssl_config * ssl_config)
 {
@@ -360,20 +309,8 @@ mbedtls_client_inst_init (mbedtls_ssl_config * ssl_config)
             break;
         }
 
-#if 1
         mbedtls_ssl_conf_authmode(pconf, MBEDTLS_SSL_VERIFY_OPTIONAL);
-
-
-
-        mbedtls_entropy_init(&_ssl_entropy);
-        mbedtls_entropy_add_source( &_ssl_entropy, hardware_poll, NULL,
-                                    12, MBEDTLS_ENTROPY_SOURCE_STRONG);
-        mbedtls_ctr_drbg_init(&_ssl_ctr_drbg);
-        mbedtls_ctr_drbg_seed(&_ssl_ctr_drbg, mbedtls_entropy_func, &_ssl_entropy,
-                        (const unsigned char *)"qoraal", strlen("qoraal"));
-
         mbedtls_ssl_conf_rng( pconf, pkilib_psa_rng, 0 );                    
-#endif
 
         // mbedtls_ssl_conf_dbg( pconf, mbedtls_debug_cb, NULL );
 
