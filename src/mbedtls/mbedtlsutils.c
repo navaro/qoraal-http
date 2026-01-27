@@ -533,17 +533,17 @@ mbedtls_net_send(void *ctx, const unsigned char *buf, size_t len)
     ssize_t r = zsock_send(fd, buf, len, 0);
 
     if (r >= 0) {
-        DBG_MESSAGE_MBEDTLS(DBG_MESSAGE_SEVERITY_ERROR,
-        		"TLS   :E: mbedtls_net_send retured %d for fd %d",
-        		r, fd) ;
+        //DBG_MESSAGE_MBEDTLS(DBG_MESSAGE_SEVERITY_ERROR,
+        //		"TLS   :E: mbedtls_net_send retured %d for fd %d",
+        //		r, fd) ;
 
     	return (int)r;
     }
 
     int err = errno;
-    DBG_MESSAGE_MBEDTLS(DBG_MESSAGE_SEVERITY_ERROR,
-    		"TLS   :E: mbedtls_net_send retured %d errno %d for fd %d",
-    		r, err, fd) ;
+    //DBG_MESSAGE_MBEDTLS(DBG_MESSAGE_SEVERITY_ERROR,
+    //		"TLS   :E: mbedtls_net_send retured %d errno %d for fd %d",
+    //		r, err, fd) ;
 
     if (err == EAGAIN || err == EWOULDBLOCK || err == EINTR) return MBEDTLS_ERR_SSL_WANT_WRITE;
     if (err == ECONNRESET) return MBEDTLS_ERR_NET_CONN_RESET;

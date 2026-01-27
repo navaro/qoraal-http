@@ -340,7 +340,7 @@ httpserver_user_accept (int server_sock, HTTP_USER_T* user, uint32_t timeout)
 
     }
 
-    DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_LOG,
+    DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_INFO,
                 "HTTP  : : httpserver_user_accept %d", user->socket);
 
 #if 0
@@ -492,7 +492,7 @@ httpserver_user_close (HTTP_USER_T* user)
 
     }
 #endif
-    DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_LOG,
+    DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_INFO,
                     "HTTP  : : httpserver_user_close %d", user->socket);
 
     res = closesocket (user->socket);

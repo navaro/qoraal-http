@@ -425,6 +425,118 @@ static void net_mgmt_event_handler(struct net_mgmt_event_callback *cb,
 	}
 }
 
+
+static int32_t
+qshell_wifi (SVC_SHELL_IF_T * pif, char** argv, int argc)
+{
+
+    svc_shell_print (pif, SVC_SHELL_OUT_STD,
+                "WiFi Status:\r\n") ;
+
+	struct net_if *iface = net_if_get_default();
+	struct wifi_iface_status status = { 0 };
+
+	if (net_mgmt(NET_REQUEST_WIFI_IFACE_STATUS, iface, &status,
+				sizeof(struct wifi_iface_status))) {
+		svc_shell_print(pif, SVC_SHELL_OUT_STD,
+            "Status request failed");
+
+		return -ENOEXEC;
+	}
+
+	svc_shell_print(pif, SVC_SHELL_OUT_STD,
+            "==================");
+	svc_shell_print(pif, SVC_SHELL_OUT_STD,
+            "State: %s", wifi_state_txt(status.state));
+
+	if (status.state >= WIFI_STATE_ASSOCIATED) {
+		uint8_t mac_string_buf[sizeof("xx:xx:xx:xx:xx:xx")];
+
+		svc_shell_print(pif, SVC_SHELL_OUT_STD,
+            "Interface Mode: %s",
+		       wifi_mode_txt(status.iface_mode));
+		svc_shell_print(pif, SVC_SHELL_OUT_STD,
+            "Link Mode: %s",
+		       wifi_link_mode_txt(status.link_mode));
+		svc_shell_print(pif, SVC_SHELL_OUT_STD,
+            "SSID: %.32s", status.ssid);
+		svc_shell_print(pif, SVC_SHELL_OUT_STD,
+            "BSSID: %s",
+		       net_sprint_ll_addr_buf(
+				status.bssid, WIFI_MAC_ADDR_LEN,
+				mac_string_buf, sizeof(mac_string_buf)));
+		svc_shell_print(pif, SVC_SHELL_OUT_STD,
+            "Band: %s", wifi_band_txt(status.band));
+		svc_shell_print(pif, SVC_SHELL_OUT_STD,
+            "Channel: %d", status.channel);
+		svc_shell_print(pif, SVC_SHELL_OUT_STD,
+            "Security: %s", wifi_security_txt(status.security));
+		svc_shell_print(pif, SVC_SHELL_OUT_STD,
+            "MFP: %s", wifi_mfp_txt(status.mfp));
+		svc_shell_print(pif, SVC_SHELL_OUT_STD,
+            "RSSI: %d", status.rssi);
+	}
+
+    return SVC_SHELL_CMD_E_OK ;
+
+}
+SVC_SHELL_CMD_DECL("wifi", qshell_wifi, "");
+
+
+
+static int32_t
+print_ip(SVC_SHELL_IF_T *pif)
+{
+    struct net_if *iface = net_if_get_first_wifi();
+    struct net_if_ipv4 *ipv4;
+    char ip_buf[NET_IPV4_ADDR_LEN];
+    char nm_buf[NET_IPV4_ADDR_LEN];
+    char gw_buf[NET_IPV4_ADDR_LEN];
+
+    if (!iface) {
+        svc_shell_print(pif, SVC_SHELL_OUT_STD,
+                        "No Wi-Fi interface found\r\n");
+        return SVC_SHELL_CMD_E_FAIL;
+    }
+
+    ipv4 = iface->config.ip.ipv4;
+    if (!ipv4) {
+        svc_shell_print(pif, SVC_SHELL_OUT_STD,
+                        "IPv4 not enabled on interface\r\n");
+        return SVC_SHELL_CMD_E_FAIL;
+    }
+
+    /* Find first used unicast IPv4 address */
+    for (int i = 0; i < NET_IF_MAX_IPV4_ADDR; i++) {
+        if (ipv4->unicast[i].ipv4.is_used) {
+
+            net_addr_ntop(AF_INET,
+                          &ipv4->unicast[i].ipv4.address.in_addr,
+                          ip_buf, sizeof(ip_buf));
+
+            net_addr_ntop(AF_INET,
+                          &ipv4->unicast[i].netmask,
+                          nm_buf, sizeof(nm_buf));
+
+            net_addr_ntop(AF_INET,
+                          &ipv4->gw,
+                          gw_buf, sizeof(gw_buf));
+
+            svc_shell_print(pif, SVC_SHELL_OUT_STD,
+                            "IP: %s\r\nNetmask: %s\r\nGateway: %s\r\n",
+                            ip_buf, nm_buf, gw_buf);
+
+            return SVC_SHELL_CMD_E_OK;
+        }
+    }
+
+    svc_shell_print(pif, SVC_SHELL_OUT_STD,
+                    "No IPv4 address assigned\r\n");
+    return SVC_SHELL_CMD_E_FAIL;
+}
+
+
+
 static int32_t
 qshell_ifconfig(SVC_SHELL_IF_T *pif, char **argv, int argc)
 {
@@ -448,9 +560,9 @@ qshell_ifconfig(SVC_SHELL_IF_T *pif, char **argv, int argc)
         svc_shell_print(pif, SVC_SHELL_OUT_STD,
                         "Usage:\r\n"
                         "  ifconfig <ip> [netmask] [gateway]\r\n"
-                        "Example:\r\n"
-                        "  ifconfig 192.168.2.50 255.255.255.0 192.168.2.1\r\n");
-        return SVC_SHELL_CMD_E_FAIL;
+                        "\r\n");
+
+        return print_ip (pif) ;
     }
 
     /* argv[0] is command name, argv[1..] are args */
@@ -525,116 +637,5 @@ qshell_ifconfig(SVC_SHELL_IF_T *pif, char **argv, int argc)
 }
 SVC_SHELL_CMD_DECL("ifconfig", qshell_ifconfig, "");
 
-static int32_t
-qshell_wifi (SVC_SHELL_IF_T * pif, char** argv, int argc)
-{
-
-    svc_shell_print (pif, SVC_SHELL_OUT_STD,
-                "WiFi Status:\r\n") ;
-
-	struct net_if *iface = net_if_get_default();
-	struct wifi_iface_status status = { 0 };
-
-	if (net_mgmt(NET_REQUEST_WIFI_IFACE_STATUS, iface, &status,
-				sizeof(struct wifi_iface_status))) {
-		svc_shell_print(pif, SVC_SHELL_OUT_STD,
-            "Status request failed");
-
-		return -ENOEXEC;
-	}
-
-	svc_shell_print(pif, SVC_SHELL_OUT_STD,
-            "==================");
-	svc_shell_print(pif, SVC_SHELL_OUT_STD,
-            "State: %s", wifi_state_txt(status.state));
-
-	if (status.state >= WIFI_STATE_ASSOCIATED) {
-		uint8_t mac_string_buf[sizeof("xx:xx:xx:xx:xx:xx")];
-
-		svc_shell_print(pif, SVC_SHELL_OUT_STD,
-            "Interface Mode: %s",
-		       wifi_mode_txt(status.iface_mode));
-		svc_shell_print(pif, SVC_SHELL_OUT_STD,
-            "Link Mode: %s",
-		       wifi_link_mode_txt(status.link_mode));
-		svc_shell_print(pif, SVC_SHELL_OUT_STD,
-            "SSID: %.32s", status.ssid);
-		svc_shell_print(pif, SVC_SHELL_OUT_STD,
-            "BSSID: %s",
-		       net_sprint_ll_addr_buf(
-				status.bssid, WIFI_MAC_ADDR_LEN,
-				mac_string_buf, sizeof(mac_string_buf)));
-		svc_shell_print(pif, SVC_SHELL_OUT_STD,
-            "Band: %s", wifi_band_txt(status.band));
-		svc_shell_print(pif, SVC_SHELL_OUT_STD,
-            "Channel: %d", status.channel);
-		svc_shell_print(pif, SVC_SHELL_OUT_STD,
-            "Security: %s", wifi_security_txt(status.security));
-		svc_shell_print(pif, SVC_SHELL_OUT_STD,
-            "MFP: %s", wifi_mfp_txt(status.mfp));
-		svc_shell_print(pif, SVC_SHELL_OUT_STD,
-            "RSSI: %d", status.rssi);
-	}
-
-    return SVC_SHELL_CMD_E_OK ;
-
-}
-SVC_SHELL_CMD_DECL("wifi", qshell_wifi, "");
-
-#include <zephyr/net/net_if.h>
-#include <zephyr/net/net_ip.h>
-
-static int32_t
-qshell_ip(SVC_SHELL_IF_T *pif, char **argv, int argc)
-{
-    struct net_if *iface = net_if_get_first_wifi();
-    struct net_if_ipv4 *ipv4;
-    char ip_buf[NET_IPV4_ADDR_LEN];
-    char nm_buf[NET_IPV4_ADDR_LEN];
-    char gw_buf[NET_IPV4_ADDR_LEN];
-
-    if (!iface) {
-        svc_shell_print(pif, SVC_SHELL_OUT_STD,
-                        "No Wi-Fi interface found\r\n");
-        return SVC_SHELL_CMD_E_FAIL;
-    }
-
-    ipv4 = iface->config.ip.ipv4;
-    if (!ipv4) {
-        svc_shell_print(pif, SVC_SHELL_OUT_STD,
-                        "IPv4 not enabled on interface\r\n");
-        return SVC_SHELL_CMD_E_FAIL;
-    }
-
-    /* Find first used unicast IPv4 address */
-    for (int i = 0; i < NET_IF_MAX_IPV4_ADDR; i++) {
-        if (ipv4->unicast[i].ipv4.is_used) {
-
-            net_addr_ntop(AF_INET,
-                          &ipv4->unicast[i].ipv4.address.in_addr,
-                          ip_buf, sizeof(ip_buf));
-
-            net_addr_ntop(AF_INET,
-                          &ipv4->unicast[i].netmask,
-                          nm_buf, sizeof(nm_buf));
-
-            net_addr_ntop(AF_INET,
-                          &ipv4->gw,
-                          gw_buf, sizeof(gw_buf));
-
-            svc_shell_print(pif, SVC_SHELL_OUT_STD,
-                            "IP: %s\r\nNetmask: %s\r\nGateway: %s\r\n",
-                            ip_buf, nm_buf, gw_buf);
-
-            return SVC_SHELL_CMD_E_OK;
-        }
-    }
-
-    svc_shell_print(pif, SVC_SHELL_OUT_STD,
-                    "No IPv4 address assigned\r\n");
-    return SVC_SHELL_CMD_E_FAIL;
-}
-
-SVC_SHELL_CMD_DECL("ip", qshell_ip, "");
 
 #endif /* CFG_OS_ZEPHYR */

@@ -125,7 +125,7 @@
  */
 #define HTTP_SERVER_MALLOC(size)                            qoraal_malloc (QORAAL_HeapAuxiliary, size) ;
 #define HTTP_SERVER_FREE(mem)                               qoraal_free (QORAAL_HeapAuxiliary, mem) ;
-#define HTTP_SERVER_USER_THREAD_SIZE                        12000
+#define HTTP_SERVER_USER_THREAD_SIZE                        8000
 /** @} */
 
 
