@@ -58,6 +58,14 @@ LOG_MODULE_REGISTER(sta, CONFIG_LOG_DEFAULT_LEVEL);
 #include "qoraal/platform.h"
 #include "qoraal/qshell/console.h"
 
+#include <zephyr/net/net_if.h>
+#include <zephyr/net/net_ip.h>
+#include <zephyr/net/dhcpv4.h>
+
+#define 	WIFI_STATIC_IPV4_ADDR       "192.168.1.99"
+#define  	WIFI_STATIC_IPV4_NETMASK    "255.255.255.0"
+#define  	WIFI_STATIC_IPV4_GW         "192.168.1.1"
+
 
 #if !IS_ENABLED(CONFIG_PARTITION_MANAGER_ENABLED)
 #error "PM is not enabled; you will NOT get the PM flash map."
@@ -417,6 +425,85 @@ static void net_mgmt_event_handler(struct net_mgmt_event_callback *cb,
 	}
 }
 
+static int32_t
+qshell_ifconfig(SVC_SHELL_IF_T *pif, char **argv, int argc)
+{
+    struct net_if *iface = net_if_get_first_wifi();
+    struct in_addr ip, nm, gw;
+
+    const char *ip_s = WIFI_STATIC_IPV4_ADDR;
+    const char *nm_s = WIFI_STATIC_IPV4_NETMASK;
+    const char *gw_s = WIFI_STATIC_IPV4_GW;
+
+    if (!iface) {
+        svc_shell_print(pif, SVC_SHELL_OUT_STD,
+                        "No Wi-Fi interface found\r\n");
+        return SVC_SHELL_CMD_E_FAIL;
+    }
+
+    /* Usage */
+    if (argc < 2) {
+        svc_shell_print(pif, SVC_SHELL_OUT_STD,
+                        "Usage:\r\n"
+                        "  ifconfig <ip> [netmask] [gateway]\r\n"
+                        "Example:\r\n"
+                        "  ifconfig 192.168.2.50 255.255.255.0 192.168.2.1\r\n");
+        return SVC_SHELL_CMD_E_FAIL;
+    }
+
+    /* argv[0] is command name, argv[1..] are args */
+    if (argc >= 2) ip_s = argv[1];
+    if (argc >= 3) nm_s = argv[2];
+    if (argc >= 4) gw_s = argv[3];
+
+    if (net_addr_pton(AF_INET, ip_s, &ip)) {
+        LOG_ERR("Bad static IP: %s", ip_s);
+        return -EINVAL;
+    }
+
+    if (net_addr_pton(AF_INET, nm_s, &nm)) {
+        LOG_ERR("Bad netmask: %s", nm_s);
+        return -EINVAL;
+    }
+
+    if (net_addr_pton(AF_INET, gw_s, &gw)) {
+        LOG_ERR("Bad gateway: %s", gw_s);
+        return -EINVAL;
+    }
+
+    /* Make sure DHCP isn't racing you */
+#if IS_ENABLED(CONFIG_NET_DHCPV4)
+    net_dhcpv4_stop(iface);
+#endif
+
+    /* Optional: clear old addresses */
+    struct net_if_ipv4 *ipv4 = iface->config.ip.ipv4;
+    if (ipv4) {
+        for (int i = 0; i < NET_IF_MAX_IPV4_ADDR; i++) {
+            if (ipv4->unicast[i].ipv4.is_used) {
+                net_if_ipv4_addr_rm(iface, &ipv4->unicast[i].ipv4.address.in_addr);
+            }
+        }
+    }
+
+    net_if_ipv4_set_netmask(iface, &nm);
+    net_if_ipv4_set_gw(iface, &gw);
+
+    struct net_if_addr *ifaddr = net_if_ipv4_addr_add(iface, &ip, NET_ADDR_MANUAL, 0);
+    if (!ifaddr) {
+        LOG_ERR("Failed to add static IPv4 address");
+        return -ENOMEM;
+    }
+
+    LOG_INF("Static IPv4 set: %s / %s gw %s", ip_s, nm_s, gw_s);
+
+    svc_shell_print(pif, SVC_SHELL_OUT_STD,
+                    "OK: IP=%s Netmask=%s Gateway=%s\r\n",
+                    ip_s, nm_s, gw_s);
+
+    return SVC_SHELL_CMD_E_OK;
+}
+SVC_SHELL_CMD_DECL("ifconfig", qshell_ifconfig, "");
 
 
 static int32_t

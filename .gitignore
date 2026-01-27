@@ -6,5 +6,5 @@ output.map
 /.vscode/
 
 test.txt
-test/zephyr/prj.conf
 test/zephyr/zephyr.code-workspace
+test/zephyr/secrets.conf
