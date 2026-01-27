@@ -511,53 +511,43 @@ mbedtls_net_recv_timeout( void *ctx, unsigned char *buf, size_t len, uint32_t ti
 }
 #endif
 
-int 
-mbedtls_net_recv( void *ctx, unsigned char *buf, size_t len)
+
+int
+mbedtls_net_recv(void *ctx, unsigned char *buf, size_t len)
 {
-    int fd = (int)(intptr_t)ctx;
-    if (fd < 0) {
-        return MBEDTLS_ERR_NET_INVALID_CONTEXT;
-    }
+    int fd = (int)(intptr_t )ctx;
+    ssize_t r = zsock_recv(fd, buf, len, MSG_DONTWAIT);
+    if (r > 0) return (int)r;
+    if (r == 0) return MBEDTLS_ERR_NET_CONN_RESET;
 
-    int r = (int)zsock_recv(fd, buf, len, MSG_DONTWAIT);
-    if (r > 0) {
-        return r;
-    }
-    if (r == 0) {
-        return MBEDTLS_ERR_NET_RECV_FAILED;   /* peer closed */
-    }
-
-    /* r < 0 */
-    if (errno == EAGAIN || errno == EWOULDBLOCK) {
-        return MBEDTLS_ERR_SSL_WANT_READ;
-    }
-    if (errno == ECONNRESET) {
-        return MBEDTLS_ERR_NET_CONN_RESET;
-    }
+    int err = errno;
+    if (err == EAGAIN || err == EWOULDBLOCK || err == EINTR) return MBEDTLS_ERR_SSL_WANT_READ;
+    if (err == ECONNRESET) return MBEDTLS_ERR_NET_CONN_RESET;
     return MBEDTLS_ERR_NET_RECV_FAILED;
-
 }
 
 int 
-mbedtls_net_send( void *ctx, const unsigned char *buf, size_t len )
+mbedtls_net_send(void *ctx, const unsigned char *buf, size_t len)
 {
     int fd = (int)(intptr_t)ctx;
-    if (fd < 0) {
-        return MBEDTLS_ERR_NET_INVALID_CONTEXT;
-    }
+    ssize_t r = zsock_send(fd, buf, len, 0);
 
-    int r = (int)zsock_send(fd, buf, len, 0);
     if (r >= 0) {
-        return r;
+        DBG_MESSAGE_MBEDTLS(DBG_MESSAGE_SEVERITY_ERROR,
+        		"TLS   :E: mbedtls_net_send retured %d for fd %d",
+        		r, fd) ;
+
+    	return (int)r;
     }
 
-    if (errno == EAGAIN || errno == EWOULDBLOCK) {
-        return MBEDTLS_ERR_SSL_WANT_WRITE;
-    }
-    if (errno == ECONNRESET) {
-        return MBEDTLS_ERR_NET_CONN_RESET;
-    }
-    return MBEDTLS_ERR_NET_SEND_FAILED;
+    int err = errno;
+    DBG_MESSAGE_MBEDTLS(DBG_MESSAGE_SEVERITY_ERROR,
+    		"TLS   :E: mbedtls_net_send retured %d errno %d for fd %d",
+    		r, err, fd) ;
+
+    if (err == EAGAIN || err == EWOULDBLOCK || err == EINTR) return MBEDTLS_ERR_SSL_WANT_WRITE;
+    if (err == ECONNRESET) return MBEDTLS_ERR_NET_CONN_RESET;
+    return MBEDTLS_ERR_NET_SEND_FAILED;  // -0x004E in your build
 }
 #endif
 

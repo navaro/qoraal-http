@@ -339,6 +339,10 @@ httpserver_user_accept (int server_sock, HTTP_USER_T* user, uint32_t timeout)
         return HTTP_SERVER_E_ERROR ;
 
     }
+
+    DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_LOG,
+                "HTTP  : : httpserver_user_accept %d", user->socket);
+
 #if 0
     unsigned long flags = 1;
     int32_t status = ioctlsocket (user->socket, FIONBIO, &flags) ;
@@ -366,6 +370,7 @@ httpserver_user_accept (int server_sock, HTTP_USER_T* user, uint32_t timeout)
  *
  * @http
  */
+
 int32_t
 httpserver_user_ssl_accept (HTTP_USER_T* user, uint32_t timeout)
 {
@@ -384,7 +389,7 @@ httpserver_user_ssl_accept (HTTP_USER_T* user, uint32_t timeout)
                 return HTTP_SERVER_E_MEMORY ;
 
             }
-            mbedtls_ssl_set_bio( (mbedtls_ssl_context *)user->ssl, (void*)user->socket,
+            mbedtls_ssl_set_bio( (mbedtls_ssl_context *)user->ssl, (void*)(intptr_t)user->socket,
                 mbedtls_net_send, mbedtls_net_recv, 0 /*mbedtls_net_recv_timeout*/ )  ;
 
        }
@@ -393,28 +398,35 @@ httpserver_user_ssl_accept (HTTP_USER_T* user, uint32_t timeout)
             int32_t status ;
 
             do {
-                fd_set   fdread;
-                fd_set   fdex;
+                fd_set   rfds, wfds, fdex;
                 struct timeval tv;
 
                 status = mbedtls_ssl_handshake((mbedtls_ssl_context *)user->ssl);
 
-                if (status == MBEDTLS_ERR_SSL_WANT_READ ||
-                    status == MBEDTLS_ERR_SSL_WANT_WRITE ) {
+                if (status == MBEDTLS_ERR_SSL_WANT_READ /*||
+                    status == MBEDTLS_ERR_SSL_WANT_WRITE */) {
 
-                    FD_ZERO(&fdread) ;
                     FD_ZERO(&fdex) ;
-                    FD_SET(user->socket, &fdread);
+                    FD_ZERO(&rfds);
+                    FD_ZERO(&wfds);
+
+
+                    if (status == MBEDTLS_ERR_SSL_WANT_READ)  FD_SET(user->socket, &rfds);
+                    // if (status == MBEDTLS_ERR_SSL_WANT_WRITE) FD_SET(user->socket, &wfds);
+
+
+                    FD_SET(user->socket, &rfds);
+                    FD_SET(user->socket, &wfds);
                     FD_SET(user->socket, &fdex);
                     tv.tv_sec = 8 ;
                     tv.tv_usec = 0 ;
 
-                    int received = select(user->socket+1, &fdread, 0, &fdex, &tv) ;
+                    int received = select(user->socket+1, &rfds, &wfds, &fdex, &tv) ;
                     (void) received ;
 
-                    if (!FD_ISSET(user->socket, &fdread)) {
-                        DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_LOG,
-                                        "HTTP  : : read select failed with %d", received);
+                    if (!(FD_ISSET(user->socket, &rfds) || FD_ISSET(user->socket, &wfds))) {
+                        DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_REPORT,
+                                        "HTTP  : : select failed with %d", received);
                             status = HTTP_SERVER_E_CONNECTION ;
 
                     }
@@ -480,6 +492,9 @@ httpserver_user_close (HTTP_USER_T* user)
 
     }
 #endif
+    DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_LOG,
+                    "HTTP  : : httpserver_user_close %d", user->socket);
+
     res = closesocket (user->socket);
     user->socket = -1 ;
 

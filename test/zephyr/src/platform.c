@@ -197,7 +197,7 @@ platform_start(void)
 {
     ARG_UNUSED(_platform_flash_size);
 
-    mbedtlsutils_start( calloc, free ) ;
+    mbedtlsutils_start(  ) ;
     platform_init_wifi();
 
     
@@ -435,6 +435,8 @@ qshell_ifconfig(SVC_SHELL_IF_T *pif, char **argv, int argc)
     const char *nm_s = WIFI_STATIC_IPV4_NETMASK;
     const char *gw_s = WIFI_STATIC_IPV4_GW;
 
+    char gw_buf[NET_IPV4_ADDR_LEN];
+
     if (!iface) {
         svc_shell_print(pif, SVC_SHELL_OUT_STD,
                         "No Wi-Fi interface found\r\n");
@@ -454,7 +456,7 @@ qshell_ifconfig(SVC_SHELL_IF_T *pif, char **argv, int argc)
     /* argv[0] is command name, argv[1..] are args */
     if (argc >= 2) ip_s = argv[1];
     if (argc >= 3) nm_s = argv[2];
-    if (argc >= 4) gw_s = argv[3];
+    if (argc >= 4) gw_s = argv[3]; /* explicit gateway provided */
 
     if (net_addr_pton(AF_INET, ip_s, &ip)) {
         LOG_ERR("Bad static IP: %s", ip_s);
@@ -466,9 +468,27 @@ qshell_ifconfig(SVC_SHELL_IF_T *pif, char **argv, int argc)
         return -EINVAL;
     }
 
+    /* If gateway not specified, derive it as network + 1 */
+    if (argc < 4) {
+        uint32_t ip_h = ntohl(ip.s_addr);
+        uint32_t nm_h = ntohl(nm.s_addr);
+
+        uint32_t net_h = ip_h & nm_h;
+        uint32_t gw_h  = net_h + 1U;
+
+        gw.s_addr = htonl(gw_h);
+
+        /* for logging/printing */
+        if (!net_addr_ntop(AF_INET, &gw, gw_buf, sizeof(gw_buf))) {
+            LOG_ERR("Failed to format derived gateway");
+            return -EIO;
+        }
+        gw_s = gw_buf;
+    } else {
     if (net_addr_pton(AF_INET, gw_s, &gw)) {
         LOG_ERR("Bad gateway: %s", gw_s);
         return -EINVAL;
+    }
     }
 
     /* Make sure DHCP isn't racing you */
@@ -504,7 +524,6 @@ qshell_ifconfig(SVC_SHELL_IF_T *pif, char **argv, int argc)
     return SVC_SHELL_CMD_E_OK;
 }
 SVC_SHELL_CMD_DECL("ifconfig", qshell_ifconfig, "");
-
 
 static int32_t
 qshell_wifi (SVC_SHELL_IF_T * pif, char** argv, int argc)

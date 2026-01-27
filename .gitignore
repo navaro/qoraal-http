@@ -8,3 +8,4 @@ output.map
 test.txt
 test/zephyr/zephyr.code-workspace
 test/zephyr/secrets.conf
+src/mbedtls/zephyr.code-workspace

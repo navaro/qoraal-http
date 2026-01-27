@@ -190,7 +190,7 @@ httpclient_connect (HTTP_CLIENT_T* client, const struct sockaddr_in* addr, void 
 
             }
         }
-        mbedtls_ssl_set_bio( (mbedtls_ssl_context *)client->ssl, (void*)client->socket,
+        mbedtls_ssl_set_bio( (mbedtls_ssl_context *)client->ssl, (void*)(intptr_t)client->socket,
                 mbedtls_net_send, mbedtls_net_recv, 0 /*mbedtls_net_recv_timeout*/ )  ;
 
         mbedtls_ssl_set_hostname ((mbedtls_ssl_context *)client->ssl, client->hostname) ;
