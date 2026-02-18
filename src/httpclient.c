@@ -385,6 +385,11 @@ httpclient_close (HTTP_CLIENT_T* client)
         client->socket = -1 ;
 
     }
+    if (client->read_buffer) {
+        HTTP_CLIENT_FREE(client->read_buffer) ;
+        client->read_buffer = 0 ;
+    }
+
 }
 
 
