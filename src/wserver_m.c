@@ -61,9 +61,7 @@ typedef struct HTTPSERVER_INST_S {
 #define HTTPSERVER_USER_ACCEPT_IN_THREAD            1
 #define HTTPSERVER_USE_KEEPALIVE                    1
 #define HTTPSERVER_USER_MAX                         96
-#ifndef CFG_UTILS_HTTP_SERVER_THREADS
-#define CFG_UTILS_HTTP_SERVER_THREADS               4
-#endif
+
 
 /**
  * @brief   Authenticates a client request in the given thread.
@@ -412,7 +410,7 @@ httpserver_wserver_create (uint32_t port, bool ssl, const WSERVER_HANDLERS_T* ha
     HTTPSERVER_INST_T * inst = HTTP_SERVER_MALLOC(sizeof(HTTPSERVER_INST_T)) ;
     if (inst) {
         memset (inst, 0, sizeof(HTTPSERVER_INST_T)) ;
-        if (os_sem_create (&inst->count_sem, CFG_UTILS_HTTP_SERVER_THREADS+1) != EOK) {
+        if (os_sem_create (&inst->count_sem, CFG_WSERVER_USER_THREAD_MAX+1) != EOK) {
             HTTP_SERVER_FREE (inst) ;
             return 0 ;
             
@@ -509,7 +507,7 @@ httpserver_wserver_run (HTTPSERVER_INST_T * inst)
                     if (res == HTTP_SERVER_E_OK) {
                         DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_INFO,
                                 "WSERV : : incoming connection %d socket 0x%x\r\n",
-                                CFG_UTILS_HTTP_SERVER_THREADS - os_sem_count(&inst->count_sem) + 1, thread->user.socket);
+                                CFG_WSERVER_USER_THREAD_MAX - os_sem_count(&inst->count_sem) + 1, thread->user.socket);
                         break ;
 
                     }
@@ -545,10 +543,10 @@ httpserver_wserver_run (HTTPSERVER_INST_T * inst)
                     (httpserver_user_ssl_accept (&thread->user, 4000) != HTTP_SERVER_E_OK) ||
 #endif
                     (svc_threads_create ((SVC_THREADS_T*)thread, _wserver_thread_complete,
-                        HTTP_SERVER_USER_THREAD_SIZE, OS_THREAD_PRIO_4, _wserver_thread, (void*)thread, "wuser") != EOK)) {
+                        CFG_WSERVER_USER_THREAD_SIZE, OS_THREAD_PRIO_4, _wserver_thread, (void*)thread, "wuser") != EOK)) {
 
                     os_sem_signal(&inst->count_sem) ;
-                    if (os_sem_count(&inst->count_sem) >= CFG_UTILS_HTTP_SERVER_THREADS +1) {
+                    if (os_sem_count(&inst->count_sem) >= CFG_WSERVER_USER_THREAD_MAX +1) {
                         //svc_system_speed (SYSTEM_SVC_SPEED_IDLE, SYSTEM_SVC_SPEED_REQUESTOR_HTTP) ;
                     }
 
@@ -558,7 +556,7 @@ httpserver_wserver_run (HTTPSERVER_INST_T * inst)
 
                 } else {
                     DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_INFO,
-                            "WSERV : : start thread (%d)...\r\n", CFG_UTILS_HTTP_SERVER_THREADS - os_sem_count(&inst->count_sem) + 1);
+                            "WSERV : : start thread (%d)...\r\n", CFG_WSERVER_USER_THREAD_MAX - os_sem_count(&inst->count_sem) + 1);
 
                 }
 
@@ -578,14 +576,14 @@ httpserver_wserver_run (HTTPSERVER_INST_T * inst)
     httpserver_close (inst->server_sock) ;
     inst->server_sock = -1 ;
 
-    if (os_sem_count(&inst->count_sem) < CFG_UTILS_HTTP_SERVER_THREADS +1) {
+    if (os_sem_count(&inst->count_sem) < CFG_WSERVER_USER_THREAD_MAX +1) {
         DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_REPORT,
                 "WSERV : : waiting for threads to exit...\r\n");
 
     }
 
     for (i=0; i<50; i++) {
-        if (os_sem_count(&inst->count_sem) >= CFG_UTILS_HTTP_SERVER_THREADS + 1) {
+        if (os_sem_count(&inst->count_sem) >= CFG_WSERVER_USER_THREAD_MAX + 1) {
             break;
         }
         os_thread_sleep (100) ;

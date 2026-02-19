@@ -30,3 +30,24 @@
 */
 // #define CFG_MBEDTLS_PLATFORM_INIT_ENABLE    1
 
+/* CFG_HTTPCLIENT_TLS_DISABLE 
+    If defined, the http server will enable mbedtls.
+*/
+
+/* CFG_HTTPSERVER_TLS_DISABLE 
+    The http server user thread stack size
+*/
+
+/*
+ * Threadsize for incomming http connection 
+ */
+#if !defined(CFG_WSERVER_USER_THREAD_SIZE)
+#define CFG_WSERVER_USER_THREAD_SIZE    4000
+#endif
+
+/*
+ * Max number of incomming http connections 
+ */
+#ifndef CFG_WSERVER_USER_THREAD_MAX
+#define CFG_WSERVER_USER_THREAD_MAX     4
+#endif
