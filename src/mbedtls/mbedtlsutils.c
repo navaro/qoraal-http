@@ -58,6 +58,7 @@
 
 static mbedtls_entropy_context          _ssl_entropy;
 static mbedtls_ctr_drbg_context         _ssl_ctr_drbg;
+static mbedtls_ctr_drbg_context   *     _ssl_ctr_drbg_inst = 0;
 #if defined(MBEDTLS_SSL_CACHE_C)
 static mbedtls_ssl_cache_context        _ssl_cache;
 #endif
@@ -124,10 +125,14 @@ pkilib_psa_rng(void *ctx, unsigned char *output, size_t len)
 {
 #if !defined(MBEDTLS_USE_PSA_CRYPTO)
     // Use mbedtls_ctr_drbg_random with the global DRBG context
-    return mbedtls_ctr_drbg_random(&_ssl_ctr_drbg, output, len);
+    if (_ssl_ctr_drbg_inst) {
+        return mbedtls_ctr_drbg_random(_ssl_ctr_drbg_inst, output, len);
+    }
+
 #else
     return psa_generate_random(output, len) == PSA_SUCCESS ? 0 : MBEDTLS_ERR_ENTROPY_SOURCE_FAILED;
-#endif 
+#endif
+    return MBEDTLS_ERR_ENTROPY_SOURCE_FAILED ;
 }
 
 static void 
@@ -183,7 +188,7 @@ mbedtls_load_certificates( const char * pem_cert, const char * pem_key)
 
 		res =  mbedtls_pk_parse_key(&_ssl_pkey, (const unsigned char *) pem_key,
 							strlen(pem_key)+1, NULL, 0,
-							mbedtls_ctr_drbg_random, &_ssl_ctr_drbg);
+							pkilib_psa_rng, 0);
 		if( res != 0 ) {
 			mbedtls_x509_crt_free (&_ssl_srvcert) ;
 			DBG_MESSAGE_MBEDTLS(DBG_MESSAGE_SEVERITY_LOG,  
@@ -206,7 +211,7 @@ mbedtlsutils_init (void)
 }
 
 int32_t
-mbedtlsutils_start (void)
+mbedtlsutils_start (mbedtls_ctr_drbg_context   * ctr_drbg_context)
 {
     int32_t ret = 0;
     const char *pers = "Qoraal" ;
@@ -218,13 +223,35 @@ mbedtlsutils_start (void)
             mbedtls_free_cb ) ;
 #endif
 
-    mbedtls_entropy_init( &_ssl_entropy );
-    mbedtls_entropy_add_source( &_ssl_entropy, mbedtls_hw_entropy_poll, NULL,
-                                12, MBEDTLS_ENTROPY_SOURCE_STRONG );
-    mbedtls_entropy_add_source( &_ssl_entropy, mbedtls_tick_entropy_poll, NULL,
-                                4, MBEDTLS_ENTROPY_SOURCE_WEAK );
+    if (ctr_drbg_context == 0) {
+        mbedtls_entropy_init( &_ssl_entropy );
+        mbedtls_entropy_add_source( &_ssl_entropy, mbedtls_hw_entropy_poll, NULL,
+                                    12, MBEDTLS_ENTROPY_SOURCE_STRONG );
+        mbedtls_entropy_add_source( &_ssl_entropy, mbedtls_tick_entropy_poll, NULL,
+                                    4, MBEDTLS_ENTROPY_SOURCE_WEAK );
 
-    mbedtls_ctr_drbg_init( &_ssl_ctr_drbg );
+        mbedtls_ctr_drbg_init( &_ssl_ctr_drbg );
+        if( ( ret = mbedtls_ctr_drbg_seed( &_ssl_ctr_drbg, mbedtls_entropy_func, &_ssl_entropy,
+                                   (const unsigned char *) pers,
+                                   strlen( pers ) ) ) != 0 ) {
+            DBG_MESSAGE_MBEDTLS(DBG_MESSAGE_SEVERITY_ERROR,  
+                "TLS   :E: failed! mbedtls_ctr_drbg_seed returned %d", ret );
+            if (ret < 0) {
+
+                mbedtls_ctr_drbg_free(&_ssl_ctr_drbg);
+                mbedtls_entropy_free(&_ssl_entropy);
+                                
+                _ssl_ctr_drbg_inst = 0 ;
+
+                        
+                return ret ;
+
+            }
+        }
+
+        ctr_drbg_context = &_ssl_ctr_drbg ;
+    }
+    _ssl_ctr_drbg_inst = ctr_drbg_context ;
 
 #if defined(MBEDTLS_SSL_CACHE_C)
     mbedtls_ssl_cache_init( &_ssl_cache );
@@ -244,44 +271,13 @@ mbedtlsutils_start (void)
     mbedtls_ssl_cache_set_max_entries( &_ssl_cache, 5 );
 #endif
 
-    do {
-        if( ( ret = mbedtls_ctr_drbg_seed( &_ssl_ctr_drbg, mbedtls_entropy_func, &_ssl_entropy,
-                                   (const unsigned char *) pers,
-                                   strlen( pers ) ) ) != 0 ) {
-            DBG_MESSAGE_MBEDTLS(DBG_MESSAGE_SEVERITY_LOG,  
-                "TLS   : : failed! mbedtls_ctr_drbg_seed returned %d", ret );
-            break ;
-
-        }
-
-
 #if defined(MBEDTLS_SSL_SESSION_TICKETS)
-        if( ( ret = mbedtls_ssl_ticket_setup( &_ssl_ticket_ctx,
-                        mbedtls_ctr_drbg_random, &_ssl_ctr_drbg,
+    mbedtls_ssl_ticket_setup( &_ssl_ticket_ctx,
+                        pkilib_psa_rng, 0,
                         MBEDTLS_CIPHER_AES_256_GCM,
-                        86400 ) ) != 0 )
-        {
-            DBG_MESSAGE_MBEDTLS(DBG_MESSAGE_SEVERITY_LOG,  
-                "TLS   : : failed! mbedtls_ssl_ticket_setup returned %d", ret );
-            break ;
-        }
+                        86400 ) ;
 #endif
 
-    } while(0);
-
-    if (ret < 0) {
-#if defined(MBEDTLS_SSL_CACHE_C)
-        mbedtls_ssl_cache_free( &_ssl_cache );
-#endif
-#if defined(MBEDTLS_SSL_SESSION_TICKETS)
-        mbedtls_ssl_ticket_free (&_ssl_ticket_ctx) ;
-#endif
-        mbedtls_ctr_drbg_free (&_ssl_ctr_drbg) ;
-#if defined(MBEDTLS_THREADING_ALT)
-        mbedtls_threading_free_alt () ;
-#endif
-
-    }
 
     return ret ;
 }
@@ -361,7 +357,7 @@ mbedtls_server_inst_init (mbedtls_ssl_config * ssl_config)
         }
 
         mbedtls_ssl_conf_authmode(pconf, MBEDTLS_SSL_VERIFY_NONE);
-        mbedtls_ssl_conf_rng( pconf, mbedtls_ctr_drbg_random, &_ssl_ctr_drbg );
+        mbedtls_ssl_conf_rng( pconf, pkilib_psa_rng, 0 );
         mbedtls_ssl_conf_dbg( pconf, mbedtls_debug_cb, NULL );
 
 #if defined(MBEDTLS_SSL_CACHE_C)
