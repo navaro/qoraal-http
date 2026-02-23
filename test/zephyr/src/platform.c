@@ -35,6 +35,7 @@ LOG_MODULE_REGISTER(sta, CONFIG_LOG_DEFAULT_LEVEL);
 #include <zephyr/net/net_event.h>
 #include <zephyr/drivers/gpio.h>
 
+#include <zephyr/console/console.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -52,11 +53,12 @@ LOG_MODULE_REGISTER(sta, CONFIG_LOG_DEFAULT_LEVEL);
 #include <pm_config.h>
 
 #include "qoraal/qoraal.h"
-#include "qoraal-http/qoraal.h"
 #include "qoraal/svc/svc_services.h"
 #include "qoraal/svc/svc_shell.h"
 #include "qoraal/platform.h"
 #include "qoraal/qshell/console.h"
+#include "qoraal-http/qoraal.h"
+#include "qoraal-http/mbedtls/mbedtlsutils.h"
 
 #include <zephyr/net/net_if.h>
 #include <zephyr/net/net_ip.h>
@@ -76,7 +78,7 @@ LOG_MODULE_REGISTER(sta, CONFIG_LOG_DEFAULT_LEVEL);
 static void wifi_ready_cb(bool wifi_ready);
 static void wifi_mgmt_event_handler(struct net_mgmt_event_callback *cb, uint32_t mgmt_event, struct net_if *iface) ;
 static void net_mgmt_event_handler(struct net_mgmt_event_callback *cb, uint32_t mgmt_event, struct net_if *iface) ;
-static void main_init (void) ;
+
 
 static void wifi_connect_work_handler(struct k_work *work) ;
 #define WIFI_WQ_STACK_SIZE 8192
@@ -164,7 +166,7 @@ platform_init_wifi (void)
 
 	if (!iface) {
 		LOG_ERR("Failed to get Wi-Fi interface");
-		return -1;
+		return ;
 	}
 
 	cb.wifi_ready_cb = wifi_ready_cb;
@@ -173,7 +175,7 @@ platform_init_wifi (void)
 	rc = register_wifi_ready_callback(cb, iface);
 	if (rc) {
 		LOG_ERR("Failed to register Wi-Fi ready callbacks %s", strerror(rc));
-		return rc;
+		return ;
 	}
 
 
@@ -197,7 +199,7 @@ platform_start(void)
 {
     ARG_UNUSED(_platform_flash_size);
 
-    mbedtlsutils_start(  ) ;
+    mbedtlsutils_start( 0 ) ;
     platform_init_wifi();
 
     

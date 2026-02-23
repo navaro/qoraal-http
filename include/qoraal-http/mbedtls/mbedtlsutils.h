@@ -26,6 +26,7 @@
 
 #include <stdint.h>
 #include "mbedtls/ssl.h"
+#include "mbedtls/ctr_drbg.h"
 
 /*===========================================================================*/
 /* Client pre-compile time settings.                                         */
@@ -77,7 +78,7 @@ extern "C" {
 
 
     int32_t                 mbedtlsutils_init (void) ;
-    int32_t                 mbedtlsutils_start (void) ;
+    int32_t                 mbedtlsutils_start (mbedtls_ctr_drbg_context   * ctr_drbg_context) ;
 
     mbedtls_ssl_config*     mbedtlsutils_get_client_config (void)    ;
     void                    mbedtls_release_client_config (void) ;
