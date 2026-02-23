@@ -146,7 +146,7 @@ mbedtls_time_cb ( mbedtls_time_t* time )
 }
 #endif
 
-#if defined CFG_MBEDTLS_PLATFORM_INIT_ENABLE
+#if defined(CFG_MBEDTLS_PLATFORM_INIT_ENABLE) && CFG_MBEDTLS_PLATFORM_INIT_ENABLE
 static void*
 mbedtls_calloc_cb(size_t size, size_t bytes)
 {
@@ -213,7 +213,7 @@ mbedtlsutils_start (void)
 
     psa_crypto_init() ;
 
-#if defined CFG_MBEDTLS_PLATFORM_INIT_ENABLE
+#if defined(CFG_MBEDTLS_PLATFORM_INIT_ENABLE) && CFG_MBEDTLS_PLATFORM_INIT_ENABLE
     mbedtls_platform_set_calloc_free( mbedtls_calloc_cb,
             mbedtls_free_cb ) ;
 #endif
