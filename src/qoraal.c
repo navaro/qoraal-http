@@ -66,7 +66,7 @@ qoraal_http_keep_server(void)
 	httpserver_listen(0);
 	httpserver_select(0, 0);
 	httpserver_user_accept(0, 0, 0);
-	httpserver_user_ssl_accept(0, 0);
+	httpserver_user_ssl_accept(0, 0, 0);
 	httpserver_user_select(0, 0);
 	httpserver_user_close(0);
 	httpserver_read_request_ex(0, 0, 0, 0);

@@ -158,7 +158,7 @@ typedef struct WSERVER_HANDLER_S    {
 extern "C" {
 #endif
 
-        extern HTTPSERVER_INST_T *      httpserver_wserver_create (uint32_t port, bool ssl, const WSERVER_HANDLERS_T* handlers, WSERVER_AUTHENTICATE authenticate) ;
+        extern HTTPSERVER_INST_T *      httpserver_wserver_create (uint32_t port, void * ssl_config, const WSERVER_HANDLERS_T* handlers, WSERVER_AUTHENTICATE authenticate) ;
         extern void                     httpserver_wserver_destroy (HTTPSERVER_INST_T * inst) ;
         extern int32_t                  httpserver_wserver_run (HTTPSERVER_INST_T * inst) ;
         extern void                     httpserver_wserver_stop (HTTPSERVER_INST_T * inst) ;

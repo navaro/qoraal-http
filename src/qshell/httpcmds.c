@@ -33,6 +33,9 @@
 #include "qoraal/svc/svc_shell.h"
 #include "qoraal-http/httpdwnld.h"
 #include "qoraal-http/httpparse.h"
+#if !defined(CFG_HTTPSERVER_TLS_DISABLE) || !CFG_HTTPSERVER_TLS_DISABLE
+#include "qoraal-http/mbedtls/mbedtlsutils.h"
+#endif
 #if defined(CFG_OS_ZEPHYR)
 #include <zephyr/fs/fs.h>
 #endif
@@ -209,7 +212,7 @@ int32_t qshell_wget(SVC_SHELL_IF_T *pif, char **argv, int argc)
     void *pssl_config = 0;
 #if !defined(CFG_HTTPCLIENT_TLS_DISABLE) || !CFG_HTTPCLIENT_TLS_DISABLE
     if (https) {
-        pssl_config = mbedtlsutils_get_client_config();
+        pssl_config = (void*)mbedtlsutils_get_client_config();
         if (!pssl_config) {
             svc_shell_print(pif, SVC_SHELL_OUT_STD, "ssl config failed!\r\n");
             qfs_stream_close(&st);

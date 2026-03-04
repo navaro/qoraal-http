@@ -51,7 +51,7 @@ typedef struct HTTPSERVER_THREAD_S {
 typedef struct HTTPSERVER_INST_S {
     int                         server_sock ;      /**< Socket the server listens on */
     uint32_t                    port;              /**< Port number the server listens on */
-    bool                        ssl;               /**< Flag indicating if SSL/TLS is enabled */
+    void *                      ssl;               /**< Pinter to mbedtls_ssl_config, or NULL for no ssl used */
     const WSERVER_HANDLERS_T*   handlers;          /**< Array of request handlers */
     int32_t                     close;             /**< Flag indicating if the server should close */
     p_sem_t                     count_sem;         /**< Semaphore to limit concurrent connections */
@@ -174,7 +174,7 @@ _wserver_thread (void *arg)
             "WSERV : : start socket 0x%x.\r\n", thread->user.socket);
 
 #if HTTPSERVER_USER_ACCEPT_IN_THREAD
-    if (!inst->ssl || httpserver_user_ssl_accept (&thread->user, 4000) == HTTP_SERVER_E_OK)
+    if (!inst->ssl || httpserver_user_ssl_accept (&thread->user, 5000, inst->ssl) == HTTP_SERVER_E_OK)
 #endif
     {
 
@@ -405,7 +405,7 @@ void _wserver_thread_complete(SVC_THREADS_T * service_thread, void* arg)
  * @return Pointer to the created HTTPSERVER_INST_T instance, or NULL on failure.
  */
 HTTPSERVER_INST_T *
-httpserver_wserver_create (uint32_t port, bool ssl, const WSERVER_HANDLERS_T* handlers, WSERVER_AUTHENTICATE authenticate)
+httpserver_wserver_create (uint32_t port, void * ssl_config, const WSERVER_HANDLERS_T* handlers, WSERVER_AUTHENTICATE authenticate)
 {
     HTTPSERVER_INST_T * inst = HTTP_SERVER_MALLOC(sizeof(HTTPSERVER_INST_T)) ;
     if (inst) {
@@ -418,7 +418,7 @@ httpserver_wserver_create (uint32_t port, bool ssl, const WSERVER_HANDLERS_T* ha
         inst->server_sock = -1 ;
         inst->authenticate = authenticate ;
         inst->port = port ;
-        inst->ssl = ssl ;
+        inst->ssl = ssl_config ;
         inst->handlers = handlers ;
         inst->authenticate = authenticate ;
 
@@ -540,7 +540,7 @@ httpserver_wserver_run (HTTPSERVER_INST_T * inst)
                 thread->inst = inst ;
                 if (
 #if !HTTPSERVER_USER_ACCEPT_IN_THREAD                    
-                    (httpserver_user_ssl_accept (&thread->user, 4000) != HTTP_SERVER_E_OK) ||
+                    (httpserver_user_ssl_accept (&thread->user, 4000, thread->inst->ssl) != HTTP_SERVER_E_OK) ||
 #endif
                     (svc_threads_create ((SVC_THREADS_T*)thread, _wserver_thread_complete,
                         CFG_WSERVER_USER_THREAD_SIZE, OS_THREAD_PRIO_4, _wserver_thread, (void*)thread, "wuser") != EOK)) {

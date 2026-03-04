@@ -372,10 +372,11 @@ httpserver_user_accept (int server_sock, HTTP_USER_T* user, uint32_t timeout)
  */
 
 int32_t
-httpserver_user_ssl_accept (HTTP_USER_T* user, uint32_t timeout)
+httpserver_user_ssl_accept (HTTP_USER_T* user, uint32_t timeout, void * ssl_config)
 {
 #if !defined(CFG_HTTPSERVER_TLS_DISABLE) || !CFG_HTTPSERVER_TLS_DISABLE
-    if (mbedtlsutils_get_server_config() != 0) {
+    mbedtls_ssl_config * pssl = (mbedtls_ssl_config*) ssl_config ;
+    if (pssl != 0) {
         if (!user->ssl) {
             user->ssl = HTTP_SERVER_MALLOC(sizeof(mbedtls_ssl_context)) ;
             if (!user->ssl) {
@@ -383,7 +384,8 @@ httpserver_user_ssl_accept (HTTP_USER_T* user, uint32_t timeout)
 
             }
             mbedtls_ssl_init((mbedtls_ssl_context *)user->ssl) ;
-            if (mbedtls_ssl_setup( (mbedtls_ssl_context *)user->ssl, mbedtlsutils_get_server_config () ) != 0) {
+            if (mbedtls_ssl_setup( (mbedtls_ssl_context *)user->ssl, pssl ) != 0) {
+                mbedtls_ssl_free ((mbedtls_ssl_context *)user->ssl) ;
                 HTTP_SERVER_FREE(user->ssl) ;
                 user->ssl = 0 ;
                 return HTTP_SERVER_E_MEMORY ;
@@ -411,7 +413,7 @@ httpserver_user_ssl_accept (HTTP_USER_T* user, uint32_t timeout)
                     FD_ZERO(&wfds);
 
 
-                    if (status == MBEDTLS_ERR_SSL_WANT_READ)  FD_SET(user->socket, &rfds);
+                    // if (status == MBEDTLS_ERR_SSL_WANT_READ)  FD_SET(user->socket, &rfds);
                     // if (status == MBEDTLS_ERR_SSL_WANT_WRITE) FD_SET(user->socket, &wfds);
 
 
