@@ -519,6 +519,7 @@ mbedtls_net_recv(void *ctx, unsigned char *buf, size_t len)
     int err = errno;
     if (err == EAGAIN || err == EWOULDBLOCK || err == EINTR) return MBEDTLS_ERR_SSL_WANT_READ;
     if (err == ECONNRESET) return MBEDTLS_ERR_NET_CONN_RESET;
+    if (err == ENOTCONN) return MBEDTLS_ERR_NET_CONN_RESET;
     return MBEDTLS_ERR_NET_RECV_FAILED;
 }
 
@@ -537,13 +538,17 @@ mbedtls_net_send(void *ctx, const unsigned char *buf, size_t len)
     }
 
     int err = errno;
-    //DBG_MESSAGE_MBEDTLS(DBG_MESSAGE_SEVERITY_ERROR,
-    //		"TLS   :E: mbedtls_net_send retured %d errno %d for fd %d",
-    //		r, err, fd) ;
 
     if (err == EAGAIN || err == EWOULDBLOCK || err == EINTR) return MBEDTLS_ERR_SSL_WANT_WRITE;
     if (err == ECONNRESET) return MBEDTLS_ERR_NET_CONN_RESET;
-    return MBEDTLS_ERR_NET_SEND_FAILED;  // -0x004E in your build
+
+    //DBG_MESSAGE_MBEDTLS(DBG_MESSAGE_SEVERITY_ERROR,
+    //		"TLS   :E: mbedtls_net_send retured %d errno %d for fd %d",
+    //		r, err, fd) ;
+    // err == 128 sock not connected, treat as connection reset
+    if (err == ENOTCONN) return MBEDTLS_ERR_NET_CONN_RESET;
+
+    return MBEDTLS_ERR_NET_SEND_FAILED;  // -0x004E 
 }
 #endif
 
