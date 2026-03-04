@@ -18,9 +18,9 @@
 /* Service Local Variables and Types                                         */
 /*===========================================================================*/
 #if defined CFG_HTTPSERVER_TLS_DISABLE && CFG_HTTPSERVER_TLS_DISABLE
-#define WSERVER_PORT 80
+#define WSERVER_PORT 8080
 #else
-#define WSERVER_PORT (WSERVER_SSL | 443)
+#define WSERVER_PORT (WSERVER_SSL | 8443)
 #endif
 SVC_SERVICE_LIST_START(_qoraal_services_list)
 SVC_SERVICE_RUN_DECL("shell",  console_service_run, console_service_ctrl, 0, 6000, OS_THREAD_PRIO_8, QORAAL_SERVICE_SHELL, SVC_SERVICE_FLAGS_AUTOSTART)
