@@ -27,6 +27,7 @@
 #include <stdint.h>
 #include "mbedtls/ssl.h"
 #include "mbedtls/ctr_drbg.h"
+#include "mbedtls/net_sockets.h"
 
 /*===========================================================================*/
 /* Client pre-compile time settings.                                         */

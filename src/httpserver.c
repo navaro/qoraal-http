@@ -400,42 +400,40 @@ httpserver_user_ssl_accept (HTTP_USER_T* user, uint32_t timeout, void * ssl_conf
             int32_t status ;
 
             do {
-                fd_set   rfds, wfds, fdex;
-                struct timeval tv;
 
                 status = mbedtls_ssl_handshake((mbedtls_ssl_context *)user->ssl);
 
-                if (status == MBEDTLS_ERR_SSL_WANT_READ /*||
-                    status == MBEDTLS_ERR_SSL_WANT_WRITE */) {
+                if (status == MBEDTLS_ERR_SSL_WANT_READ ||
+                    status == MBEDTLS_ERR_SSL_WANT_WRITE) {
 
+                    fd_set   rfds, wfds, fdex;
+                    struct timeval tv;
+                    
                     FD_ZERO(&fdex) ;
                     FD_ZERO(&rfds);
                     FD_ZERO(&wfds);
 
+                    if (status == MBEDTLS_ERR_SSL_WANT_READ)  FD_SET(user->socket, &rfds);
+                    if (status == MBEDTLS_ERR_SSL_WANT_WRITE) FD_SET(user->socket, &wfds);
 
-                    // if (status == MBEDTLS_ERR_SSL_WANT_READ)  FD_SET(user->socket, &rfds);
-                    // if (status == MBEDTLS_ERR_SSL_WANT_WRITE) FD_SET(user->socket, &wfds);
-
-
-                    FD_SET(user->socket, &rfds);
-                    FD_SET(user->socket, &wfds);
                     FD_SET(user->socket, &fdex);
                     tv.tv_sec = 8 ;
                     tv.tv_usec = 0 ;
 
                     int received = select(user->socket+1, &rfds, &wfds, &fdex, &tv) ;
-                    (void) received ;
+                    if (received == 0) {
+                    	status = MBEDTLS_ERR_SSL_TIMEOUT ;
 
-                    if (!(FD_ISSET(user->socket, &rfds) || FD_ISSET(user->socket, &wfds))) {
+                    } else if (!(FD_ISSET(user->socket, &rfds) || FD_ISSET(user->socket, &wfds))) {
                         DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_REPORT,
-                                        "HTTP  : : select failed with %d", received);
-                            status = HTTP_SERVER_E_CONNECTION ;
+                            "HTTP  : : select received %d", received);
+                        status = MBEDTLS_ERR_NET_CONN_RESET ;
 
                     }
                     else if (FD_ISSET(user->socket, &fdex)) {
-                        DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_REPORT,
-                                    "HTTP  : : read exception on listening socket...");
-                        status = HTTP_SERVER_E_CONNECTION ;
+                        DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_INFO,
+                            "HTTP  : : select exception received %d", received);
+                        status = MBEDTLS_ERR_NET_CONN_RESET ;
 
                     }
                 }
@@ -448,15 +446,14 @@ httpserver_user_ssl_accept (HTTP_USER_T* user, uint32_t timeout, void * ssl_conf
 
             if (status < 0) {
                 if ((status != MBEDTLS_ERR_SSL_FATAL_ALERT_MESSAGE) &&
-                        (status != MBEDTLS_ERR_SSL_CONN_EOF)) {
+                    (status != MBEDTLS_ERR_SSL_CONN_EOF) &&
+                    (status != MBEDTLS_ERR_NET_CONN_RESET)) {
                     DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_WARNING,
                         "HTTP  : : mbedtls_ssl_handshake() returned -0x%04X", -status);
                 }
                 mbedtls_ssl_close_notify ((mbedtls_ssl_context *)user->ssl) ;
-                //mbedtls_ssl_session_reset ((mbedtls_ssl_context *)user->ssl) ;
-                //httpserver_user_close (user) ;
- 
-                return HTTP_SERVER_E_ERROR ;
+
+                return HTTP_SERVER_E_CONNECTION ;
 
             }
 

@@ -198,11 +198,11 @@ _wserver_thread (void *arg)
             timeout -= 500 ;
             if (timeout <= 0) {
                 DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_LOG,
-                        "WSERV : : connection timeout sock 0x%x.\r\n", thread->user.socket);
+                        "WSERV : : connection timeout sock %d.\r\n", thread->user.socket);
                 break ;
 
             }
-            if (os_sem_count(&inst->count_sem) <= 2)  {
+            if (os_sem_count(&inst->count_sem) < 2)  {
                 DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_LOG,
                     "WSERV : : timeout close thread limit.\r\n");
                 break ;
@@ -213,19 +213,22 @@ _wserver_thread (void *arg)
         }
         if (len < 0) {
             DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_LOG,
-                    "WSERV : : invalid request %d socket 0x%x.\r\n", len, thread->user.socket);
+                    "WSERV : : invalid request %d (-0x%04X) socket 0x%x.\r\n", 
+                    len, -len, thread->user.socket);
             break ;
 
         }
         if (endpoint == 0 ) {
             DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_INFO,
-                    "WSERV : : invalid endpoint %d socket 0x%x.\r\n", len, thread->user.socket);
+                    "WSERV : : invalid endpoint %d socket %d.\r\n", 
+                    len, thread->user.socket);
             break;
 
         }
 
         DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_INFO,
-                    "WSERV : : request endpoint '%s' socket 0x%x.\r\n", endpoint, thread->user.socket);
+                    "WSERV : : request endpoint '%s' socket %d.\r\n", 
+                    endpoint, thread->user.socket);
 
         timeout = WSERVER_KEEPALIVE_TIMEOUT ;
 
@@ -237,13 +240,13 @@ _wserver_thread (void *arg)
             ) {
             DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_INFO,
                     "WSERV : : connection close no keep-alive connection (%s).\r\n",
-                            thread->user.headers[3].value ? thread->user.headers[3].value : "null") ;
+                    thread->user.headers[3].value ? thread->user.headers[3].value : "null") ;
             timeout = WSERVER_NO_KEEPALIVE_TIMEOUT ;
 
         } else {
             DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_INFO,
                     "WSERV : : connection Keep-Alive threads available %d.\r\n",
-                            os_sem_count(&inst->count_sem));
+                    os_sem_count(&inst->count_sem));
 
         }
 #else
