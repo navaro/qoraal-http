@@ -72,7 +72,7 @@ wservices_handler (HTTP_USER_T *user, uint32_t method, char* endpoint)
                     } else{
                 //        DBG_MESSAGE_WWW (DBG_MESSAGE_SEVERITY_INFO, 
                 //                "starting %s", svc_service_name(h))
-                        svc_service_start (h, 0, 0, 0) ;
+                        svc_service_start (h, 0, 0) ;
 
                     }
 
