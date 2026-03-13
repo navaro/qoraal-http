@@ -149,12 +149,16 @@ wserver_handler_framework_start(HTTP_USER_T * user, uint32_t method, char* endpo
             "       </tr><tr>\r\n"
             "           <A style=\"width:100%\" class=\"button button-primary\" href=\"/shell\" >Shell</A><br>\r\n"
             "       </tr><tr>\r\n"
+            "           <A style=\"width:100%\" class=\"button button-primary\" href=\"/webapi/swagger-ui/index.html\" >Settings</A><br>\r\n"
+            "       </tr><tr>\r\n"
             "           <A style=\"width:100%\" class=\"button button-primary\" href=\"/about\" >About</A><br>\r\n"
             "       </tr></table>\r\n"
             "   </div>\r\n"
             "   <div class=\"one columns\">\r\n"
             "   </div>\r\n"
             "   <div class=\"nine columns\">\r\n" ;
+
+
 
     int32_t res ;
     const char * heading = 0;

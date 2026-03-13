@@ -98,10 +98,11 @@
 #define HTTP_SERVER_CONTENT_TYPE_HTML                       "text/html"
 #define HTTP_SERVER_CONTENT_TYPE_CSS                        "text/css"
 #define HTTP_SERVER_CONTENT_TYPE_JSON                       "application/json"
+#define HTTP_SERVER_CONTENT_TYPE_YAML                       "application/yaml"
 #define HTTP_SERVER_CONTENT_TYPE_IMAGE                      "image/png"
 #define HTTP_SERVER_CONTENT_TYPE_ICON                       "image/x-icon"
 #define HTTP_SERVER_CONTENT_TYPE_EVENT_STREAM               "text/event-stream"
-/** @} */
+/** @} }
 
 /**
  * @name    Content Types

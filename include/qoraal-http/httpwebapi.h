@@ -29,7 +29,8 @@
 #include "qoraal/qoraal.h"
 #include "qoraal/common/lists.h"
 
-#define DBG_MESSAGE_HTTPWEBSERVICE(severity, fmt_str, ...)           DBG_MESSAGE_T_LOG(SVC_LOGGER_TYPE(severity,0), 0, fmt_str, ##__VA_ARGS__)
+#define DBG_MESSAGE_HTTPWEBSERVICE(severity, fmt_str, ...) \
+    DBG_MESSAGE_T_LOG(SVC_LOGGER_TYPE(severity,0), 0, fmt_str, ##__VA_ARGS__)
 #define DBG_ASSERT_HTTPWEBSERVICE                    DBG_ASSERT
 
 
@@ -55,18 +56,15 @@ typedef struct WEBAPI_INST_S {
     const char * title ;
     const char * version ;
     const char * ep ;
-
     linked_t props_list ;
-    
 } WEBAPI_INST_T ;
 
-
-#define WEBAPI_INST_DECL(name, title, version, ep)    \
+#define WEBAPI_INST_DECL(name, title_, version_, ep_) \
     WEBAPI_INST_T  name = {                                 \
         0,                                                  \
-        title,                                              \
-        version,                                            \
-        ep,                                                 \
+        title_, \
+        version_, \
+        ep_, \
         {0,0}   \
     }
 
@@ -76,8 +74,6 @@ typedef enum {
     PROPERTY_TYPE_BOOLEAN
 } WEBAPI_PROP_TYPE;
 
-
-// Update the WEBAPI_PROP_T structure to include access type
 typedef struct WEBAPI_PROP_S {
     const char * name;  // Property name (e.g., "state")
     WEBAPI_PROP_TYPE type;  // Data type of the property (string, integer, boolean)
@@ -87,13 +83,13 @@ typedef struct WEBAPI_PROP_S {
     struct WEBAPI_PROP_S* next;  // Pointer to next property (for linked list structure)
 } WEBAPI_PROP_T;
 
-#define WEBAPI_PROP_DECL(name, prop, type, description, get, set)    \
+#define WEBAPI_PROP_DECL(name, prop_, type_, description_, get_, set_) \
     WEBAPI_PROP_T  name = {                                 \
-        prop,                                               \
-        type,                                               \
-        description,                                        \
-        get,                                                \
-        set,                                                \
+        prop_, \
+        type_, \
+        description_, \
+        get_, \
+        set_, \
         0                                                   \
     }
 
@@ -107,15 +103,19 @@ extern "C" {
 #endif
 
     int32_t webapi_init (const char * root, QORAAL_HEAP heap) ;
-
     int32_t webapi_inst_add(WEBAPI_INST_T * inst) ;
     int32_t webapi_add_property(WEBAPI_INST_T *inst, WEBAPI_PROP_T *prop) ;
-
     bool webapi_ep_available(const char * ep) ;
 
+/* Existing YAML support */
     char* webapi_swagger_yaml(void)  ;
     void webapi_swagger_yaml_free(char * buffer) ;
 
+/* New: OpenAPI JSON support for browser tooling */
+char * webapi_openapi_json(void);
+void webapi_openapi_json_free(char * buffer);
+
+/* Existing simple endpoint JSON */
     char *webapi_generate_simple_json(const char * ep) ;
     void webapi_simple_json_free(char *buffer) ;
 
@@ -124,6 +124,5 @@ extern "C" {
 #ifdef __cplusplus
 }
 #endif
-
 
 #endif /* __HTTPWWEBSERVICE_H__ */
