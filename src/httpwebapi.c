@@ -78,6 +78,10 @@ int32_t webapi_add_property(WEBAPI_INST_T *inst, WEBAPI_PROP_T *prop)
 {
     linked_add_tail(&inst->props_list, prop, OFFSETOF(WEBAPI_PROP_T, next));
 
+    if (prop->add_callback) {
+        return prop->add_callback(inst, prop->arg);
+    } 
+
     return EOK;
 }
 
