@@ -1,0 +1,17 @@
+menu "Qoraal-http"
+
+config QORAAL_HTTP
+    bool "Enable Qoraal framework"
+    default y
+
+config QORAAL_HTTP_SERVER_TLS
+    bool "Enable http server"
+    default y
+
+config QORAAL_HTTP_CLIENT_TLS
+    bool "Enable http client"
+    default y
+
+
+
+endmenu

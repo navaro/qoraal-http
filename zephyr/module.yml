@@ -1,0 +1,6 @@
+name: qoraal-http
+
+build:
+  cmake: zephyr
+  kconfig: zephyr/Kconfig
+
