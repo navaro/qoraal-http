@@ -79,7 +79,7 @@ int32_t webapi_add_property(WEBAPI_INST_T *inst, WEBAPI_PROP_T *prop)
     linked_add_tail(&inst->props_list, prop, OFFSETOF(WEBAPI_PROP_T, next));
 
     if (prop->add_callback) {
-        return prop->add_callback(inst, prop->arg);
+        return prop->add_callback(inst, prop);
     } 
 
     return EOK;
@@ -421,7 +421,7 @@ static size_t generate_simple_json(WEBAPI_INST_T *inst, struct json_out *out) {
                 uint32_t get_buffer[WEBAPI_GET_BUFFER_MAX/sizeof(uint32_t)] ;
                 int int_value;
                 bool bool_value;
-                res = current->get_callback((void*)get_buffer, current->arg);
+                res = current->get_callback((void*)get_buffer, current);
 
                 if (res >= EOK) {
                     // Handle value formatting based on property type
@@ -573,19 +573,19 @@ int32_t webapi_post(const char * ep, const char *json)
 
                     switch (prop->type) {
                         case PROPERTY_TYPE_STRING: {
-                            res = prop->set_callback((void *)temp_str, prop->arg);
+                            res = prop->set_callback((void *)temp_str, prop);
                             break;
                         }
                         case PROPERTY_TYPE_INTEGER: {
                             // Convert the JSON value to integer and call the setter
                             int temp_int = atoi(temp_str);
-                            res = prop->set_callback(&temp_int, prop->arg);
+                            res = prop->set_callback(&temp_int, prop);
                             break;
                         }
                         case PROPERTY_TYPE_BOOLEAN: {
                             // Convert to boolean (true/false)
                         bool temp_bool = (strcmp(temp_str, "true") == 0) || (strcmp(temp_str, "1") == 0);
-                            res = prop->set_callback(&temp_bool, prop->arg);
+                            res = prop->set_callback(&temp_bool, prop);
                             break;
                         }
                         default:
