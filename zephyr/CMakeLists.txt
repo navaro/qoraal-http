@@ -10,7 +10,7 @@ zephyr_include_directories(
 )
 
 # Core sources (adjust if needed)
-zephyr_library_sources(
+zephyr_library_sources_ifdef(CONFIG_QORAAL_HTTP
     ${CMAKE_CURRENT_LIST_DIR}/../src/qoraal.c
     ${CMAKE_CURRENT_LIST_DIR}/../src/httpclient.c
     ${CMAKE_CURRENT_LIST_DIR}/../src/httpdwnld.c
