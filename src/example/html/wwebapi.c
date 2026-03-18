@@ -48,33 +48,33 @@ static bool _upgrade_start = false ;
 /*===========================================================================*/
 
 static int32_t
-upgrade_start_get(void* val)
+upgrade_start_get(void* val, void* arg)
 {
     *(bool*)val = _upgrade_start ;
     return sizeof(bool) ;
 }
 
 static int32_t
-upgrade_start_set(void* val)
+upgrade_start_set(void* val, void* arg)
 {
 	_upgrade_start = *(bool*)val ;
     return sizeof(bool) ;
 }
 
 static int32_t
-upgrade_url_get(void* val)
+upgrade_url_get(void* val, void* arg)
 {
     return snprintf ((char*)val, WEBAPI_GET_BUFFER_MAX, "%s", _upgrade_url) ;
 }
 
 static int32_t
-upgrade_url_set(void* val)
+upgrade_url_set(void* val, void* arg)
 {
     return snprintf (_upgrade_url, WEBAPI_GET_BUFFER_MAX, "%s", (const char*)val) ;
 }
 
 static int32_t
-upgrade_status_get(void* val)
+upgrade_status_get(void* val, void* arg)
 {
     int32_t status = 0 ;
     *(int32_t*)val = status ;
@@ -82,7 +82,7 @@ upgrade_status_get(void* val)
 }
 
 static int32_t
-upgrade_version_get(void* val)
+upgrade_version_get(void* val, void* arg)
 {
     snprintf ((char*)val, WEBAPI_GET_BUFFER_MAX - 1,
         "%d.%d.%d", 1, 0, 0) ;
@@ -92,10 +92,10 @@ upgrade_version_get(void* val)
 
 
 static WEBAPI_INST_DECL(_wupgrade_api, "UPGRADE API", "1.0", "upgrade");
-static WEBAPI_PROP_DECL(_wupgrade_prop_start, "start", PROPERTY_TYPE_BOOLEAN, "start upgrade", upgrade_start_get, upgrade_start_set) ;
-static WEBAPI_PROP_DECL(_wupgrade_prop_url, "url", PROPERTY_TYPE_STRING, "upgrade-config url", upgrade_url_get, upgrade_url_set) ;
-static WEBAPI_PROP_DECL(_wupgrade_prop_status, "status", PROPERTY_TYPE_INTEGER, "system status", upgrade_status_get, 0) ;
-static WEBAPI_PROP_DECL(_wupgrade_prop_version, "version", PROPERTY_TYPE_STRING, "current version", upgrade_version_get, 0) ;
+static WEBAPI_PROP_DECL(_wupgrade_prop_start, "start", PROPERTY_TYPE_BOOLEAN, "start upgrade", upgrade_start_get, upgrade_start_set, 0) ;
+static WEBAPI_PROP_DECL(_wupgrade_prop_url, "url", PROPERTY_TYPE_STRING, "upgrade-config url", upgrade_url_get, upgrade_url_set, 0) ;
+static WEBAPI_PROP_DECL(_wupgrade_prop_status, "status", PROPERTY_TYPE_INTEGER, "system status", upgrade_status_get, 0, 0) ;
+static WEBAPI_PROP_DECL(_wupgrade_prop_version, "version", PROPERTY_TYPE_STRING, "current version", upgrade_version_get, 0, 0) ;
 
 
 /*===========================================================================*/

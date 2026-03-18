@@ -78,20 +78,24 @@ typedef struct WEBAPI_PROP_S {
     const char * name;  // Property name (e.g., "state")
     WEBAPI_PROP_TYPE type;  // Data type of the property (string, integer, boolean)
     const char * description;  // Description for Swagger documentation
-    int32_t (*get_callback)(void*);  // Callback function for GET requests
-    int32_t (*set_callback)(void*);  // Callback function for POST/PUT requests
+    int32_t (*get_callback)(void*, void*);  // Callback function for GET requests
+    int32_t (*set_callback)(void*, void*);  // Callback function for POST/PUT requests
+    void * arg;
     struct WEBAPI_PROP_S* next;  // Pointer to next property (for linked list structure)
 } WEBAPI_PROP_T;
 
-#define WEBAPI_PROP_DECL(name, prop_, type_, description_, get_, set_) \
+#define WEBAPI_PROP_DECL(name, prop_, type_, description_, get_, set_, arg_) \
     WEBAPI_PROP_T  name = {                                 \
         prop_, \
         type_, \
         description_, \
         get_, \
         set_, \
+        arg_, \
         0                                                   \
     }
+
+
 
 
 /*===========================================================================*/
