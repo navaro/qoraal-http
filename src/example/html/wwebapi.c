@@ -39,8 +39,8 @@ static char _upgrade_url[WEBAPI_GET_BUFFER_MAX] = "https://navaro.nl/upgrade.php
 static bool _upgrade_start = false ;
 
 
-#include "swagger_ui_index.inc"
-#include "swagger_ui_js.inc"
+#include "qoraal-http/example/swagger_ui_index.inc"
+#include "qoraal-http/example/swagger_ui_js.inc"
 
 
 /*===========================================================================*/
