@@ -81,7 +81,7 @@ typedef struct WEBAPI_PROP_S {
     int32_t (*add_callback)(void*, struct WEBAPI_PROP_S*);  // Callback function when added/initialized to an instance (optional)
     int32_t (*get_callback)(void*, struct WEBAPI_PROP_S*);  // Callback function for GET requests
     int32_t (*set_callback)(void*, struct WEBAPI_PROP_S*);  // Callback function for POST/PUT requests
-    void * arg;
+    uintptr_t arg;
     struct WEBAPI_PROP_S* next;  // Pointer to next property (for linked list structure)
 } WEBAPI_PROP_T;
 
