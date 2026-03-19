@@ -62,7 +62,6 @@ WEBAPI_INST_T *  webapi_inst_get (const char * ep)
     while (current != NULL) {
         if (strcmp(ep, current->ep) == 0) return current ;
         current = linked_next(current, OFFSETOF(WEBAPI_INST_T, next));
-
     }
 
     return 0 ;
@@ -74,13 +73,13 @@ bool webapi_ep_available(const char * ep)
 }
 
 // Function to create a new ServiceProperty and return a pointer to it
-int32_t webapi_add_property(WEBAPI_INST_T *inst, WEBAPI_PROP_T *prop) 
+int32_t webapi_add_property(WEBAPI_INST_T *inst, WEBAPI_PROP_T *prop)
 {
     linked_add_tail(&inst->props_list, prop, OFFSETOF(WEBAPI_PROP_T, next));
 
     if (prop->add_callback) {
         return prop->add_callback(inst, prop);
-    } 
+    }
 
     return EOK;
 }
@@ -89,7 +88,7 @@ static const char * webapi_type_to_string(WEBAPI_PROP_TYPE type)
 {
     return (type == PROPERTY_TYPE_STRING) ? "string" :
            (type == PROPERTY_TYPE_INTEGER) ? "integer" :
-           (type == PROPERTY_TYPE_BOOLEAN) ? "boolean" : "string";
+           (type == PROPERTY_TYPE_BOOLEAN) ? "boolean" : "action";
 }
 
 static bool webapi_inst_has_writable_props(WEBAPI_INST_T *inst)
@@ -169,7 +168,7 @@ static size_t swagger_yaml(char* buffer, size_t len) {
             current = (WEBAPI_PROP_T*) linked_head(&inst->props_list);
             while (current != NULL) {
                 if (current->set_callback != NULL) {
-            total_length += snprintf(buffer ? buffer + total_length : NULL, 
+                    total_length += snprintf(buffer ? buffer + total_length : NULL,
                                      buffer ? len - total_length : 0,
                 "                  %s:\n"
                 "                    type: %s\n"
@@ -180,8 +179,8 @@ static size_t swagger_yaml(char* buffer, size_t len) {
             );
                 }
 
-            current = linked_next(current, OFFSETOF(WEBAPI_PROP_T, next));
-        }
+                current = linked_next(current, OFFSETOF(WEBAPI_PROP_T, next));
+            }
 
             total_length += snprintf(buffer ? buffer + total_length : NULL,
                                      buffer ? len - total_length : 0,
@@ -400,9 +399,154 @@ void webapi_openapi_json_free(char * buffer)
     qoraal_free(_webapi_heap, buffer);
 }
 
+static bool webapi_prop_is_action(WEBAPI_PROP_T *prop)
+{
+    return prop && prop->type == PROPERTY_TYPE_ACTION;
+}
+
+static size_t generate_wot_json(struct json_out *out, const char * ip) {
+    size_t total_length = 0;
+    bool first_property = true;
+    bool first_action = true;
+    char base[128];
+
+    if (!ip || !ip[0]) {
+        ip = "127.0.0.1";
+    }
+
+    snprintf(base, sizeof(base), "https://%s/", ip);
+
+    total_length += json_printf(out, "%s", "{");
+    total_length += json_printf(out, "%s", "\"@context\":");
+    total_length += json_printf(out, "%Q", "https://www.w3.org/2022/wot/td/v1.1");
+    total_length += json_printf(out, "%s", ",\"title\":");
+    total_length += json_printf(out, "%Q", "Device");
+    total_length += json_printf(out, "%s", ",\"base\":");
+    total_length += json_printf(out, "%Q", base);
+    total_length += json_printf(out, "%s", ",\"securityDefinitions\":{\"nosec_sc\":{\"scheme\":\"nosec\"}}");
+    total_length += json_printf(out, "%s", ",\"security\":\"nosec_sc\"");
+    total_length += json_printf(out, "%s", ",\"properties\":{");
+
+    WEBAPI_INST_T* inst = (WEBAPI_INST_T*) linked_head(&_webapi_inst_list);
+    while (inst != NULL) {
+        WEBAPI_PROP_T* current = (WEBAPI_PROP_T*) linked_head(&inst->props_list);
+
+        while (current != NULL) {
+            char href[192];
+
+            if (!webapi_prop_is_action(current)) {
+                snprintf(href, sizeof(href), "%s/%s/%s", _webapi_root, inst->ep, current->name);
+
+                if (!first_property) {
+                    total_length += json_printf(out, ",");
+                }
+                first_property = false;
+
+                total_length += json_printf(out,
+                    "%Q:{"
+                      "type:%Q,"
+                      "description:%Q",
+                    current->name,
+                    webapi_type_to_string(current->type),
+                    current->description ? current->description : "");
+
+                total_length += json_printf(out, ",readOnly:%B", 
+                    current->set_callback == NULL);
+
+                total_length += json_printf(out,
+                      ",forms:[{"
+                        "href:%Q,"
+                        "contentType:%Q,"
+                        "op:[%Q",
+                        href,
+                        "application/json",
+                        "readproperty");
+
+                if (current->set_callback != NULL) {
+                    total_length += json_printf(out, ",%Q", "writeproperty");
+                }
+
+                total_length += json_printf(out,
+                        "]"
+                      "}]"
+                    "}");
+            }
+
+            current = linked_next(current, OFFSETOF(WEBAPI_PROP_T, next));
+        }
+
+        inst = linked_next(inst, OFFSETOF(WEBAPI_INST_T, next));
+    }
+
+    total_length += json_printf(out, "},actions:{");
+
+    inst = (WEBAPI_INST_T*) linked_head(&_webapi_inst_list);
+    while (inst != NULL) {
+        WEBAPI_PROP_T* current = (WEBAPI_PROP_T*) linked_head(&inst->props_list);
+
+        while (current != NULL) {
+            char href[192];
+
+            if (webapi_prop_is_action(current)) {
+                snprintf(href, sizeof(href), "%s/%s", _webapi_root, inst->ep);
+
+                if (!first_action) {
+                    total_length += json_printf(out, ",");
+                }
+                first_action = false;
+
+                total_length += json_printf(out,
+                    "%Q:{"
+                      "description:%Q,"
+                      "forms:[{"
+                        "href:%Q,"
+                        "contentType:%Q,"
+                        "op:[%Q]"
+                      "}]"
+                    "}",
+                    current->name,
+                    current->description ? current->description : "",
+                    href,
+                    "application/json",
+                    "invokeaction");
+            }
+
+            current = linked_next(current, OFFSETOF(WEBAPI_PROP_T, next));
+        }
+
+        inst = linked_next(inst, OFFSETOF(WEBAPI_INST_T, next));
+    }
+
+    total_length += json_printf(out, "}}");
+
+    return total_length;
+}
+
+char * webapi_wot_json(const char * ip)
+{
+    struct json_out out_size = JSON_OUT_NULL();
+    size_t json_length = generate_wot_json(&out_size, ip);
+
+    char *json_buffer = (char *)qoraal_malloc(_webapi_heap, json_length + 1);
+    if (json_buffer == NULL) {
+        return NULL;
+    }
+
+    struct json_out out_buffer = JSON_OUT_BUF(json_buffer, json_length + 1);
+    generate_wot_json(&out_buffer, ip);
+
+    return json_buffer;
+}
+
+void webapi_wot_json_free(char * buffer)
+{
+    qoraal_free(_webapi_heap, buffer);
+}
+
 // Helper function to generate simple key-value JSON with correct types
 static size_t generate_simple_json(WEBAPI_INST_T *inst, struct json_out *out) {
     size_t total_length = 0;
+    bool first = true;
 
     // Start the JSON object
     total_length += json_printf(out, "{");
@@ -412,10 +556,20 @@ static size_t generate_simple_json(WEBAPI_INST_T *inst, struct json_out *out) {
         WEBAPI_PROP_T *current = (WEBAPI_PROP_T *)linked_head(&inst->props_list);
 
         while (current != NULL) {
-            // Get the value using the callback
-            total_length += json_printf(out, "\"%s\": ", current->name);
-
             int32_t res = EFAIL ;
+
+            if (current->type == PROPERTY_TYPE_ACTION) {
+                current = linked_next(current, OFFSETOF(WEBAPI_PROP_T, next));
+                continue;
+            }
+
+            if (!first) {
+                total_length += json_printf(out, ",");
+            }
+            first = false;
+
+            // Print key
+            total_length += json_printf(out, "\"%s\": ", current->name);
 
             if (current->get_callback != NULL) {
                 uint32_t get_buffer[WEBAPI_GET_BUFFER_MAX/sizeof(uint32_t)] ;
@@ -438,24 +592,17 @@ static size_t generate_simple_json(WEBAPI_INST_T *inst, struct json_out *out) {
                             total_length += json_printf(out, "%B", bool_value);  // Print as boolean (true/false)
                             break;
                         default:
-                            total_length += json_printf(out, "%Q", 0);  // Print  null
+                            total_length += json_printf(out, "%Q", 0);  // Print null
                             break;
                     }
                 }
-            } 
-            
-            if (res < EOK) {
-                total_length += json_printf(out, "%Q", 0);  // Print  null
-
             }
 
-            // Print the property as a key-value pair in JSON format
+            if (res < EOK) {
+                total_length += json_printf(out, "%Q", 0);  // Print null
+            }
 
             current = linked_next(current, OFFSETOF(WEBAPI_PROP_T, next));
-            if (current) {
-                total_length += json_printf(out, ",");
-
-            }
         }
 
     }
@@ -467,7 +614,7 @@ static size_t generate_simple_json(WEBAPI_INST_T *inst, struct json_out *out) {
 }
 
 // Function to generate simple key-value JSON for all properties
-char *webapi_generate_simple_json(const char * ep) 
+char *webapi_generate_simple_json(const char * ep)
 {
     WEBAPI_INST_T *inst = webapi_inst_get (ep) ;
 
@@ -491,20 +638,20 @@ char *webapi_generate_simple_json(const char * ep)
 // Function to free the JSON buffer
 void webapi_simple_json_free(char *buffer)
 {
-	qoraal_free(_webapi_heap, buffer);
+    qoraal_free(_webapi_heap, buffer);
 }
 
-int32_t webapi_post(const char * ep, const char *json) 
+int32_t webapi_post(const char * ep, const char *json)
 {
     int32_t res = EOK ;
     jsmn_parser parser;
     jsmntok_t *tokens;
-    int32_t len = strlen(json); 
+    int32_t len = strlen(json);
 
     if (len == 0) {
         return E_PARM;
     }
-    
+
     WEBAPI_INST_T *inst = webapi_inst_get (ep) ;
 
     if (!inst) {
@@ -522,7 +669,7 @@ int32_t webapi_post(const char * ep, const char *json)
     }
 
     tokens = qoraal_malloc(_webapi_heap, token_num * sizeof(jsmntok_t));
-    if (!tokens) {    	
+    if (!tokens) {
         return E_NOMEM;
     }
 
@@ -545,7 +692,7 @@ int32_t webapi_post(const char * ep, const char *json)
             ((val->type != JSMN_STRING) && (val->type != JSMN_PRIMITIVE))
         ) {
             // Only accept key-value pairs
-        	qoraal_free(_webapi_heap, tokens);
+            qoraal_free(_webapi_heap, tokens);
             return E_PARM;
         }
 
@@ -571,27 +718,31 @@ int32_t webapi_post(const char * ep, const char *json)
                 // Found the matching property, now set its value
                 jsmn_copy_str(json, val, temp_str, sizeof(temp_str));
 
-                    switch (prop->type) {
-                        case PROPERTY_TYPE_STRING: {
-                            res = prop->set_callback((void *)temp_str, prop);
-                            break;
-                        }
-                        case PROPERTY_TYPE_INTEGER: {
-                            // Convert the JSON value to integer and call the setter
-                            int temp_int = atoi(temp_str);
-                            res = prop->set_callback(&temp_int, prop);
-                            break;
-                        }
-                        case PROPERTY_TYPE_BOOLEAN: {
-                            // Convert to boolean (true/false)
-                        bool temp_bool = (strcmp(temp_str, "true") == 0) || (strcmp(temp_str, "1") == 0);
-                            res = prop->set_callback(&temp_bool, prop);
-                            break;
-                        }
-                        default:
-                        res = E_PARM ;
-                            break;
+                switch (prop->type) {
+                    case PROPERTY_TYPE_STRING: {
+                        res = prop->set_callback((void *)temp_str, prop);
+                        break;
                     }
+                    case PROPERTY_TYPE_INTEGER: {
+                        // Convert the JSON value to integer and call the setter
+                        int temp_int = atoi(temp_str);
+                        res = prop->set_callback(&temp_int, prop);
+                        break;
+                    }
+                    case PROPERTY_TYPE_BOOLEAN: {
+                        // Convert to boolean (true/false)
+                        bool temp_bool = (strcmp(temp_str, "true") == 0) || (strcmp(temp_str, "1") == 0);
+                        res = prop->set_callback(&temp_bool, prop);
+                        break;
+                    }
+                    case PROPERTY_TYPE_ACTION: {
+                        res = prop->set_callback((void *)temp_str, prop);
+                        break;
+                    }
+                    default:
+                        res = E_PARM ;
+                        break;
+                }
 
                 break ;
             }
@@ -617,5 +768,3 @@ int32_t webapi_post(const char * ep, const char *json)
 }
 
 #endif /* CFG_JSON_DISABLE */
-
-
