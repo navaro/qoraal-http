@@ -313,7 +313,7 @@ The **Qoraal WebAPI** takes the pain out of API development. It provides an easy
         int32_t res = httpserver_write_response (user, 200, HTTP_SERVER_CONTENT_TYPE_JSON,
                 0, 0, json, strlen (json)) ;
     
-        webapi_simple_json_free (json) ;
+        webapi_simple_response_free (json) ;
         return  res ; 
     }
    

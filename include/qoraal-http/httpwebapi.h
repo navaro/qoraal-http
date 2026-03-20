@@ -123,14 +123,14 @@ char * webapi_openapi_json(void);
 void webapi_openapi_json_free(char * buffer);
 
 /* Existing simple endpoint JSON */
-    char *webapi_generate_simple_json(const char * ep) ;
-    void webapi_simple_json_free(char *buffer) ;
+    char * webapi_generate_simple_response(const char *ep, const char *property, bool is_json) ;
+    void webapi_simple_response_free(char *buffer) ;
 
 /* New WoT */
     char * webapi_wot_json(const char * ip) ;
     void webapi_wot_json_free(char * buffer) ;
 
-    int32_t webapi_post(const char * ep, const char *json) ;
+    int32_t webapi_post(const char *ep, const char *property, const char *body, bool is_json) ;
 
 #ifdef __cplusplus
 }

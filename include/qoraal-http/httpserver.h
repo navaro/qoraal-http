@@ -94,7 +94,7 @@
  * @{
  */
 #define HTTP_SERVER_CONTENT_TYPE_WAVE                       "audio/wav"
-#define HTTP_SERVER_CONTENT_TYPE_TEXT                       "text"
+#define HTTP_SERVER_CONTENT_TYPE_TEXT                       "text/plain"
 #define HTTP_SERVER_CONTENT_TYPE_HTML                       "text/html"
 #define HTTP_SERVER_CONTENT_TYPE_CSS                        "text/css"
 #define HTTP_SERVER_CONTENT_TYPE_JSON                       "application/json"
@@ -212,6 +212,8 @@ extern int32_t      httpserver_user_close (HTTP_USER_T* user) ;
 
 extern int32_t      httpserver_read_request_ex (HTTP_USER_T* user, uint32_t timeout, char** endpoint, int32_t* method) ;
 extern const char*  httpserver_get_authorization_header (HTTP_USER_T* user) ;
+extern const char*  httpserver_get_content_type_header (HTTP_USER_T* user) ;
+extern const char*  httpserver_get_accept_header (HTTP_USER_T* user) ;
 extern int32_t      httpserver_read_content_ex (HTTP_USER_T* user, uint32_t timeout, char** request) ;
 extern int32_t      httpserver_read_all_content_ex (HTTP_USER_T* user, uint32_t timeout, char** request) ;
 extern int32_t      httpserver_free_request (HTTP_USER_T* user) ;

@@ -48,33 +48,33 @@ static bool _upgrade_start = false ;
 /*===========================================================================*/
 
 static int32_t
-upgrade_start_get(void* val, void* arg)
+upgrade_start_get(void* val, struct WEBAPI_PROP_S* prop)
 {
     *(bool*)val = _upgrade_start ;
     return sizeof(bool) ;
 }
 
 static int32_t
-upgrade_start_set(void* val, void* arg)
+upgrade_start_set(void* val, struct WEBAPI_PROP_S* prop)
 {
 	_upgrade_start = *(bool*)val ;
     return sizeof(bool) ;
 }
 
 static int32_t
-upgrade_url_get(void* val, void* arg)
+upgrade_url_get(void* val, struct WEBAPI_PROP_S* prop)
 {
     return snprintf ((char*)val, WEBAPI_GET_BUFFER_MAX, "%s", _upgrade_url) ;
 }
 
 static int32_t
-upgrade_url_set(void* val, void* arg)
+upgrade_url_set(void* val, struct WEBAPI_PROP_S* prop)
 {
     return snprintf (_upgrade_url, WEBAPI_GET_BUFFER_MAX, "%s", (const char*)val) ;
 }
 
 static int32_t
-upgrade_status_get(void* val, void* arg)
+upgrade_status_get(void* val, struct WEBAPI_PROP_S* prop)
 {
     int32_t status = 0 ;
     *(int32_t*)val = status ;
@@ -82,7 +82,7 @@ upgrade_status_get(void* val, void* arg)
 }
 
 static int32_t
-upgrade_version_get(void* val, void* arg)
+upgrade_version_get(void* val, struct WEBAPI_PROP_S* prop)
 {
     snprintf ((char*)val, WEBAPI_GET_BUFFER_MAX - 1,
         "%d.%d.%d", 1, 0, 0) ;
@@ -115,7 +115,7 @@ wwebapi_metadata (HTTP_USER_T *user, uint32_t method, char* endpoint, uint32_t t
 int32_t
 write_response (HTTP_USER_T *user, char * ep)
 {
-    char * json = webapi_generate_simple_json (ep) ;
+    char * json = webapi_generate_simple_response (ep, 0, true) ;
 
     if (!json) {
         return httpserver_write_response (user, WSERVER_RESP_CODE_500, HTTP_SERVER_CONTENT_TYPE_HTML,
@@ -126,7 +126,7 @@ write_response (HTTP_USER_T *user, char * ep)
     int32_t res = httpserver_write_response (user, 200, HTTP_SERVER_CONTENT_TYPE_JSON,
             0, 0, json, strlen (json)) ;
 
-    webapi_simple_json_free (json) ;
+    webapi_simple_response_free (json) ;
     return  res ; 
 }
 
@@ -240,7 +240,7 @@ wwebapi_handler(HTTP_USER_T *user, uint32_t method, char* endpoint)
 
             }
 
-            if (webapi_post(cmd[0], content) == EOK) {
+            if (webapi_post(cmd[0], 0, content, true) >= 0) {
 
                  return write_response (user, cmd[0]) ;
 

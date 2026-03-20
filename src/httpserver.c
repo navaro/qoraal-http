@@ -788,9 +788,11 @@ httpserver_read_request_ex (HTTP_USER_T* user, uint32_t timeout, char** endpoint
     user->headers[2].key = HTTP_HEADER_KEY_TRANSFER_ENCODING ;
     user->headers[3].key = HTTP_HEADER_KEY_CONNECTION ;
     user->headers[4].key = HTTP_HEADER_KEY_AUTHORIZATION ;
+    user->headers[5].key = HTTP_HEADER_KEY_ACCEPT ;
+
 
     *method = httpparse_request(user->rw_buffer, offset, user->headers,
-                5, &pendpoint, &content) ;
+                6, &pendpoint, &content) ;
     if (*method <= 0) {
         DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_WARNING,
                     "HTTPD :W: httpserver_read_request_ex httpparse_request returned  %d", *method);
@@ -859,6 +861,35 @@ httpserver_get_authorization_header (HTTP_USER_T* user)
     }
     return NULL;  // Return NULL if the Authorization header is not found.
 }
+
+const char* 
+httpserver_get_content_type_header (HTTP_USER_T* user) 
+{
+    // Assuming headers are stored in user->headers and HTTP_HEADER_KEY_CONTENT_TYPE is defined.
+    for (int i = 0; i < sizeof(user->headers) / sizeof(user->headers[0]); i++) {
+        if ((uintptr_t)user->headers[i].key == (uintptr_t)HTTP_HEADER_KEY_CONTENT_TYPE) {
+            return user->headers[i].value;  // Return the value of the Content-Type header.
+
+        }
+
+    }
+    return NULL;  // Return NULL if the Content-Type header is not found.
+}
+
+const char* 
+httpserver_get_accept_header (HTTP_USER_T* user) 
+{
+    // Assuming headers are stored in user->headers and HTTP_HEADER_KEY_ACCEPT is defined.
+    for (int i = 0; i < sizeof(user->headers) / sizeof(user->headers[0]); i++) {
+        if ((uintptr_t)user->headers[i].key == (uintptr_t)HTTP_HEADER_KEY_ACCEPT) {
+            return user->headers[i].value;  // Return the value of the Accept header.
+
+        }
+
+    }
+    return NULL;  // Return NULL if the Accept header is not found.
+}
+
 
 /**
  * @brief   httpserver_read_content_ex

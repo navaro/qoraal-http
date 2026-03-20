@@ -51,6 +51,7 @@
 #define HTTP_HEADER_KEY_WEBSOCK_UPGRADE         "Upgrade"
 #define HTTP_HEADER_KEY_WEBSOCK_ACCEPT          "Sec-WebSocket-Accept"
 #define HTTP_HEADER_KEY_WEBSOCK_PROT            "Sec-WebSocket-Protocol"
+#define HTTP_HEADER_KEY_ACCEPT                  "Accept"
 
 
 

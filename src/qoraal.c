@@ -93,7 +93,7 @@ qoraal_http_keep_webapi(void)
 	webapi_ep_available(0) ;
 	webapi_swagger_yaml()  ;
 	webapi_swagger_yaml_free(0) ;
-	webapi_generate_simple_json(0) ;
-	webapi_simple_json_free(0) ;
-	webapi_post(0, 0) ;
+	webapi_generate_simple_json(0,0,0) ;
+	webapi_simple_response_free(0) ;
+	webapi_post(0, 0,0,0) ;
 }
