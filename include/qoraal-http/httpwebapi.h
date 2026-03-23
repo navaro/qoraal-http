@@ -49,24 +49,47 @@
 /* Client data structures and types.                                         */
 /*===========================================================================*/
 
-
-
 typedef struct WEBAPI_INST_S {
-    struct WEBAPI_INST_S * next ;
-    const char * title ;
-    const char * version ;
-    const char * ep ;
-    linked_t props_list ;
-} WEBAPI_INST_T ;
+    struct WEBAPI_INST_S * next;
+    const char * title;          /* Human title: "Device PKI Management API" */
+    const char * version;        /* API version */
+    const char * ep;             /* Endpoint base: "pki" */
+
+    const char * tag;            /* OpenAPI tag/group: "PKI" */
+    const char * description;    /* Section description */
+    const char * get_summary;    /* GET operation summary */
+    const char * post_summary;   /* POST operation summary */
+
+    linked_t props_list;
+} WEBAPI_INST_T;
 
 #define WEBAPI_INST_DECL(name, title_, version_, ep_) \
-    WEBAPI_INST_T  name = {                                 \
-        0,                                                  \
-        title_, \
-        version_, \
-        ep_, \
-        {0,0}   \
+    WEBAPI_INST_T name = {                            \
+        0,                                            \
+        title_,                                       \
+        version_,                                     \
+        ep_,                                          \
+        title_,                                       \
+        0,                                            \
+        title_,                                       \
+        title_,                                       \
+        {0, 0}                                        \
     }
+
+
+#define WEBAPI_INST_DECL_EX(name, title_, version_, ep_, tag_, desc_, get_sum_, post_sum_) \
+    WEBAPI_INST_T name = {                                                                  \
+        0,                                                                                  \
+        title_,                                                                             \
+        version_,                                                                           \
+        ep_,                                                                                \
+        tag_,                                                                               \
+        desc_,                                                                              \
+        get_sum_,                                                                           \
+        post_sum_,                                                                          \
+        {0, 0}                                                                              \
+    }
+
 
 typedef enum {
     PROPERTY_TYPE_STRING,
@@ -127,7 +150,7 @@ void webapi_openapi_json_free(char * buffer);
     void webapi_simple_response_free(char *buffer) ;
 
 /* New WoT */
-    char * webapi_wot_json(const char * ip) ;
+    char * webapi_wot_json(const char * uri) ;
     void webapi_wot_json_free(char * buffer) ;
 
     int32_t webapi_post(const char *ep, const char *property, const char *body, bool is_json) ;

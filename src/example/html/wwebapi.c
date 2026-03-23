@@ -113,9 +113,9 @@ wwebapi_metadata (HTTP_USER_T *user, uint32_t method, char* endpoint, uint32_t t
 }
     
 int32_t
-write_response (HTTP_USER_T *user, char * ep)
+write_response (HTTP_USER_T *user, char * ep, char * property)
 {
-    char * json = webapi_generate_simple_response (ep, 0, true) ;
+    char * json = webapi_generate_simple_response (ep, property, true) ;
 
     if (!json) {
         return httpserver_write_response (user, WSERVER_RESP_CODE_500, HTTP_SERVER_CONTENT_TYPE_HTML,
@@ -221,7 +221,7 @@ wwebapi_handler(HTTP_USER_T *user, uint32_t method, char* endpoint)
         
         if (webapi_ep_available(cmd[0])) {
 
-            return write_response (user, cmd[0]) ;
+            return write_response (user, cmd[0], cmd[1]) ;
         }
 
 
@@ -242,7 +242,7 @@ wwebapi_handler(HTTP_USER_T *user, uint32_t method, char* endpoint)
 
             if (webapi_post(cmd[0], 0, content, true) >= 0) {
 
-                 return write_response (user, cmd[0]) ;
+                 return write_response (user, cmd[0], cmd[1]) ;
 
             } else {
                 return httpserver_write_response (user, WSERVER_RESP_CODE_500, HTTP_SERVER_CONTENT_TYPE_JSON,

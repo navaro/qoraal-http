@@ -182,6 +182,9 @@ typedef struct HTTP_USER_S {
     int32_t                 content_length ;
 
     char*                   content ;
+    int32_t                 chunked ;
+    int32_t                 chunk_complete ;
+    int32_t                 chunk_left ;
     
 #if !defined(CFG_HTTPSERVER_TLS_DISABLE) || !CFG_HTTPSERVER_TLS_DISABLE
     void*                  ssl ;

@@ -202,12 +202,6 @@ _wserver_thread (void *arg)
                 break ;
 
             }
-            if (os_sem_count(&inst->count_sem) < 2)  {
-                DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_LOG,
-                    "WSERV : : timeout close thread limit.\r\n");
-                break ;
-
-            }
             continue ;
 
         }
@@ -233,7 +227,6 @@ _wserver_thread (void *arg)
         timeout = WSERVER_KEEPALIVE_TIMEOUT ;
 
 #if HTTPSERVER_USE_KEEPALIVE
-
         if (
                 !thread->user.headers[3].value ||
                 strnicmp(thread->user.headers[3].value, "Keep-Alive", 10) != 0
@@ -357,6 +350,14 @@ _wserver_thread (void *arg)
 
         }
 
+        if (os_sem_count(&inst->count_sem) < 2)  {
+            DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_INFO,
+                "WSERV : : timeout close thread limit.\r\n");
+            break ;
+
+        }
+
+
     }
 
     }
@@ -413,7 +414,7 @@ httpserver_wserver_create (uint32_t port, void * ssl_config, const WSERVER_HANDL
     HTTPSERVER_INST_T * inst = HTTP_SERVER_MALLOC(sizeof(HTTPSERVER_INST_T)) ;
     if (inst) {
         memset (inst, 0, sizeof(HTTPSERVER_INST_T)) ;
-        if (os_sem_create (&inst->count_sem, CFG_WSERVER_USER_THREAD_MAX+1) != EOK) {
+        if (os_sem_create (&inst->count_sem, CFG_WSERVER_USER_THREAD_MAX) != EOK) {
             HTTP_SERVER_FREE (inst) ;
             return 0 ;
             

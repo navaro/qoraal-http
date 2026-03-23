@@ -13,5 +13,10 @@ config QORAAL_HTTP_CLIENT_TLS
     default y
 
 
+config QORAAL_HTTP_SERVER_USER_THREAD
+    int "Enable http server user thread"
+    default 2
+
+
 
 endmenu

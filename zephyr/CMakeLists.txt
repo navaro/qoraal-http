@@ -44,6 +44,4 @@ zephyr_compile_definitions(
 # Translate Zephyr config → Qoraal config
 zephyr_compile_definitions_ifndef(CONFIG_QORAAL_HTTP_SERVER_TLS CFG_HTTPSERVER_TLS_DISABLE=1)
 zephyr_compile_definitions_ifndef(CONFIG_QORAAL_HTTP_CLIENT_TLS CFG_HTTPCLIENT_TLS_DISABLE=1)
-
-
-
+zephyr_compile_definitions(CFG_WSERVER_USER_THREAD_MAX=${CONFIG_QORAAL_HTTP_SERVER_USER_THREAD})

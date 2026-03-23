@@ -28,6 +28,7 @@
 #include <stdint.h>
 #include <string.h>
 #include <errno.h> 
+#include <stdlib.h>
 
 #include "qoraal/qoraal.h"
 #include "qoraal-http/config.h"
@@ -710,6 +711,175 @@ free_headers (HTTP_USER_T* user)
     }
 }
 
+static int32_t
+httpserver_buffer_consume(HTTP_USER_T* user, char** buffer, uint32_t len)
+{
+    if (user->payload && user->payload_length) {
+        uint32_t take = user->payload_length;
+        if (take > len) {
+            take = len;
+        }
+
+        if (buffer) {
+            *buffer = user->payload;
+        }
+
+        user->payload += take;
+        user->payload_length -= take;
+
+        if (user->payload_length == 0) {
+            user->payload = 0;
+        }
+
+        return (int32_t)take;
+    }
+
+    return 0;
+}
+
+static int32_t
+httpserver_read_line(HTTP_USER_T* user, uint32_t timeout, char* line, uint32_t maxlen)
+{
+    uint32_t idx = 0;
+
+    if (!line || maxlen < 2) {
+        return HTTP_SERVER_E_ERROR;
+    }
+
+    while (idx + 1 < maxlen) {
+        char* p = 0;
+        int32_t got = httpserver_buffer_consume(user, &p, 1);
+
+        if (got == 0) {
+            got = httpserver_read(user, &line[idx], 1, timeout);
+            if (got <= 0) {
+                return got;
+            }
+        } else {
+            line[idx] = *p;
+        }
+
+        idx++;
+
+        if (idx >= 2 && line[idx - 2] == '\r' && line[idx - 1] == '\n') {
+            line[idx - 2] = '\0';
+            return (int32_t)(idx - 2);
+        }
+    }
+
+    return HTTP_SERVER_E_LENGTH;
+}
+
+static int32_t
+httpserver_read_exact(HTTP_USER_T* user, uint32_t timeout, char* buffer, uint32_t len)
+{
+    uint32_t total = 0;
+
+    while (total < len) {
+        char* p = 0;
+        int32_t got = httpserver_buffer_consume(user, &p, len - total);
+
+        if (got > 0) {
+            memcpy(&buffer[total], p, (uint32_t)got);
+            total += (uint32_t)got;
+            continue;
+        }
+
+        got = httpserver_read(user, &buffer[total], len - total, timeout);
+        if (got <= 0) {
+            return got;
+        }
+
+        total += (uint32_t)got;
+    }
+
+    return (int32_t)total;
+}
+
+static int32_t
+httpserver_read_chunked_content_ex(HTTP_USER_T* user, uint32_t timeout, char** request)
+{
+    int32_t received;
+    char line[32];
+
+    if (request) {
+        *request = 0;
+    }
+
+    if (user->chunk_complete) {
+        return 0;
+    }
+
+    while (user->chunk_left == 0) {
+        unsigned long chunk_size;
+        char* endptr;
+        char* semi;
+
+        received = httpserver_read_line(user, timeout, line, sizeof(line));
+        if (received <= 0) {
+            return received;
+        }
+
+        semi = strchr(line, ';');
+        if (semi) {
+            *semi = '\0';
+        }
+
+        chunk_size = strtoul(line, &endptr, 16);
+        if (endptr == line || *endptr != '\0') {
+            return HTTP_SERVER_E_HEADER;
+        }
+
+        if (chunk_size == 0) {
+            do {
+                received = httpserver_read_line(user, timeout, line, sizeof(line));
+                if (received < 0) {
+                    return received;
+                }
+            } while (received > 0);
+
+            user->chunk_complete = 1;
+            return 0;
+        }
+
+        user->chunk_left = (uint32_t)chunk_size;
+        break;
+    }
+
+    if (user->chunk_left) {
+        uint32_t want = user->chunk_left;
+        if (want > HTTP_SERVER_MAX_XMIT_CONTENT_LENGTH) {
+            want = HTTP_SERVER_MAX_XMIT_CONTENT_LENGTH;
+        }
+
+        received = httpserver_read_exact(user, timeout, user->rw_buffer, want);
+        if (received <= 0) {
+            return received;
+        }
+
+        user->chunk_left -= (uint32_t)received;
+
+        if (user->chunk_left == 0) {
+            char crlf[2];
+            int32_t newline = httpserver_read_exact(user, timeout, crlf, 2);
+            if (newline <= 0) {
+                return newline;
+            }
+            if (crlf[0] != '\r' || crlf[1] != '\n') {
+                return HTTP_SERVER_E_HEADER;
+            }
+        }
+
+        if (request) {
+            *request = user->rw_buffer;
+        }
+
+        return received;
+    }
+
+    return 0;
+}
+
 /**
  * @brief   httpserver_read_request_ex
  * @details Reads and parses an HTTP request from the user's connection. 
@@ -800,6 +970,12 @@ httpserver_read_request_ex (HTTP_USER_T* user, uint32_t timeout, char** endpoint
 
     }
 
+    if (user->headers[2].value && (strncmp(user->headers[2].value, "chunked", 7) == 0)) {
+        user->chunked = 1 ;
+    } else {
+        user->chunked = 0 ;
+    }
+
     if (pendpoint) {
         user->endpoint = (char*)HTTP_SERVER_MALLOC(strlen(pendpoint) + 1) ;
         if (user->endpoint == 0) {
@@ -816,11 +992,23 @@ httpserver_read_request_ex (HTTP_USER_T* user, uint32_t timeout, char** endpoint
     user->payload = 0 ;
     user->payload_length = 0 ;
     user->content = 0 ;
+    user->content_length = 0 ;
+    user->chunk_complete = 0 ;
+    user->chunk_left = 0 ;
 
     alloc_headers (user) ;
     if (content) {
 
         int left = offset - (content - user->rw_buffer) ;
+
+        if (user->chunked) {
+            if (left > 0) {
+                user->payload = content ;
+                user->payload_length = (uint32_t)left ;
+            }
+            return 0 ;
+        }
+
         content_length = httpparse_content(content, left, user->headers,
                     sizeof(user->headers)/sizeof(user->headers[0]), &payload, 0) ;
 
@@ -830,7 +1018,7 @@ httpserver_read_request_ex (HTTP_USER_T* user, uint32_t timeout, char** endpoint
 
                 if (left) {
                     user->payload = payload ;
-                    user->payload_length = left ;
+                    user->payload_length = (uint32_t)left ;
 
                 }
 
@@ -913,6 +1101,10 @@ httpserver_read_content_ex (HTTP_USER_T* user, uint32_t timeout, char** request)
 {
     int32_t received ;
 
+    if (user->chunked) {
+        return httpserver_read_chunked_content_ex(user, timeout, request);
+    }
+
     if (user->payload) {
         if (request) *request = user->payload ;
         user->payload = 0 ;
@@ -967,12 +1159,57 @@ httpserver_read_all_content_ex (HTTP_USER_T* user, uint32_t timeout, char** requ
     int32_t recvlen ;
     uint32_t total = 0 ;
     char* buffer ;
+
+    if (request) {
+        *request = 0 ;
+    }
+
+    if (user->chunked) {
+        char* content = 0 ;
+
+        while ((recvlen = httpserver_read_content_ex(user, timeout, &buffer)) > 0) {
+            char* newbuf = (char*)HTTP_SERVER_MALLOC(total + recvlen + 1) ;
+            if (!newbuf) {
+                if (content) {
+                    HTTP_SERVER_FREE(content) ;
+                }
+                DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_WARNING,
+                        "HTTPD :W: no memory for chunked content");
+                return HTTP_SERVER_E_MEMORY ;
+            }
+
+            if (content && total) {
+                memcpy(newbuf, content, total) ;
+                HTTP_SERVER_FREE(content) ;
+            }
+
+            memcpy(&newbuf[total], buffer, recvlen) ;
+            total += (uint32_t)recvlen ;
+            newbuf[total] = 0 ;
+            content = newbuf ;
+        }
+
+        if (recvlen < 0) {
+            if (content) {
+                HTTP_SERVER_FREE(content) ;
+            }
+            return recvlen ;
+        }
+
+        user->content = content ;
+        if (request) {
+            *request = content ;
+        }
+        return total ;
+    }
+
+    {
     uint32_t content_length = user->content_length ;
 
     if (content_length) {
-        *request = user->content = HTTP_SERVER_MALLOC (content_length+1) ;
-        if (*request) {
-            (*request)[content_length] = 0 ;
+            user->content = HTTP_SERVER_MALLOC (content_length+1) ;
+            if (user->content) {
+                user->content[content_length] = 0 ;
             while (total < content_length) {
                 if ((recvlen = httpserver_read_content_ex (user, timeout, &buffer)) <= 0) {
                     break ;
@@ -984,15 +1221,18 @@ httpserver_read_all_content_ex (HTTP_USER_T* user, uint32_t timeout, char** requ
 
             }
 
+                if (request) {
+                    *request = user->content ;
+                }
+
         } else {
             DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_WARNING,
                     "HTTPD :W: no memory for %d content bytes!",
                     content_length);
 
+                return HTTP_SERVER_E_MEMORY ;
+            }
         }
-    } else {
-        *request = 0 ;
-
     }
 
     return total  ;
@@ -1397,6 +1637,9 @@ httpserver_free_request (HTTP_USER_T* user)
     user->content_length = 0 ;
     user->payload = 0 ;
     user->payload_length = 0 ;
+    user->chunked = 0 ;
+    user->chunk_complete = 0 ;
+    user->chunk_left = 0 ;
 
     if (user->endpoint) {
         HTTP_SERVER_FREE (user->endpoint) ;
@@ -1408,6 +1651,3 @@ httpserver_free_request (HTTP_USER_T* user)
 
     return status ;
 }
-
-
-

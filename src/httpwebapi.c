@@ -36,7 +36,6 @@
 #include "qoraal-http/json/frozen.h"
 
 
-// Define the type of property (e.g., string, integer)
 static linked_t _webapi_inst_list ;
 static QORAAL_HEAP _webapi_heap = QORAAL_HeapAuxiliary ;
 static const char * _webapi_root = "api" ;
@@ -72,7 +71,6 @@ bool webapi_ep_available(const char * ep)
     return webapi_inst_get (ep) ? true : false ;
 }
 
-// Function to create a new ServiceProperty and return a pointer to it
 int32_t webapi_add_property(WEBAPI_INST_T *inst, WEBAPI_PROP_T *prop)
 {
     linked_add_tail(&inst->props_list, prop, OFFSETOF(WEBAPI_PROP_T, next));
@@ -84,11 +82,24 @@ int32_t webapi_add_property(WEBAPI_INST_T *inst, WEBAPI_PROP_T *prop)
     return EOK;
 }
 
+static bool webapi_prop_is_action(WEBAPI_PROP_T *prop)
+{
+    return prop && prop->type == PROPERTY_TYPE_ACTION;
+}
+
 static const char * webapi_type_to_string(WEBAPI_PROP_TYPE type)
 {
     return (type == PROPERTY_TYPE_STRING) ? "string" :
            (type == PROPERTY_TYPE_INTEGER) ? "integer" :
            (type == PROPERTY_TYPE_BOOLEAN) ? "boolean" : "action";
+}
+
+/* For OpenAPI / legacy side, actions are exposed as write-only booleans */
+static const char * webapi_openapi_type_to_string(WEBAPI_PROP_TYPE type)
+{
+    return (type == PROPERTY_TYPE_STRING) ? "string" :
+           (type == PROPERTY_TYPE_INTEGER) ? "integer" :
+           (type == PROPERTY_TYPE_BOOLEAN) ? "boolean" : "boolean";
 }
 
 static bool webapi_inst_has_writable_props(WEBAPI_INST_T *inst)
@@ -104,26 +115,59 @@ static bool webapi_inst_has_writable_props(WEBAPI_INST_T *inst)
     return false ;
 }
 
-// Helper function to generate or calculate the length of the Swagger YAML
+static const char *
+webapi_inst_tag(WEBAPI_INST_T *inst)
+{
+    if (inst && inst->tag && inst->tag[0]) {
+        return inst->tag;
+    }
+    if (inst && inst->title && inst->title[0]) {
+        return inst->title;
+    }
+    return "General";
+}
+
+static const char *
+webapi_inst_get_summary(WEBAPI_INST_T *inst)
+{
+    if (inst && inst->get_summary && inst->get_summary[0]) {
+        return inst->get_summary;
+    }
+    if (inst && inst->title && inst->title[0]) {
+        return inst->title;
+    }
+    return "Read configuration";
+}
+
+static const char *
+webapi_inst_post_summary(WEBAPI_INST_T *inst)
+{
+    if (inst && inst->post_summary && inst->post_summary[0]) {
+        return inst->post_summary;
+    }
+    if (inst && inst->title && inst->title[0]) {
+        return inst->title;
+    }
+    return "Update configuration";
+}
+
 static size_t swagger_yaml(char* buffer, size_t len) {
     size_t total_length = 0;
 
-    // Static YAML header
     total_length += snprintf(buffer ? buffer : NULL, len,
         "openapi: 3.0.0\n"
         "info:\n"
-        "  title: API Documentation\n"
+        "  title: Device Control API\n"
         "  version: '1.0'\n"
         "paths:\n");
 
-    // Iterate over all instances
     WEBAPI_INST_T* inst = (WEBAPI_INST_T*) linked_head(&_webapi_inst_list);
     while (inst != NULL) {
-        // For each instance, generate the path
         total_length += snprintf(buffer ? buffer + total_length : NULL, buffer ? len - total_length : 0,
             "  /%s/%s:\n"
             "    get:\n"
-            "      summary: Get all properties of %s\n"
+            "      tags: [%s]\n"
+            "      summary: %s\n"
             "      responses:\n"
             "        '200':\n"
             "          description: Successful response\n"
@@ -132,21 +176,23 @@ static size_t swagger_yaml(char* buffer, size_t len) {
             "              schema:\n"
             "                type: object\n"
             "                properties:\n",
-            _webapi_root, inst->ep, inst->title ? inst->title : inst->ep);
+            _webapi_root, inst->ep,
+            webapi_inst_tag(inst),
+            webapi_inst_get_summary(inst));
 
-        // Iterate through the properties of the instance
         WEBAPI_PROP_T* current = (WEBAPI_PROP_T*) linked_head(&inst->props_list);
         while (current != NULL) {
-            // Property details
-            total_length += snprintf(buffer ? buffer + total_length : NULL,
-                                     buffer ? len - total_length : 0,
-                "                  %s:\n"
-                "                    type: %s\n"
-                "                    description: %s\n",
-                current->name,
-                webapi_type_to_string(current->type),
-                current->description ? current->description : ""
-            );
+            if (!webapi_prop_is_action(current)) {
+                total_length += snprintf(buffer ? buffer + total_length : NULL,
+                                         buffer ? len - total_length : 0,
+                    "                  %s:\n"
+                    "                    type: %s\n"
+                    "                    description: %s\n",
+                    current->name,
+                    webapi_openapi_type_to_string(current->type),
+                    current->description ? current->description : ""
+                );
+            }
 
             current = linked_next(current, OFFSETOF(WEBAPI_PROP_T, next));
         }
@@ -155,7 +201,8 @@ static size_t swagger_yaml(char* buffer, size_t len) {
             total_length += snprintf(buffer ? buffer + total_length : NULL,
                                      buffer ? len - total_length : 0,
                 "    post:\n"
-                "      summary: Update writable properties of %s\n"
+                "      tags: [%s]\n"
+                "      summary: %s\n"
                 "      requestBody:\n"
                 "        required: true\n"
                 "        content:\n"
@@ -163,20 +210,27 @@ static size_t swagger_yaml(char* buffer, size_t len) {
                 "            schema:\n"
                 "              type: object\n"
                 "              properties:\n",
-                inst->title ? inst->title : inst->ep);
+                webapi_inst_tag(inst),
+                webapi_inst_post_summary(inst));
 
             current = (WEBAPI_PROP_T*) linked_head(&inst->props_list);
             while (current != NULL) {
                 if (current->set_callback != NULL) {
                     total_length += snprintf(buffer ? buffer + total_length : NULL,
-                                     buffer ? len - total_length : 0,
-                "                  %s:\n"
-                "                    type: %s\n"
-                "                    description: %s\n",
-                current->name,
-                        webapi_type_to_string(current->type),
+                                             buffer ? len - total_length : 0,
+                        "                  %s:\n"
+                        "                    type: %s\n"
+                        "                    description: %s\n",
+                        current->name,
+                        webapi_openapi_type_to_string(current->type),
                         current->description ? current->description : ""
-            );
+                    );
+
+                    if (webapi_prop_is_action(current)) {
+                        total_length += snprintf(buffer ? buffer + total_length : NULL,
+                                                 buffer ? len - total_length : 0,
+                            "                    writeOnly: true\n");
+                    }
                 }
 
                 current = linked_next(current, OFFSETOF(WEBAPI_PROP_T, next));
@@ -189,36 +243,29 @@ static size_t swagger_yaml(char* buffer, size_t len) {
                 "          description: Updated response\n");
         }
 
-        // Move to the next instance
         inst = linked_next(inst, OFFSETOF(WEBAPI_INST_T, next));
     }
 
     return total_length;
 }
 
-// Function to generate Swagger YAML for all properties
 char* webapi_swagger_yaml(void) {
-    // First pass: Get the required buffer size by calling swagger_yaml() with NULL
     size_t yaml_length = swagger_yaml(NULL, 0);
 
-    // Allocate the buffer
-    char* yaml_buffer = (char*) qoraal_malloc(_webapi_heap, yaml_length + 1);  // +1 for null terminator
+    char* yaml_buffer = (char*) qoraal_malloc(_webapi_heap, yaml_length + 1);
     if (yaml_buffer == NULL) {
-        return NULL;  // Handle memory allocation failure
+        return NULL;
     }
 
-    // Second pass: Generate the YAML by calling swagger_yaml() with the allocated buffer
     swagger_yaml(yaml_buffer, yaml_length+1);
 
-    return yaml_buffer;  // Return the generated YAML string
+    return yaml_buffer;
 }
-
 
 void webapi_swagger_yaml_free(char * buffer)
 {
     qoraal_free(_webapi_heap, buffer);
 }
-
 
 static int json_printer_null(struct json_out *out, const char *buf, size_t len) {
     out->u.buf.len += len ;
@@ -245,7 +292,7 @@ static size_t generate_openapi_json(struct json_out *out) {
         "},"
         "paths:{",
         "3.0.0",
-        "API Documentation",
+        "Device Control API",
         "1.0");
 
     WEBAPI_INST_T* inst = (WEBAPI_INST_T*) linked_head(&_webapi_inst_list);
@@ -262,6 +309,7 @@ static size_t generate_openapi_json(struct json_out *out) {
         total_length += json_printf(out,
             "%Q:{"
               "get:{"
+                "tags:[%Q],"
                 "summary:%Q,"
                 "responses:{"
                   "%Q:{"
@@ -272,7 +320,8 @@ static size_t generate_openapi_json(struct json_out *out) {
                           "type:%Q,"
                           "properties:{",
             path,
-            inst->title ? inst->title : inst->ep,
+            webapi_inst_tag(inst),
+            webapi_inst_get_summary(inst),
             "200",
             "Successful response",
             "application/json",
@@ -282,24 +331,26 @@ static size_t generate_openapi_json(struct json_out *out) {
         bool first_prop = true;
 
         while (current != NULL) {
-            if (!first_prop) {
-                total_length += json_printf(out, ",");
+            if (!webapi_prop_is_action(current)) {
+                if (!first_prop) {
+                    total_length += json_printf(out, ",");
+                }
+                first_prop = false;
+
+                total_length += json_printf(out,
+                    "%Q:{"
+                      "type:%Q,"
+                      "description:%Q",
+                    current->name,
+                    webapi_openapi_type_to_string(current->type),
+                    current->description ? current->description : "");
+
+                if (current->set_callback == NULL) {
+                    total_length += json_printf(out, ",readOnly:%B", 1);
+                }
+
+                total_length += json_printf(out, "}");
             }
-            first_prop = false;
-
-            total_length += json_printf(out,
-                "%Q:{"
-                  "type:%Q,"
-                  "description:%Q",
-                current->name,
-                webapi_type_to_string(current->type),
-                current->description ? current->description : "");
-
-            if (current->set_callback == NULL) {
-                total_length += json_printf(out, ",readOnly:%B", 1);
-            }
-
-            total_length += json_printf(out, "}");
 
             current = linked_next(current, OFFSETOF(WEBAPI_PROP_T, next));
         }
@@ -316,6 +367,7 @@ static size_t generate_openapi_json(struct json_out *out) {
         if (webapi_inst_has_writable_props(inst)) {
             total_length += json_printf(out,
               ",post:{"
+                "tags:[%Q],"
                 "summary:%Q,"
                 "requestBody:{"
                   "required:%B,"
@@ -324,7 +376,8 @@ static size_t generate_openapi_json(struct json_out *out) {
                       "schema:{"
                         "type:%Q,"
                         "properties:{",
-              inst->title ? inst->title : inst->ep,
+              webapi_inst_tag(inst),
+              webapi_inst_post_summary(inst),
               1,
               "application/json",
               "object");
@@ -342,11 +395,16 @@ static size_t generate_openapi_json(struct json_out *out) {
                     total_length += json_printf(out,
                         "%Q:{"
                           "type:%Q,"
-                          "description:%Q"
-                        "}",
+                          "description:%Q",
                         current->name,
-                        webapi_type_to_string(current->type),
+                        webapi_openapi_type_to_string(current->type),
                         current->description ? current->description : "");
+
+                    if (webapi_prop_is_action(current)) {
+                        total_length += json_printf(out, ",writeOnly:%B", 1);
+                    }
+
+                    total_length += json_printf(out, "}");
                 }
 
                 current = linked_next(current, OFFSETOF(WEBAPI_PROP_T, next));
@@ -399,22 +457,10 @@ void webapi_openapi_json_free(char * buffer)
     qoraal_free(_webapi_heap, buffer);
 }
 
-static bool webapi_prop_is_action(WEBAPI_PROP_T *prop)
-{
-    return prop && prop->type == PROPERTY_TYPE_ACTION;
-}
-
-static size_t generate_wot_json(struct json_out *out, const char * ip) {
+static size_t generate_wot_json(struct json_out *out, const char * uri) {
     size_t total_length = 0;
     bool first_property = true;
     bool first_action = true;
-    char base[128];
-
-    if (!ip || !ip[0]) {
-        ip = "127.0.0.1";
-    }
-
-    snprintf(base, sizeof(base), "https://%s/", ip);
 
     total_length += json_printf(out, "%s", "{");
     total_length += json_printf(out, "%s", "\"@context\":");
@@ -422,9 +468,9 @@ static size_t generate_wot_json(struct json_out *out, const char * ip) {
     total_length += json_printf(out, "%s", ",\"title\":");
     total_length += json_printf(out, "%Q", "Device");
     total_length += json_printf(out, "%s", ",\"base\":");
-    total_length += json_printf(out, "%Q", base);
+    total_length += json_printf(out, "%Q", uri);
     total_length += json_printf(out, "%s", ",\"securityDefinitions\":{\"nosec_sc\":{\"scheme\":\"nosec\"}}");
-    total_length += json_printf(out, "%s", ",\"security\":\"nosec_sc\"");
+    total_length += json_printf(out, "%s", ",\"security\":[\"nosec_sc\"]");
     total_length += json_printf(out, "%s", ",\"properties\":{");
 
     WEBAPI_INST_T* inst = (WEBAPI_INST_T*) linked_head(&_webapi_inst_list);
@@ -478,7 +524,7 @@ static size_t generate_wot_json(struct json_out *out, const char * ip) {
         inst = linked_next(inst, OFFSETOF(WEBAPI_INST_T, next));
     }
 
-    total_length += json_printf(out, "},actions:{");
+    total_length += json_printf(out, "%s", "},\"actions\":{");
 
     inst = (WEBAPI_INST_T*) linked_head(&_webapi_inst_list);
     while (inst != NULL) {
@@ -488,7 +534,7 @@ static size_t generate_wot_json(struct json_out *out, const char * ip) {
             char href[192];
 
             if (webapi_prop_is_action(current)) {
-                snprintf(href, sizeof(href), "%s/%s", _webapi_root, inst->ep);
+                snprintf(href, sizeof(href), "%s/%s/%s", _webapi_root, inst->ep, current->name);
 
                 if (!first_action) {
                     total_length += json_printf(out, ",");
@@ -522,10 +568,10 @@ static size_t generate_wot_json(struct json_out *out, const char * ip) {
     return total_length;
 }
 
-char * webapi_wot_json(const char * ip)
+char * webapi_wot_json(const char * uri)
 {
     struct json_out out_size = JSON_OUT_NULL();
-    size_t json_length = generate_wot_json(&out_size, ip);
+    size_t json_length = generate_wot_json(&out_size, uri);
 
     char *json_buffer = (char *)qoraal_malloc(_webapi_heap, json_length + 1);
     if (json_buffer == NULL) {
@@ -533,7 +579,7 @@ char * webapi_wot_json(const char * ip)
     }
 
     struct json_out out_buffer = JSON_OUT_BUF(json_buffer, json_length + 1);
-    generate_wot_json(&out_buffer, ip);
+    generate_wot_json(&out_buffer, uri);
 
     return json_buffer;
 }
@@ -645,7 +691,7 @@ generate_simple_json(WEBAPI_INST_T *inst, struct json_out *out)
 
     current = (WEBAPI_PROP_T *)linked_head(&inst->props_list);
     while (current != NULL) {
-        if (current->type == PROPERTY_TYPE_ACTION) {
+        if (webapi_prop_is_action(current)) {
             current = linked_next(current, OFFSETOF(WEBAPI_PROP_T, next));
             continue;
         }
@@ -655,7 +701,7 @@ generate_simple_json(WEBAPI_INST_T *inst, struct json_out *out)
         }
         first = false;
 
-        total_length += json_printf(out, "%s:", current->name);
+        total_length += json_printf(out, "%Q:", current->name);
         total_length += webapi_print_prop_value(current, out, true);
 
         current = linked_next(current, OFFSETOF(WEBAPI_PROP_T, next));
@@ -668,14 +714,7 @@ generate_simple_json(WEBAPI_INST_T *inst, struct json_out *out)
 static size_t
 generate_simple_property_json(WEBAPI_PROP_T *prop, struct json_out *out)
 {
-    size_t total_length = 0;
-
-    total_length += json_printf(out, "{");
-    total_length += json_printf(out, "value:");
-    total_length += webapi_print_prop_value(prop, out, true);
-    total_length += json_printf(out, "}");
-
-    return total_length;
+    return webapi_print_prop_value(prop, out, true);
 }
 
 static size_t
@@ -704,8 +743,13 @@ webapi_generate_simple_response(const char *ep, const char *property, bool is_js
 
     if (property && property[0]) {
         prop = webapi_prop_get(inst, property);
-        if (!prop) {
-            return NULL;
+        if (!prop || webapi_prop_is_action(prop)) {
+            buffer = (char *)qoraal_malloc(_webapi_heap, 1);
+            if (!buffer) {
+                return NULL;
+            }
+            buffer[0] = '\0';
+            return buffer;
         }
 
         if (is_json) {
@@ -742,8 +786,6 @@ webapi_simple_response_free(char *buffer)
 {
     qoraal_free(_webapi_heap, buffer);
 }
-
-
 
 static int32_t
 webapi_prop_set_from_cstr(WEBAPI_PROP_T *prop, const char *value)
@@ -925,33 +967,50 @@ webapi_post_bulk_json(WEBAPI_INST_T *inst, const char *json)
     }
 
     return EOK;
-
 }
 
 static int32_t
-webapi_post_property_json_cb(const char *key, const char *value, void *arg)
+webapi_json_value_to_cstr(WEBAPI_PROP_T *prop, const char *body, char *out, size_t out_len)
 {
-    WEBAPI_PROP_T *prop = (WEBAPI_PROP_T *) arg;
+    size_t len;
 
-    if (!prop) {
+    if (!prop || !body || !out || out_len == 0) {
         return E_PARM;
     }
 
-    if (strcmp(key, "value") != 0) {
+    len = strlen(body);
+
+    if ((prop->type == PROPERTY_TYPE_STRING) &&
+        (len >= 2) &&
+        (body[0] == '"') &&
+        (body[len - 1] == '"')) {
+
+        size_t inner_len = len - 2;
+        if (inner_len >= out_len) {
+            return E_PARM;
+        }
+
+        memcpy(out, body + 1, inner_len);
+        out[inner_len] = '\0';
+        return EOK;
+    }
+
+    if (len >= out_len) {
         return E_PARM;
     }
 
-    return webapi_prop_set_from_cstr(prop, value);
+    memcpy(out, body, len + 1);
+    return EOK;
 }
 
 static int32_t
-webapi_post_property_json(WEBAPI_INST_T *inst, const char *property, const char *json)
+webapi_post_property_json(WEBAPI_INST_T *inst, const char *property, const char *body)
 {
     WEBAPI_PROP_T *prop;
+    char value_str[WEBAPI_GET_BUFFER_MAX];
     int32_t res;
-    int count = 0;
 
-    if (!inst || !property || !property[0] || !json) {
+    if (!inst || !property || !property[0] || !body) {
         return E_PARM;
     }
 
@@ -960,32 +1019,69 @@ webapi_post_property_json(WEBAPI_INST_T *inst, const char *property, const char 
         return E_NOTFOUND;
     }
 
-    res = webapi_json_object_foreach(json, webapi_post_property_json_cb, prop, &count);
+    res = webapi_json_value_to_cstr(prop, body, value_str, sizeof(value_str));
     if (res < 0) {
         return res;
     }
 
-    if (count != 1) {
+    return webapi_prop_set_from_cstr(prop, value_str);
+}
+
+static int32_t
+webapi_invoke_action(WEBAPI_INST_T *inst, const char *property, const char *body, bool is_json)
+{
+    WEBAPI_PROP_T *prop;
+    char value_str[WEBAPI_GET_BUFFER_MAX];
+    const char *value = "true";
+    int32_t res;
+
+    if (!inst || !property || !property[0]) {
         return E_PARM;
     }
 
-    return EOK;
+    prop = webapi_prop_get(inst, property);
+    if (!prop) {
+        return E_NOTFOUND;
+    }
+
+    if (!webapi_prop_is_action(prop)) {
+        return E_PARM;
+    }
+
+    if (body && body[0]) {
+        if (is_json) {
+            res = webapi_json_value_to_cstr(prop, body, value_str, sizeof(value_str));
+            if (res < 0) {
+                return res;
+            }
+            value = value_str;
+        } else {
+            value = body;
+        }
+    }
+
+    return webapi_prop_set_from_cstr(prop, value);
 }
 
 /*
  * is_json == true:
  *   property == NULL  -> bulk update with JSON object
- *   property != NULL  -> single-property update with {"value": ...}
+ *   property != NULL  -> single-property update with raw JSON value
  *
  * is_json == false:
  *   property must be != NULL and body is treated as plain text
+ *
+ * Actions:
+ *   property refers to an action -> invoke action
+ *   empty body is allowed and treated as "true"
  */
 int32_t
 webapi_post(const char *ep, const char *property, const char *body, bool is_json)
 {
     WEBAPI_INST_T *inst;
+    WEBAPI_PROP_T *prop = 0;
 
-    if (!ep || !ep[0] || !body) {
+    if (!ep || !ep[0]) {
         return E_PARM;
     }
 
@@ -995,11 +1091,28 @@ webapi_post(const char *ep, const char *property, const char *body, bool is_json
     }
 
     if (property && property[0]) {
+        prop = webapi_prop_get(inst, property);
+        if (!prop) {
+            return E_NOTFOUND;
+        }
+
+        if (webapi_prop_is_action(prop)) {
+            return webapi_invoke_action(inst, property, body, is_json);
+        }
+
+        if (!body) {
+            return E_PARM;
+        }
+
         if (is_json) {
             return webapi_post_property_json(inst, property, body);
         } else {
             return webapi_post_property_text(inst, property, body);
         }
+    }
+
+    if (!body) {
+        return E_PARM;
     }
 
     if (!is_json) {

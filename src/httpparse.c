@@ -334,53 +334,85 @@ strnicmp(const char *pStr1, const char *pStr2, size_t Count)
 char*
 httpparse_headers(char* data, int len, HTTP_HEADER_T* headers, int count)
 {
-    //int result  ;
-    int i ;
+    int i;
     char *last, *next, *content = 0;
 
-    DBG_MESSAGE_HTTP_PARSE (DBG_MESSAGE_SEVERITY_DEBUG, "-->> httpparse_headers") ;
+    DBG_MESSAGE_HTTP_PARSE(DBG_MESSAGE_SEVERITY_DEBUG, "-->> httpparse_headers");
 
 #define header_isspace(c) ((c) == ' ' || (c) == '\t')
 
     if (data) {
+        next = data;
 
-        next = data ;
+        while (len > 0) {
+            char *colon = 0;
 
-        while (len>0) {
-            last = next ;
-            next = strnchr (last, '\r', len)  ;
-            if (!next) { break ; }
-            *next++ = '\0' ;
-            if (*next++ != '\n') break ;
-            if ((next - last)<=2) {
-                content = next ;
-                DBG_MESSAGE_HTTP_PARSE (DBG_MESSAGE_SEVERITY_INFO,
-                        "httpparse_response : content at offset %d\r\n",
-                        next - data);
-                break ;
+            last = next;
+            next = strnchr(last, '\r', len);
+            if (!next) { break; }
+
+            *next++ = '\0';
+            if (*next++ != '\n') { break; }
+
+            if (*last == '\0') {
+                content = next;
+                DBG_MESSAGE_HTTP_PARSE(
+                    DBG_MESSAGE_SEVERITY_INFO,
+                    "httpparse_headers : content at offset %d\r\n",
+                    (int)(next - data));
+                break;
             }
-            for (i = 0; i<count; i++) {
-                if (headers[i].key && !headers[i].value && strnicmp(headers[i].key, last, strlen(headers[i].key)) == 0) {
-                    headers[i].value = strnchr (last, ':', next - last)  ;
-                    if (headers[i].value) {
-                        headers[i].value++ ;
-                        while (header_isspace(*headers[i].value)) { headers[i].value++ ; }
-                        DBG_MESSAGE_HTTP_PARSE (DBG_MESSAGE_SEVERITY_INFO,
-                            "httpparse_response : header %s = %s\r\n",
-                            headers[i].key, headers[i].value);
-                    }
 
+            /* Print every header line, even if we are not searching for it */
+            colon = strchr(last, ':');
+            if (colon) {
+                char *value;
+
+                *colon = '\0';
+                value = colon + 1;
+                while (header_isspace(*value)) { value++; }
+
+                DBG_MESSAGE_HTTP_PARSE(
+                    DBG_MESSAGE_SEVERITY_INFO,
+                    "httpparse_headers : header %s = %s\r\n",
+                    last,
+                    value);
+
+                *colon = ':';   /* restore for later matching */
+            } else {
+                DBG_MESSAGE_HTTP_PARSE(
+                    DBG_MESSAGE_SEVERITY_INFO,
+                    "httpparse_headers : malformed header line = %s\r\n",
+                    last);
+            }
+
+            for (i = 0; i < count; i++) {
+                if (headers[i].key && !headers[i].value) {
+                    size_t keylen = strlen(headers[i].key);
+
+                    if (strnicmp(headers[i].key, last, keylen) == 0 &&
+                        last[keylen] == ':')
+                    {
+                        headers[i].value = last + keylen + 1;
+                        while (header_isspace(*headers[i].value)) {
+                            headers[i].value++;
+                        }
+
+                        DBG_MESSAGE_HTTP_PARSE(
+                            DBG_MESSAGE_SEVERITY_INFO,
+                            "httpparse_headers : matched %s = %s\r\n",
+                            headers[i].key,
+                            headers[i].value);
+                    }
                 }
             }
-            len -= next - last ;
 
+            len -= (int)(next - last);
         }
-
     }
 
-    return content ;
+    return content;
 }
-
 
 /**
  * @brief   Parse a HTTP response header and return a pointer to the start of the content.
@@ -537,8 +569,11 @@ httpparse_content (char* data, int len, HTTP_HEADER_T* headers, int count, char*
                         if (*content) (*content)++ ;
                     }
                 }
-                DBG_MESSAGE_HTTP_PARSE (DBG_MESSAGE_SEVERITY_INFO,
-                    "httpparse_content : for chunked %d", chunk_length) ;
+                if (chunk_length < 0) {
+                    DBG_MESSAGE_HTTP_PARSE (DBG_MESSAGE_SEVERITY_WARNING,
+                        "httpparse_content : for chunked %d", chunk_length) ;
+
+                }                    
                 break ;
             }
         }
