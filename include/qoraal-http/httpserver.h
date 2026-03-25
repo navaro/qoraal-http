@@ -102,7 +102,7 @@
 #define HTTP_SERVER_CONTENT_TYPE_IMAGE                      "image/png"
 #define HTTP_SERVER_CONTENT_TYPE_ICON                       "image/x-icon"
 #define HTTP_SERVER_CONTENT_TYPE_EVENT_STREAM               "text/event-stream"
-/** @} }
+/** @} */
 
 /**
  * @name    Content Types
@@ -160,6 +160,18 @@
 /* Client data structures and types.                                         */
 /*===========================================================================*/
 /**
+ * @brief Shared HTTP content reader state.
+ */
+typedef struct HTTP_READ_S {
+    char*                   payload ;
+    uint32_t                payload_length ;
+    int32_t                 content_length ;
+    int32_t                 chunked ;
+    int32_t                 chunk_complete ;
+    int32_t                 chunk_left ;
+} HTTP_READ_T ;
+
+/**
  * @brief User Instance.
  */
 typedef struct HTTP_USER_S {
@@ -177,14 +189,9 @@ typedef struct HTTP_USER_S {
 
     char*                   endpoint ;
 
-    char*                   payload ;
-    uint32_t                payload_length ;
-    int32_t                 content_length ;
+    HTTP_READ_T             reader ;
 
     char*                   content ;
-    int32_t                 chunked ;
-    int32_t                 chunk_complete ;
-    int32_t                 chunk_left ;
     
 #if !defined(CFG_HTTPSERVER_TLS_DISABLE) || !CFG_HTTPSERVER_TLS_DISABLE
     void*                  ssl ;

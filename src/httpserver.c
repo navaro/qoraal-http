@@ -714,21 +714,21 @@ free_headers (HTTP_USER_T* user)
 static int32_t
 httpserver_buffer_consume(HTTP_USER_T* user, char** buffer, uint32_t len)
 {
-    if (user->payload && user->payload_length) {
-        uint32_t take = user->payload_length;
+    if (user->reader.payload && user->reader.payload_length) {
+        uint32_t take = user->reader.payload_length;
         if (take > len) {
             take = len;
         }
 
         if (buffer) {
-            *buffer = user->payload;
+            *buffer = user->reader.payload;
         }
 
-        user->payload += take;
-        user->payload_length -= take;
+        user->reader.payload += take;
+        user->reader.payload_length -= take;
 
-        if (user->payload_length == 0) {
-            user->payload = 0;
+        if (user->reader.payload_length == 0) {
+            user->reader.payload = 0;
         }
 
         return (int32_t)take;
@@ -806,11 +806,11 @@ httpserver_read_chunked_content_ex(HTTP_USER_T* user, uint32_t timeout, char** r
         *request = 0;
     }
 
-    if (user->chunk_complete) {
+    if (user->reader.chunk_complete) {
         return 0;
     }
 
-    while (user->chunk_left == 0) {
+    while (user->reader.chunk_left == 0) {
         unsigned long chunk_size;
         char* endptr;
         char* semi;
@@ -838,16 +838,16 @@ httpserver_read_chunked_content_ex(HTTP_USER_T* user, uint32_t timeout, char** r
                 }
             } while (received > 0);
 
-            user->chunk_complete = 1;
+            user->reader.chunk_complete = 1;
             return 0;
         }
 
-        user->chunk_left = (uint32_t)chunk_size;
+        user->reader.chunk_left = (uint32_t)chunk_size;
         break;
     }
 
-    if (user->chunk_left) {
-        uint32_t want = user->chunk_left;
+    if (user->reader.chunk_left) {
+        uint32_t want = user->reader.chunk_left;
         if (want > HTTP_SERVER_MAX_XMIT_CONTENT_LENGTH) {
             want = HTTP_SERVER_MAX_XMIT_CONTENT_LENGTH;
         }
@@ -857,9 +857,9 @@ httpserver_read_chunked_content_ex(HTTP_USER_T* user, uint32_t timeout, char** r
             return received;
         }
 
-        user->chunk_left -= (uint32_t)received;
+        user->reader.chunk_left -= (uint32_t)received;
 
-        if (user->chunk_left == 0) {
+        if (user->reader.chunk_left == 0) {
             char crlf[2];
             int32_t newline = httpserver_read_exact(user, timeout, crlf, 2);
             if (newline <= 0) {
@@ -971,9 +971,9 @@ httpserver_read_request_ex (HTTP_USER_T* user, uint32_t timeout, char** endpoint
     }
 
     if (user->headers[2].value && (strncmp(user->headers[2].value, "chunked", 7) == 0)) {
-        user->chunked = 1 ;
+        user->reader.chunked = 1 ;
     } else {
-        user->chunked = 0 ;
+        user->reader.chunked = 0 ;
     }
 
     if (pendpoint) {
@@ -989,22 +989,22 @@ httpserver_read_request_ex (HTTP_USER_T* user, uint32_t timeout, char** endpoint
 
     }
 
-    user->payload = 0 ;
-    user->payload_length = 0 ;
+    user->reader.payload = 0 ;
+    user->reader.payload_length = 0 ;
     user->content = 0 ;
-    user->content_length = 0 ;
-    user->chunk_complete = 0 ;
-    user->chunk_left = 0 ;
+    user->reader.content_length = 0 ;
+    user->reader.chunk_complete = 0 ;
+    user->reader.chunk_left = 0 ;
 
     alloc_headers (user) ;
     if (content) {
 
         int left = offset - (content - user->rw_buffer) ;
 
-        if (user->chunked) {
+        if (user->reader.chunked) {
             if (left > 0) {
-                user->payload = content ;
-                user->payload_length = (uint32_t)left ;
+                user->reader.payload = content ;
+                user->reader.payload_length = (uint32_t)left ;
             }
             return 0 ;
         }
@@ -1017,8 +1017,8 @@ httpserver_read_request_ex (HTTP_USER_T* user, uint32_t timeout, char** endpoint
                 left = offset - (payload - user->rw_buffer) ;
 
                 if (left) {
-                    user->payload = payload ;
-                    user->payload_length = (uint32_t)left ;
+                    user->reader.payload = payload ;
+                    user->reader.payload_length = (uint32_t)left ;
 
                 }
 
@@ -1026,7 +1026,7 @@ httpserver_read_request_ex (HTTP_USER_T* user, uint32_t timeout, char** endpoint
 
     }
 
-    user->content_length = content_length ;
+    user->reader.content_length = content_length ;
     return content_length ;
 }
 
@@ -1101,22 +1101,22 @@ httpserver_read_content_ex (HTTP_USER_T* user, uint32_t timeout, char** request)
 {
     int32_t received ;
 
-    if (user->chunked) {
+    if (user->reader.chunked) {
         return httpserver_read_chunked_content_ex(user, timeout, request);
     }
 
-    if (user->payload) {
-        if (request) *request = user->payload ;
-        user->payload = 0 ;
-        received = user->payload_length ;
-        user->payload_length = 0 ;
-        user->content_length -= received ;
+    if (user->reader.payload) {
+        if (request) *request = user->reader.payload ;
+        user->reader.payload = 0 ;
+        received = user->reader.payload_length ;
+        user->reader.payload_length = 0 ;
+        user->reader.content_length -= received ;
         return received ;
 
     }
 
     if (request) *request = 0 ;
-    if (user->content_length <= 0) {
+    if (user->reader.content_length <= 0) {
         return 0 ;
 
     }
@@ -1130,7 +1130,7 @@ httpserver_read_content_ex (HTTP_USER_T* user, uint32_t timeout, char** request)
 
     }
 
-    user->content_length -= received ;
+    user->reader.content_length -= received ;
     if (request) *request = user->rw_buffer ;
     return received ;
 }
@@ -1164,7 +1164,7 @@ httpserver_read_all_content_ex (HTTP_USER_T* user, uint32_t timeout, char** requ
         *request = 0 ;
     }
 
-    if (user->chunked) {
+    if (user->reader.chunked) {
         char* content = 0 ;
 
         while ((recvlen = httpserver_read_content_ex(user, timeout, &buffer)) > 0) {
@@ -1204,7 +1204,7 @@ httpserver_read_all_content_ex (HTTP_USER_T* user, uint32_t timeout, char** requ
     }
 
     {
-    uint32_t content_length = user->content_length ;
+    uint32_t content_length = user->reader.content_length ;
 
     if (content_length) {
             user->content = HTTP_SERVER_MALLOC (content_length+1) ;
@@ -1619,7 +1619,7 @@ httpserver_free_request (HTTP_USER_T* user)
     if (user->rw_buffer) {
         HTTP_SERVER_FREE(user->rw_buffer) ;
         user->rw_buffer = 0 ;
-        if ((uint32_t)user->content_length > user->payload_length ) {
+        if ((uint32_t)user->reader.content_length > user->reader.payload_length ) {
             DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_LOG,
                 "HTTPD : : httpserver_free_request : POST payload not read!");
             status = HTTP_SERVER_E_ERROR ;
@@ -1634,12 +1634,12 @@ httpserver_free_request (HTTP_USER_T* user)
 
     }
 
-    user->content_length = 0 ;
-    user->payload = 0 ;
-    user->payload_length = 0 ;
-    user->chunked = 0 ;
-    user->chunk_complete = 0 ;
-    user->chunk_left = 0 ;
+    user->reader.content_length = 0 ;
+    user->reader.payload = 0 ;
+    user->reader.payload_length = 0 ;
+    user->reader.chunked = 0 ;
+    user->reader.chunk_complete = 0 ;
+    user->reader.chunk_left = 0 ;
 
     if (user->endpoint) {
         HTTP_SERVER_FREE (user->endpoint) ;

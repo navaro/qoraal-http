@@ -345,7 +345,6 @@ httpparse_headers(char* data, int len, HTTP_HEADER_T* headers, int count)
         next = data;
 
         while (len > 0) {
-            char *colon = 0;
 
             last = next;
             next = strnchr(last, '\r', len);
@@ -364,7 +363,8 @@ httpparse_headers(char* data, int len, HTTP_HEADER_T* headers, int count)
             }
 
             /* Print every header line, even if we are not searching for it */
-            colon = strchr(last, ':');
+#ifdef HTTP_PARSE_DEBUG            
+            char *colon = strchr(last, ':');
             if (colon) {
                 char *value;
 
@@ -385,7 +385,7 @@ httpparse_headers(char* data, int len, HTTP_HEADER_T* headers, int count)
                     "httpparse_headers : malformed header line = %s\r\n",
                     last);
             }
-
+#endif
             for (i = 0; i < count; i++) {
                 if (headers[i].key && !headers[i].value) {
                     size_t keylen = strlen(headers[i].key);
