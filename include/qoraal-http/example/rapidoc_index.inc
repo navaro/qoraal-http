@@ -23,7 +23,7 @@ static const char rapidoc_index_html[] =
 "</head>\n"
 "<body>\n"
 "  <rapi-doc\n"
-"    spec-url=\"/reg/openapi.json\"\n"
+"    spec-url=\"/api/v1/openapi.json\"\n"
 "    theme=\"dark\"\n"
 "    render-style=\"read\"\n"
 "    show-header=\"true\"\n"
