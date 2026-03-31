@@ -1031,7 +1031,7 @@ httpclient_read_response (HTTP_CLIENT_T* client, uint32_t timeout, char** respon
     if (content) {
 
         unsigned int left = offset - (content - header) ;
-        content_length = httpparse_content(content, left, headers, sizeof(headers)/sizeof(headers[0]), &payload, 0) ;
+        content_length = httpparse_content(content, left, headers, sizeof(headers)/sizeof(headers[0]), &payload) ;
 
         if (content_length) {
 

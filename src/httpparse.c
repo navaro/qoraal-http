@@ -30,6 +30,8 @@
 #include "qoraal-http/httpparse.h"
 
 
+// #define HTTP_PARSE_DEBUG
+
 typedef struct HTTP_METHOD_S {
     uint16_t        type ;
     uint16_t        len ;
@@ -381,7 +383,7 @@ httpparse_headers(char* data, int len, HTTP_HEADER_T* headers, int count)
                 *colon = ':';   /* restore for later matching */
             } else {
                 DBG_MESSAGE_HTTP_PARSE(
-                    DBG_MESSAGE_SEVERITY_INFO,
+                    DBG_MESSAGE_SEVERITY_LOG,
                     "httpparse_headers : malformed header line = %s\r\n",
                     last);
             }
@@ -550,7 +552,7 @@ httpparse_request(char* data, int len, HTTP_HEADER_T* headers, int count, char**
  * @http
  */
 uint32_t
-httpparse_content (char* data, int len, HTTP_HEADER_T* headers, int count, char** content, int32_t *content_length)
+httpparse_content (char* data, int len, HTTP_HEADER_T* headers, int count, char** content)
 {
     int32_t i ;
     uint32_t chunk_length = 0 ;
@@ -558,7 +560,6 @@ httpparse_content (char* data, int len, HTTP_HEADER_T* headers, int count, char*
 
     DBG_MESSAGE_HTTP_PARSE (DBG_MESSAGE_SEVERITY_DEBUG, "-->>httpparse_content") ;
 
-    if (content_length) *content_length = 0 ;
     *content = 0 ;
     for (i=0; i<count; i++) {
         if (headers[i].value && (strcmp(headers[i].key, HTTP_HEADER_KEY_TRANSFER_ENCODING) == 0)) {
@@ -586,14 +587,13 @@ httpparse_content (char* data, int len, HTTP_HEADER_T* headers, int count, char*
                 }
             }
             DBG_MESSAGE_HTTP_PARSE (DBG_MESSAGE_SEVERITY_INFO,
-                "httpparse_content : content length %d", *content_length) ;
+                "httpparse_content : content length %d", length) ;
                 break ;
             break ;
         }
     }
 
     if (!chunk_length) {
-        if (content_length) *content_length = length ;
         return length ;
     }
 

@@ -119,7 +119,7 @@ extern "C" {
     extern char*    httpparse_headers(char* data, int len, HTTP_HEADER_T* headers, int count) ;
     extern int32_t  httpparse_response(char* data, int len, HTTP_HEADER_T* headers, int headers_count, char** content) ;
     extern int32_t  httpparse_request(char* data, int len, HTTP_HEADER_T* headers, int count, char** endpoint, char** content) ;
-    extern uint32_t  httpparse_content(char* data, int len, HTTP_HEADER_T* headers, int headers_count, char** content, int32_t *content_length) ;
+    extern uint32_t  httpparse_content(char* data, int len, HTTP_HEADER_T* headers, int headers_count, char** content) ;
 
     extern  int32_t httpparse_append_headers (char* data, int len, const HTTP_HEADER_T* headers, int headers_count, int last) ;
     extern char*    httpparse_get_multipart_separator ( const HTTP_HEADER_T* headers, int headers_count) ;

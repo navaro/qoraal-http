@@ -146,6 +146,8 @@ typedef struct WSERVER_HANDLER_S    {
         {0, 0, ctrl, handler, ep, sizeof(ep) - 1, flags, access},
 #define WSERVER_HANDLER(ep, handler, access, flags) \
         {0, 0, 0, handler, ep, sizeof(ep) - 1, flags, access},
+#define WSERVER_HANDLER_N(ep, eplen, handler, access, flags) \
+        {0, 0, 0, handler, ep, eplen, flags, access},        
 #define WSERVER_HANDLERS_END() \
         {0, 0, 0, 0, 0, 0, 0, 0} } ;
 

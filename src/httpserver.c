@@ -1010,7 +1010,7 @@ httpserver_read_request_ex (HTTP_USER_T* user, uint32_t timeout, char** endpoint
         }
 
         content_length = httpparse_content(content, left, user->headers,
-                    sizeof(user->headers)/sizeof(user->headers[0]), &payload, 0) ;
+                    sizeof(user->headers)/sizeof(user->headers[0]), &payload) ;
 
         if (content_length) {
 
