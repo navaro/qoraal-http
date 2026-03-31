@@ -102,6 +102,7 @@
 #define HTTP_SERVER_CONTENT_TYPE_IMAGE                      "image/png"
 #define HTTP_SERVER_CONTENT_TYPE_ICON                       "image/x-icon"
 #define HTTP_SERVER_CONTENT_TYPE_EVENT_STREAM               "text/event-stream"
+#define HTTP_SERVER_CONTENT_TYPE_OCTET_STREAM               "application/octet-stream"
 /** @} */
 
 /**
