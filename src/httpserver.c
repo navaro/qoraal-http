@@ -1409,6 +1409,13 @@ _chunked_flush(HTTP_USER_T* user)
         user->rw_buffer[user->write_idx++] = '\n' ;
 
         bytes = httpserver_write (user, (unsigned char*)user->rw_buffer, user->write_idx) ;
+
+        if (bytes <= 0) {
+            DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_LOG,
+                "HTTPD : : chunk flush failed rc=%d buffered=%d payload=%d socket=%d",
+                bytes, user->write_idx, user->send_bytes, user->socket);
+        }
+
         user->write_idx = 0 ;
         user->send_bytes = 0 ;
 
@@ -1478,15 +1485,20 @@ httpserver_chunked_vappend_fmtstr (HTTP_USER_T* user, const char* format_str,  v
     }
     if (user->write_idx &&
             (user->write_idx + req > HTTP_SERVER_MAX_CHUNK_LENGTH - 8)) {
-            _chunked_flush (user) ;
+        int32_t flush_rc = _chunked_flush (user) ;
+        if (flush_rc < 0) {
+            DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_LOG,
+                "httpserver_chunked_vappend_fmtstr : preflush failed rc=%d", flush_rc);
+            return flush_rc;
+        }
     }
     char * buffer ;
     req = _chunked_alloc (user, req, &buffer) ;
 
     if (req <= 0) {
         DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_LOG, 
-                "httpserver_chunked_vappend_fmtstr : memory  %d", req);
-        return HTTP_SERVER_E_LENGTH;
+                "httpserver_chunked_vappend_fmtstr : chunk alloc/flush failed rc=%d", req);
+        return req;
 
     }
 
@@ -1529,8 +1541,7 @@ httpserver_chunked_append_str (HTTP_USER_T* user, const char* str, uint32_t len)
 
         if (req <= 0) {
             DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_LOG,
-                "HTTPD : : httpserver_chunked_append_str : memory  %d", req);
-            req = HTTP_SERVER_E_LENGTH;
+                "HTTPD : : httpserver_chunked_append_str : chunk alloc/flush failed rc=%d", req);
             break ;
 
         }
