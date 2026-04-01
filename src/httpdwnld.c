@@ -382,7 +382,7 @@ httpdwnld_fs_download_cb (int32_t status, uint8_t * buffer, uint32_t len, uintpt
 
         if (fs->path && !fs->opened) {
             qfs_file_t *f = NULL;
-            int rc = qfs_open(&f, fs->path, 0);
+            int rc = qfs_open(&f, fs->path, QFS_OPEN_READ);
             if (rc == 0) {
                 fs->file   = f ;
                 fs->opened = 1 ;
