@@ -221,8 +221,8 @@ httpclient_connect (HTTP_CLIENT_T* client, const struct sockaddr_in* addr, void 
 
     status = connect (client->socket, (const struct sockaddr *) addr, sizeof(struct sockaddr_in));
     if (status != 0) {
-        DBG_MESSAGE_HTTP_CLIENT (DBG_MESSAGE_SEVERITY_WARNING,
-                    "HTTP  :W: t_connect to %s:%d failed %d!",
+        DBG_MESSAGE_HTTP_CLIENT (DBG_MESSAGE_SEVERITY_REPORT,
+                    "HTTP  : : Connect to %s:%d failed %d!",
                     client->host,(int)ntohs((uint16_t)addr->sin_port), status);
         closesocket(client->socket);
         return HTTP_CLIENT_E_CONNECTION ;
