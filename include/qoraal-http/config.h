@@ -34,7 +34,7 @@
     Threadsize for incomming http connection
 */
 #if !defined(CFG_WSERVER_USER_THREAD_SIZE)
-#define CFG_WSERVER_USER_THREAD_SIZE    3840
+#define CFG_WSERVER_USER_THREAD_SIZE    4032
 #endif
 
 /*
