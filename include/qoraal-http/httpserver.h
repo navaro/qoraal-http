@@ -219,6 +219,7 @@ extern int32_t      httpserver_select (int server_sock, uint32_t timeout) ;
 extern int32_t      httpserver_user_accept (int server_sock, HTTP_USER_T* user, uint32_t timeout) ;
 extern int32_t      httpserver_user_ssl_accept (HTTP_USER_T* user, uint32_t timeout, void * ssl_config) ;
 extern int32_t      httpserver_user_select (HTTP_USER_T* user, uint32_t timeout) ;
+extern int32_t      httpserver_is_connected (HTTP_USER_T* user) ;
 extern int32_t      httpserver_user_close (HTTP_USER_T* user) ;
 
 extern int32_t      httpserver_read_request_ex (HTTP_USER_T* user, uint32_t timeout, char** endpoint, int32_t* method) ;

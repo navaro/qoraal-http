@@ -47,9 +47,12 @@ static void
 logger_cb (void* channel, LOGGER_TYPE_T type, uint8_t facility, const char* msg)
 {
     HTTP_USER_T *user = (HTTP_USER_T *) ((LOGGER_CHANNEL_T*)channel)->user ;
-    if (user && msg && strlen(msg)) {
+    if (user && httpserver_is_connected(user) && msg && strlen(msg)) {
         httpserver_chunked_append_fmtstr (user, "data: %s\n\n", msg) ;
-        httpserver_chunked_flush (user) ;
+        int32_t res = httpserver_chunked_flush (user) ;
+        if (res < 0) {
+        	httpserver_user_close (user) ;
+        }
     }
 }
 
@@ -170,8 +173,12 @@ wrtlog_handler(HTTP_USER_T *user, uint32_t method, char* endpoint)
             httpserver_wait_close (user, 900000) ; // keep the socket open for 15 minutes from our side
             svc_logger_channel_remove (&log_channel) ;
 
-            return httpserver_chunked_complete (user) ;
+            if (!httpserver_is_connected(user)) {
+                return HTTP_SERVER_E_CONNECTION ;
+                
+            }
 
+            return httpserver_chunked_complete (user) ;
         }
 
     } else {

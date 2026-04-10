@@ -468,6 +468,37 @@ httpserver_user_ssl_accept (HTTP_USER_T* user, uint32_t timeout, void * ssl_conf
 }
 
 /**
+ * @brief   httpserver_is_connected
+ * @details Simply do a _t_select() with 0 timeout to see if the socket was closed..
+ *
+ * @param[in] user
+ *
+ * @return                              1 if the connection is valid, zero otherwise.
+ *
+ * @http
+ */
+int32_t
+httpserver_is_connected (HTTP_USER_T* user)
+{
+     fd_set   fdread;
+    struct timeval tv;
+
+    if (user->socket < 0) {
+        return 0 ;
+    }
+    FD_ZERO(&fdread) ;
+    FD_SET(user->socket, &fdread);
+    tv.tv_sec = 0 ;
+    tv.tv_usec = 0 ;
+
+    if (select(user->socket+1, &fdread, 0, 0, &tv) < 0) {
+        return 0 ;
+    }
+
+    return 1 ;
+}
+
+/**
  * @brief   httpserver_user_close
  * @details Close a user's connection and release resources.
  *
