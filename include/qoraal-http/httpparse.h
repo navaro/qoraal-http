@@ -107,6 +107,7 @@ extern "C" {
 
     extern char *   memstr(char *haystack, char *needle, int size) ;
 
+    /* dstlen is the full destination buffer size including the terminator. */
     extern void     urldecode(char *dst, const char *src, uint32_t dstlen) ;
     extern int      urlencode( char *pstr, char * buf, int len ) ;
     extern int      htmlencode( char *pstr, char * buf, int len ) ;

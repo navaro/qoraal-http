@@ -86,7 +86,7 @@ wshell_handler_result (HTTP_USER_T *user, uint32_t method, char* endpoint)
 
             if ((strcmp(last, "script") == 0) && next) {
                 dst = next;
-                urldecode (dst, next, 0) ;
+                urldecode (dst, next, (uint32_t)(strlen(next) + 1U)) ;
 
                 run = true ;
                 break ;
