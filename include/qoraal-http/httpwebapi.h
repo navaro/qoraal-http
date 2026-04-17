@@ -96,15 +96,24 @@ typedef enum {
     PROPERTY_TYPE_INTEGER,
     PROPERTY_TYPE_BOOLEAN,
     PROPERTY_TYPE_ACTION,
+    PROPERTY_TYPE_ENUM,
 } WEBAPI_PROP_TYPE;
+
+typedef struct WEBAPI_ENUM_INFO_S {
+    const char *enum_type_name;  /* Enum type name (e.g., "wifi_band") */
+    const char **names;          /* Array of enum names (e.g., ["b", "a", "ab"]) */
+    const int32_t *values;       /* Array of enum values (e.g., [0, 1, 2]) */
+    uint8_t count;               /* Length of names and values arrays */
+} WEBAPI_ENUM_INFO_T;
 
 typedef struct WEBAPI_PROP_S {
     const char * name;  // Property name (e.g., "state")
-    WEBAPI_PROP_TYPE type;  // Data type of the property (string, integer, boolean)
+    WEBAPI_PROP_TYPE type;  // Data type of the property (string, integer, boolean, enum)
     const char * description;  // Description for Swagger documentation
+    WEBAPI_ENUM_INFO_T *enum_info;  // Enum metadata (NULL if not PROPERTY_TYPE_ENUM)
     int32_t (*add_callback)(void*, struct WEBAPI_PROP_S*);  // Callback function when added/initialized to an instance (optional)
-    int32_t (*get_callback)(void*, struct WEBAPI_PROP_S*);  // Callback function for GET requests
-    int32_t (*set_callback)(void*, struct WEBAPI_PROP_S*);  // Callback function for POST/PUT requests
+    int32_t (*get_callback)(void*, struct WEBAPI_PROP_S*);  // Callback function for GET requests (returns string for enum)
+    int32_t (*set_callback)(void*, struct WEBAPI_PROP_S*);  // Callback function for POST/PUT requests (receives string for enum)
     uintptr_t arg;
     struct WEBAPI_PROP_S* next;  // Pointer to next property (for linked list structure)
 } WEBAPI_PROP_T;
@@ -114,6 +123,20 @@ typedef struct WEBAPI_PROP_S {
         prop_, \
         type_, \
         description_, \
+        0, \
+        add_, \
+        get_, \
+        set_, \
+        arg_, \
+        0                                                   \
+    }
+
+#define WEBAPI_PROP_ENUM_DECL(name, prop_, description_, enum_info_, add_, get_, set_, arg_) \
+    WEBAPI_PROP_T  name = {                                 \
+        prop_, \
+        PROPERTY_TYPE_ENUM, \
+        description_, \
+        enum_info_, \
         add_, \
         get_, \
         set_, \
@@ -136,10 +159,6 @@ extern "C" {
     int32_t webapi_inst_add(WEBAPI_INST_T * inst) ;
     int32_t webapi_add_property(WEBAPI_INST_T *inst, WEBAPI_PROP_T *prop) ;
     bool webapi_ep_available(const char * ep) ;
-
-/* Existing YAML support */
-    char* webapi_swagger_yaml(void)  ;
-    void webapi_swagger_yaml_free(char * buffer) ;
 
 /* New: OpenAPI JSON support for browser tooling */
 char * webapi_openapi_json(void);
