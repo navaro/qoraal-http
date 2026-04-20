@@ -28,6 +28,7 @@
 #include <stdbool.h>
 #include "qoraal/qoraal.h"
 #include "qoraal/common/lists.h"
+#include "qoraal/common/types.h"
 
 #define DBG_MESSAGE_HTTPWEBSERVICE(severity, fmt_str, ...) \
     DBG_MESSAGE_T_LOG(SVC_LOGGER_TYPE(severity,0), 0, fmt_str, ##__VA_ARGS__)
@@ -99,18 +100,13 @@ typedef enum {
     PROPERTY_TYPE_ENUM,
 } WEBAPI_PROP_TYPE;
 
-typedef struct WEBAPI_ENUM_INFO_S {
-    const char *enum_type_name;  /* Enum type name (e.g., "wifi_band") */
-    const char **names;          /* Array of enum names (e.g., ["b", "a", "ab"]) */
-    const int32_t *values;       /* Array of enum values (e.g., [0, 1, 2]) */
-    uint8_t count;               /* Length of names and values arrays */
-} WEBAPI_ENUM_INFO_T;
+typedef QORAAL_ENUM_TYPE_T WEBAPI_ENUM_INFO_T;
 
 typedef struct WEBAPI_PROP_S {
     const char * name;  // Property name (e.g., "state")
     WEBAPI_PROP_TYPE type;  // Data type of the property (string, integer, boolean, enum)
     const char * description;  // Description for Swagger documentation
-    WEBAPI_ENUM_INFO_T *enum_info;  // Enum metadata (NULL if not PROPERTY_TYPE_ENUM)
+    const WEBAPI_ENUM_INFO_T *enum_info;  // Enum metadata (NULL if not PROPERTY_TYPE_ENUM)
     int32_t (*add_callback)(void*, struct WEBAPI_PROP_S*);  // Callback function when added/initialized to an instance (optional)
     int32_t (*get_callback)(void*, struct WEBAPI_PROP_S*);  // Callback function for GET requests (returns string for enum)
     int32_t (*set_callback)(void*, struct WEBAPI_PROP_S*);  // Callback function for POST/PUT requests (receives string for enum)
@@ -168,7 +164,7 @@ void webapi_openapi_json_free(char * buffer);
     char * webapi_generate_simple_response(const char *ep, const char *property, bool is_json) ;
     void webapi_simple_response_free(char *buffer) ;
 
-/* New WoT */
+/* New WoT (https://playground.thingweb.io) */
     char * webapi_wot_json(const char * uri) ;
     void webapi_wot_json_free(char * buffer) ;
 
@@ -178,4 +174,4 @@ void webapi_openapi_json_free(char * buffer);
 }
 #endif
 
-#endif /* __HTTPWWEBSERVICE_H__ */
+#endif /* __HTTPWEBAPI_H__ */

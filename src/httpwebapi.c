@@ -104,25 +104,25 @@ static const char * webapi_openapi_type_to_string(WEBAPI_PROP_TYPE type)
            (type == PROPERTY_TYPE_ENUM) ? "string" : "boolean";
 }
 
-static size_t webapi_emit_enum_schema(struct json_out *out, WEBAPI_ENUM_INFO_T *enum_info)
+static size_t webapi_emit_enum_schema(struct json_out *out, const WEBAPI_ENUM_INFO_T *enum_info)
 {
     size_t total_length = 0;
     int i;
 
-    if (!enum_info || !enum_info->names || enum_info->count == 0) {
+    if (!enum_info || !enum_info->values || enum_info->count == 0) {
         return 0;
     }
 
     total_length += json_printf(out, ",enum:[");
     for (i = 0; i < (int)enum_info->count; i++) {
         if (i > 0) total_length += json_printf(out, ",");
-        total_length += json_printf(out, "%Q", enum_info->names[i]);
+        total_length += json_printf(out, "%Q", enum_info->values[i].name);
     }
     total_length += json_printf(out, "]");
     total_length += json_printf(out, ",%Q:{", "x-enum-int-map");
     for (i = 0; i < (int)enum_info->count; i++) {
         if (i > 0) total_length += json_printf(out, ",");
-        total_length += json_printf(out, "%Q:%d", enum_info->names[i], enum_info->values[i]);
+        total_length += json_printf(out, "%Q:%d", enum_info->values[i].name, enum_info->values[i].value);
     }
     total_length += json_printf(out, "}");
 
