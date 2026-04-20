@@ -170,23 +170,6 @@ wwebapi_handler(HTTP_USER_T *user, uint32_t method, char* endpoint)
 
     if (method == HTTP_HEADER_METHOD_GET) {
 
-
-        if ((strcmp(cmd[0], "docs") == 0) || (strcmp(cmd[0], "swagger") == 0)) {
-
-            char * buffer = webapi_swagger_yaml () ;
-
-            if (!buffer) {
-                return httpserver_write_response (user, WSERVER_RESP_CODE_500, HTTP_SERVER_CONTENT_TYPE_HTML,
-                    0, 0, WSERVER_RESP_CONTENT_500, strlen(WSERVER_RESP_CONTENT_500)) ;
-
-            }
-
-            res = httpserver_write_response (user, 200, HTTP_SERVER_CONTENT_TYPE_YAML,
-                    0, 0, buffer, strlen (buffer)) ;
-            webapi_swagger_yaml_free (buffer) ;
-            return  res ; 
-
-        } 
         
         if ((strcmp(cmd[0], "openapi.json") == 0) || (strcmp(cmd[0], "openapi") == 0)) {
 
