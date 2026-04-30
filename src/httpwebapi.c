@@ -29,38 +29,105 @@
 #include <string.h>
 #include <ctype.h>
 #include "qoraal/qoraal.h"
-#include "qoraal/common/lists.h"
 #include "qoraal-http/qoraal.h"
 #include "qoraal-http/httpwebapi.h"
 #include "qoraal-http/json/jsmn_tools.h"
 #include "qoraal-http/json/frozen.h"
 
 
-static linked_t _webapi_inst_list ;
+static QORAAL_MODEL_T *_webapi_model ;
 static QORAAL_HEAP _webapi_heap = QORAAL_HeapAuxiliary ;
 static const char * _webapi_root = "api" ;
 
 int32_t webapi_init (const char * root, QORAAL_HEAP heap)
 {
-    _webapi_root = root ;
-    _webapi_heap = heap ;
-    linked_init (&_webapi_inst_list) ;
+    _webapi_root = root ? root : "api" ;
+    _webapi_heap = heap ? heap : QORAAL_HeapAuxiliary ;
+    _webapi_model = 0 ;
     return EOK ;
 }
 
-int32_t webapi_inst_add (WEBAPI_INST_T * inst)
+static size_t
+webapi_inst_count(void)
 {
-    linked_init (&inst->props_list) ;
-    linked_add_tail (&_webapi_inst_list, inst, OFFSETOF(WEBAPI_INST_T, next)) ;
-    return EOK ;
+    if (_webapi_model && _webapi_model->instances) {
+        return _webapi_model->instances_count;
+    }
+
+    return 0;
 }
 
-WEBAPI_INST_T *  webapi_inst_get (const char * ep)
+static QORAAL_INST_T *
+webapi_inst_at(size_t index)
 {
-    WEBAPI_INST_T* current = linked_head(&_webapi_inst_list);
-    while (current != NULL) {
+    if (_webapi_model && _webapi_model->instances) {
+        if (index < _webapi_model->instances_count) {
+            return &_webapi_model->instances[index];
+        }
+    }
+
+    return 0;
+}
+
+static int32_t
+webapi_model_add_callbacks(QORAAL_INST_T *inst)
+{
+    size_t i;
+    int32_t res;
+
+    if (!inst || !inst->props) {
+        return EOK;
+    }
+
+    for (i = 0; i < inst->props_count; i++) {
+        if (inst->props[i].add_callback) {
+            res = inst->props[i].add_callback(inst, &inst->props[i]);
+            if (res < EOK) {
+                return res;
+            }
+        }
+    }
+
+    return EOK;
+}
+
+int32_t webapi_model_set(QORAAL_MODEL_T *model)
+{
+    size_t i;
+    int32_t res;
+
+    if (!model || !model->instances || (model->instances_count == 0)) {
+        return E_PARM;
+    }
+
+    _webapi_model = model;
+
+    if (model->root && model->root[0]) {
+        _webapi_root = model->root;
+    }
+
+    for (i = 0; i < model->instances_count; i++) {
+        res = webapi_model_add_callbacks(&model->instances[i]);
+        if (res < EOK) {
+            return res;
+        }
+    }
+
+    return EOK;
+}
+
+static QORAAL_INST_T *  webapi_inst_get (const char * ep)
+{
+    size_t i;
+    QORAAL_INST_T* current;
+
+    if (!ep) {
+        return 0;
+    }
+
+    for (i = 0; i < webapi_inst_count(); i++) {
+        current = webapi_inst_at(i);
         if (strcmp(ep, current->ep) == 0) return current ;
-        current = linked_next(current, OFFSETOF(WEBAPI_INST_T, next));
     }
 
     return 0 ;
@@ -71,40 +138,29 @@ bool webapi_ep_available(const char * ep)
     return webapi_inst_get (ep) ? true : false ;
 }
 
-int32_t webapi_add_property(WEBAPI_INST_T *inst, WEBAPI_PROP_T *prop)
+static bool webapi_prop_is_action(QORAAL_PROP_T *prop)
 {
-    linked_add_tail(&inst->props_list, prop, OFFSETOF(WEBAPI_PROP_T, next));
-
-    if (prop->add_callback) {
-        return prop->add_callback(inst, prop);
-    }
-
-    return EOK;
+    return prop && prop->type == QORAAL_PROP_ACTION;
 }
 
-static bool webapi_prop_is_action(WEBAPI_PROP_T *prop)
+static const char * webapi_type_to_string(QORAAL_PROP_TYPE_T type)
 {
-    return prop && prop->type == PROPERTY_TYPE_ACTION;
+    return (type == QORAAL_PROP_STRING) ? "string" :
+           (type == QORAAL_PROP_INTEGER) ? "integer" :
+           (type == QORAAL_PROP_BOOLEAN) ? "boolean" :
+           (type == QORAAL_PROP_ENUM) ? "string" : "action";
 }
 
-static const char * webapi_type_to_string(WEBAPI_PROP_TYPE type)
+/* For OpenAPI / model side, actions are exposed as write-only booleans */
+static const char * webapi_openapi_type_to_string(QORAAL_PROP_TYPE_T type)
 {
-    return (type == PROPERTY_TYPE_STRING) ? "string" :
-           (type == PROPERTY_TYPE_INTEGER) ? "integer" :
-           (type == PROPERTY_TYPE_BOOLEAN) ? "boolean" :
-           (type == PROPERTY_TYPE_ENUM) ? "string" : "action";
+    return (type == QORAAL_PROP_STRING) ? "string" :
+           (type == QORAAL_PROP_INTEGER) ? "integer" :
+           (type == QORAAL_PROP_BOOLEAN) ? "boolean" :
+           (type == QORAAL_PROP_ENUM) ? "string" : "boolean";
 }
 
-/* For OpenAPI / legacy side, actions are exposed as write-only booleans */
-static const char * webapi_openapi_type_to_string(WEBAPI_PROP_TYPE type)
-{
-    return (type == PROPERTY_TYPE_STRING) ? "string" :
-           (type == PROPERTY_TYPE_INTEGER) ? "integer" :
-           (type == PROPERTY_TYPE_BOOLEAN) ? "boolean" :
-           (type == PROPERTY_TYPE_ENUM) ? "string" : "boolean";
-}
-
-static size_t webapi_emit_enum_schema(struct json_out *out, const WEBAPI_ENUM_INFO_T *enum_info)
+static size_t webapi_emit_enum_schema(struct json_out *out, const QORAAL_PROP_ENUM_INFO_T *enum_info)
 {
     size_t total_length = 0;
     int i;
@@ -129,21 +185,25 @@ static size_t webapi_emit_enum_schema(struct json_out *out, const WEBAPI_ENUM_IN
     return total_length;
 }
 
-static bool webapi_inst_has_writable_props(WEBAPI_INST_T *inst)
+static bool webapi_inst_has_writable_props(QORAAL_INST_T *inst)
 {
-    WEBAPI_PROP_T* current = (WEBAPI_PROP_T*) linked_head(&inst->props_list);
-    while (current != NULL) {
-        if (current->set_callback != NULL) {
+    size_t i;
+
+    if (!inst || !inst->props) {
+        return false;
+    }
+
+    for (i = 0; i < inst->props_count; i++) {
+        if (inst->props[i].set_callback != NULL) {
             return true ;
         }
-        current = linked_next(current, OFFSETOF(WEBAPI_PROP_T, next));
     }
 
     return false ;
 }
 
 static const char *
-webapi_inst_tag(WEBAPI_INST_T *inst)
+webapi_inst_tag(QORAAL_INST_T *inst)
 {
     if (inst && inst->tag && inst->tag[0]) {
         return inst->tag;
@@ -155,7 +215,7 @@ webapi_inst_tag(WEBAPI_INST_T *inst)
 }
 
 static const char *
-webapi_inst_get_summary(WEBAPI_INST_T *inst)
+webapi_inst_get_summary(QORAAL_INST_T *inst)
 {
     if (inst && inst->get_summary && inst->get_summary[0]) {
         return inst->get_summary;
@@ -167,7 +227,7 @@ webapi_inst_get_summary(WEBAPI_INST_T *inst)
 }
 
 static const char *
-webapi_inst_post_summary(WEBAPI_INST_T *inst)
+webapi_inst_post_summary(QORAAL_INST_T *inst)
 {
     if (inst && inst->post_summary && inst->post_summary[0]) {
         return inst->post_summary;
@@ -208,9 +268,12 @@ static size_t generate_openapi_json(struct json_out *out) {
         "Device Control API",
         "1.0");
 
-    WEBAPI_INST_T* inst = (WEBAPI_INST_T*) linked_head(&_webapi_inst_list);
-    while (inst != NULL) {
+    size_t inst_idx;
+
+    for (inst_idx = 0; inst_idx < webapi_inst_count(); inst_idx++) {
+        QORAAL_INST_T* inst = webapi_inst_at(inst_idx);
         char path[128];
+        size_t prop_idx;
 
         if (!first_inst) {
             total_length += json_printf(out, ",");
@@ -240,10 +303,11 @@ static size_t generate_openapi_json(struct json_out *out) {
             "application/json",
             "object");
 
-        WEBAPI_PROP_T* current = (WEBAPI_PROP_T*) linked_head(&inst->props_list);
         bool first_prop = true;
 
-        while (current != NULL) {
+        for (prop_idx = 0; prop_idx < inst->props_count; prop_idx++) {
+            QORAAL_PROP_T* current = &inst->props[prop_idx];
+
             if (!webapi_prop_is_action(current)) {
                 if (!first_prop) {
                     total_length += json_printf(out, ",");
@@ -258,7 +322,7 @@ static size_t generate_openapi_json(struct json_out *out) {
                     webapi_openapi_type_to_string(current->type),
                     current->description ? current->description : "");
 
-                if (current->type == PROPERTY_TYPE_ENUM && current->enum_info) {
+                if (current->type == QORAAL_PROP_ENUM && current->enum_info) {
                     total_length += webapi_emit_enum_schema(out, current->enum_info);
                 }
 
@@ -268,8 +332,6 @@ static size_t generate_openapi_json(struct json_out *out) {
 
                 total_length += json_printf(out, "}");
             }
-
-            current = linked_next(current, OFFSETOF(WEBAPI_PROP_T, next));
         }
 
         total_length += json_printf(out,
@@ -299,10 +361,11 @@ static size_t generate_openapi_json(struct json_out *out) {
               "application/json",
               "object");
 
-            current = (WEBAPI_PROP_T*) linked_head(&inst->props_list);
             first_prop = true;
 
-            while (current != NULL) {
+            for (prop_idx = 0; prop_idx < inst->props_count; prop_idx++) {
+                QORAAL_PROP_T* current = &inst->props[prop_idx];
+
                 if (current->set_callback != NULL) {
                     if (!first_prop) {
                         total_length += json_printf(out, ",");
@@ -317,7 +380,7 @@ static size_t generate_openapi_json(struct json_out *out) {
                         webapi_openapi_type_to_string(current->type),
                         current->description ? current->description : "");
 
-                    if (current->type == PROPERTY_TYPE_ENUM && current->enum_info) {
+                    if (current->type == QORAAL_PROP_ENUM && current->enum_info) {
                         total_length += webapi_emit_enum_schema(out, current->enum_info);
                     }
 
@@ -327,8 +390,6 @@ static size_t generate_openapi_json(struct json_out *out) {
 
                     total_length += json_printf(out, "}");
                 }
-
-                current = linked_next(current, OFFSETOF(WEBAPI_PROP_T, next));
             }
 
             total_length += json_printf(out,
@@ -348,8 +409,6 @@ static size_t generate_openapi_json(struct json_out *out) {
         }
 
         total_length += json_printf(out, "}");
-
-        inst = linked_next(inst, OFFSETOF(WEBAPI_INST_T, next));
     }
 
     total_length += json_printf(out, "}}");
@@ -382,6 +441,7 @@ static size_t generate_wot_json(struct json_out *out, const char * uri) {
     size_t total_length = 0;
     bool first_property = true;
     bool first_action = true;
+    size_t inst_idx;
 
     total_length += json_printf(out, "%s", "{");
     total_length += json_printf(out, "%s", "\"@context\":");
@@ -394,11 +454,12 @@ static size_t generate_wot_json(struct json_out *out, const char * uri) {
     total_length += json_printf(out, "%s", ",\"security\":[\"nosec_sc\"]");
     total_length += json_printf(out, "%s", ",\"properties\":{");
 
-    WEBAPI_INST_T* inst = (WEBAPI_INST_T*) linked_head(&_webapi_inst_list);
-    while (inst != NULL) {
-        WEBAPI_PROP_T* current = (WEBAPI_PROP_T*) linked_head(&inst->props_list);
+    for (inst_idx = 0; inst_idx < webapi_inst_count(); inst_idx++) {
+        QORAAL_INST_T* inst = webapi_inst_at(inst_idx);
+        size_t prop_idx;
 
-        while (current != NULL) {
+        for (prop_idx = 0; prop_idx < inst->props_count; prop_idx++) {
+            QORAAL_PROP_T* current = &inst->props[prop_idx];
             char href[192];
 
             if (!webapi_prop_is_action(current)) {
@@ -420,7 +481,7 @@ static size_t generate_wot_json(struct json_out *out, const char * uri) {
                 total_length += json_printf(out, ",readOnly:%B", 
                     current->set_callback == NULL);
 
-                if (current->type == PROPERTY_TYPE_ENUM && current->enum_info) {
+                if (current->type == QORAAL_PROP_ENUM && current->enum_info) {
                     total_length += webapi_emit_enum_schema(out, current->enum_info);
                 }
 
@@ -442,20 +503,17 @@ static size_t generate_wot_json(struct json_out *out, const char * uri) {
                       "}]"
                     "}");
             }
-
-            current = linked_next(current, OFFSETOF(WEBAPI_PROP_T, next));
         }
-
-        inst = linked_next(inst, OFFSETOF(WEBAPI_INST_T, next));
     }
 
     total_length += json_printf(out, "%s", "},\"actions\":{");
 
-    inst = (WEBAPI_INST_T*) linked_head(&_webapi_inst_list);
-    while (inst != NULL) {
-        WEBAPI_PROP_T* current = (WEBAPI_PROP_T*) linked_head(&inst->props_list);
+    for (inst_idx = 0; inst_idx < webapi_inst_count(); inst_idx++) {
+        QORAAL_INST_T* inst = webapi_inst_at(inst_idx);
+        size_t prop_idx;
 
-        while (current != NULL) {
+        for (prop_idx = 0; prop_idx < inst->props_count; prop_idx++) {
+            QORAAL_PROP_T* current = &inst->props[prop_idx];
             char href[192];
 
             if (webapi_prop_is_action(current)) {
@@ -481,11 +539,7 @@ static size_t generate_wot_json(struct json_out *out, const char * uri) {
                     "application/json",
                     "invokeaction");
             }
-
-            current = linked_next(current, OFFSETOF(WEBAPI_PROP_T, next));
         }
-
-        inst = linked_next(inst, OFFSETOF(WEBAPI_INST_T, next));
     }
 
     total_length += json_printf(out, "}}");
@@ -514,32 +568,36 @@ void webapi_wot_json_free(char * buffer)
     qoraal_free(_webapi_heap, buffer);
 }
 
-static WEBAPI_PROP_T *
-webapi_prop_get(WEBAPI_INST_T *inst, const char *name)
+static QORAAL_PROP_T *
+webapi_prop_get(QORAAL_INST_T *inst, const char *name)
 {
-    WEBAPI_PROP_T *prop;
+    QORAAL_PROP_T *prop;
+    size_t i;
 
     if (!inst || !name || !name[0]) {
         return 0;
     }
 
-    prop = (WEBAPI_PROP_T *) linked_head(&inst->props_list);
-    while (prop != NULL) {
+    if (!inst->props) {
+        return 0;
+    }
+
+    for (i = 0; i < inst->props_count; i++) {
+        prop = &inst->props[i];
         if (strcmp(prop->name, name) == 0) {
             return prop;
         }
-        prop = linked_next(prop, OFFSETOF(WEBAPI_PROP_T, next));
     }
 
     return 0;
 }
 
 static size_t
-webapi_print_prop_value(WEBAPI_PROP_T *prop, struct json_out *out, bool is_json)
+webapi_print_prop_value(QORAAL_PROP_T *prop, struct json_out *out, bool is_json)
 {
     int32_t res = EFAIL;
     size_t total_length = 0;
-    uint32_t get_buffer[WEBAPI_GET_BUFFER_MAX / sizeof(uint32_t)];
+    uint32_t get_buffer[QORAAL_HTTP_API_BUFFER_MAX / sizeof(uint32_t)];
     int int_value;
     bool bool_value;
 
@@ -566,8 +624,8 @@ webapi_print_prop_value(WEBAPI_PROP_T *prop, struct json_out *out, bool is_json)
     }
 
     switch (prop->type) {
-        case PROPERTY_TYPE_STRING:
-        case PROPERTY_TYPE_ENUM:
+        case QORAAL_PROP_STRING:
+        case QORAAL_PROP_ENUM:
             if (is_json) {
                 total_length += json_printf(out, "%Q", (const char *)get_buffer);
             } else {
@@ -575,12 +633,12 @@ webapi_print_prop_value(WEBAPI_PROP_T *prop, struct json_out *out, bool is_json)
             }
             break;
 
-        case PROPERTY_TYPE_INTEGER:
+        case QORAAL_PROP_INTEGER:
             memcpy(&int_value, get_buffer, sizeof(int));
             total_length += json_printf(out, "%d", int_value);
             break;
 
-        case PROPERTY_TYPE_BOOLEAN:
+        case QORAAL_PROP_BOOLEAN:
             memcpy(&bool_value, get_buffer, sizeof(bool));
             if (is_json) {
                 total_length += json_printf(out, "%B", bool_value);
@@ -602,23 +660,24 @@ webapi_print_prop_value(WEBAPI_PROP_T *prop, struct json_out *out, bool is_json)
 }
 
 static size_t
-generate_simple_json(WEBAPI_INST_T *inst, struct json_out *out)
+generate_simple_json(QORAAL_INST_T *inst, struct json_out *out)
 {
     size_t total_length = 0;
     bool first = true;
-    WEBAPI_PROP_T *current;
+    QORAAL_PROP_T *current;
+    size_t i;
 
     total_length += json_printf(out, "{");
 
-    if (!inst) {
+    if (!inst || !inst->props) {
         total_length += json_printf(out, "}");
         return total_length;
     }
 
-    current = (WEBAPI_PROP_T *)linked_head(&inst->props_list);
-    while (current != NULL) {
+    for (i = 0; i < inst->props_count; i++) {
+        current = &inst->props[i];
+
         if (webapi_prop_is_action(current)) {
-            current = linked_next(current, OFFSETOF(WEBAPI_PROP_T, next));
             continue;
         }
 
@@ -629,8 +688,6 @@ generate_simple_json(WEBAPI_INST_T *inst, struct json_out *out)
 
         total_length += json_printf(out, "%Q:", current->name);
         total_length += webapi_print_prop_value(current, out, true);
-
-        current = linked_next(current, OFFSETOF(WEBAPI_PROP_T, next));
     }
 
     total_length += json_printf(out, "}");
@@ -638,13 +695,13 @@ generate_simple_json(WEBAPI_INST_T *inst, struct json_out *out)
 }
 
 static size_t
-generate_simple_property_json(WEBAPI_PROP_T *prop, struct json_out *out)
+generate_simple_property_json(QORAAL_PROP_T *prop, struct json_out *out)
 {
     return webapi_print_prop_value(prop, out, true);
 }
 
 static size_t
-generate_simple_property_text(WEBAPI_PROP_T *prop, struct json_out *out)
+generate_simple_property_text(QORAAL_PROP_T *prop, struct json_out *out)
 {
     return webapi_print_prop_value(prop, out, false);
 }
@@ -652,8 +709,8 @@ generate_simple_property_text(WEBAPI_PROP_T *prop, struct json_out *out)
 char *
 webapi_generate_simple_response(const char *ep, const char *property, bool is_json)
 {
-    WEBAPI_INST_T *inst;
-    WEBAPI_PROP_T *prop = 0;
+    QORAAL_INST_T *inst;
+    QORAAL_PROP_T *prop = 0;
     struct json_out out_size = JSON_OUT_NULL();
     size_t response_length;
     char *buffer;
@@ -714,7 +771,7 @@ webapi_simple_response_free(char *buffer)
 }
 
 static int32_t
-webapi_prop_set_from_cstr(WEBAPI_PROP_T *prop, const char *value)
+webapi_prop_set_from_cstr(QORAAL_PROP_T *prop, const char *value)
 {
     long temp_long;
     char *endptr;
@@ -730,11 +787,11 @@ webapi_prop_set_from_cstr(WEBAPI_PROP_T *prop, const char *value)
     }
 
     switch (prop->type) {
-        case PROPERTY_TYPE_STRING:
-        case PROPERTY_TYPE_ENUM:
+        case QORAAL_PROP_STRING:
+        case QORAAL_PROP_ENUM:
             return prop->set_callback((void *) value, prop);
 
-        case PROPERTY_TYPE_INTEGER:
+        case QORAAL_PROP_INTEGER:
             temp_long = strtol(value, &endptr, 10);
             if ((endptr == value) || (*endptr != '\0')) {
                 return E_PARM;
@@ -742,7 +799,7 @@ webapi_prop_set_from_cstr(WEBAPI_PROP_T *prop, const char *value)
             temp_int = (int) temp_long;
             return prop->set_callback(&temp_int, prop);
 
-        case PROPERTY_TYPE_BOOLEAN:
+        case QORAAL_PROP_BOOLEAN:
             if ((strcmp(value, "true") == 0) || (strcmp(value, "1") == 0)) {
                 temp_bool = true;
             } else if ((strcmp(value, "false") == 0) || (strcmp(value, "0") == 0)) {
@@ -752,7 +809,7 @@ webapi_prop_set_from_cstr(WEBAPI_PROP_T *prop, const char *value)
             }
             return prop->set_callback(&temp_bool, prop);
 
-        case PROPERTY_TYPE_ACTION:
+        case QORAAL_PROP_ACTION:
             return prop->set_callback((void *) value, prop);
 
         default:
@@ -809,8 +866,8 @@ webapi_json_object_foreach(const char *json, webapi_json_kv_cb_t cb, void *arg, 
     val = key ? (key + 1) : NULL;
 
     while (key && val) {
-        char key_str[WEBAPI_GET_BUFFER_MAX];
-        char val_str[WEBAPI_GET_BUFFER_MAX];
+        char key_str[QORAAL_HTTP_API_BUFFER_MAX];
+        char val_str[QORAAL_HTTP_API_BUFFER_MAX];
 
         if ((key->type != JSMN_STRING) ||
             ((val->type != JSMN_STRING) && (val->type != JSMN_PRIMITIVE))) {
@@ -842,9 +899,9 @@ webapi_json_object_foreach(const char *json, webapi_json_kv_cb_t cb, void *arg, 
 }
 
 static int32_t
-webapi_post_property_text(WEBAPI_INST_T *inst, const char *property, const char *body)
+webapi_post_property_text(QORAAL_INST_T *inst, const char *property, const char *body)
 {
-    WEBAPI_PROP_T *prop;
+    QORAAL_PROP_T *prop;
 
     if (!inst || !property || !property[0] || !body) {
         return E_PARM;
@@ -861,8 +918,8 @@ webapi_post_property_text(WEBAPI_INST_T *inst, const char *property, const char 
 static int32_t
 webapi_post_bulk_json_cb(const char *key, const char *value, void *arg)
 {
-    WEBAPI_INST_T *inst = (WEBAPI_INST_T *) arg;
-    WEBAPI_PROP_T *prop;
+    QORAAL_INST_T *inst = (QORAAL_INST_T *) arg;
+    QORAAL_PROP_T *prop;
 
     if (!inst) {
         return E_PARM;
@@ -877,7 +934,7 @@ webapi_post_bulk_json_cb(const char *key, const char *value, void *arg)
 }
 
 static int32_t
-webapi_post_bulk_json(WEBAPI_INST_T *inst, const char *json)
+webapi_post_bulk_json(QORAAL_INST_T *inst, const char *json)
 {
     if (!inst || !json) {
         return E_PARM;
@@ -897,7 +954,7 @@ webapi_post_bulk_json(WEBAPI_INST_T *inst, const char *json)
 }
 
 static int32_t
-webapi_json_value_to_cstr(WEBAPI_PROP_T *prop, const char *body, char *out, size_t out_len)
+webapi_json_value_to_cstr(QORAAL_PROP_T *prop, const char *body, char *out, size_t out_len)
 {
     size_t len;
 
@@ -907,7 +964,7 @@ webapi_json_value_to_cstr(WEBAPI_PROP_T *prop, const char *body, char *out, size
 
     len = strlen(body);
 
-    if (((prop->type == PROPERTY_TYPE_STRING) || (prop->type == PROPERTY_TYPE_ENUM)) &&
+    if (((prop->type == QORAAL_PROP_STRING) || (prop->type == QORAAL_PROP_ENUM)) &&
         (len >= 2) &&
         (body[0] == '"') &&
         (body[len - 1] == '"')) {
@@ -931,10 +988,10 @@ webapi_json_value_to_cstr(WEBAPI_PROP_T *prop, const char *body, char *out, size
 }
 
 static int32_t
-webapi_post_property_json(WEBAPI_INST_T *inst, const char *property, const char *body)
+webapi_post_property_json(QORAAL_INST_T *inst, const char *property, const char *body)
 {
-    WEBAPI_PROP_T *prop;
-    char value_str[WEBAPI_GET_BUFFER_MAX];
+    QORAAL_PROP_T *prop;
+    char value_str[QORAAL_HTTP_API_BUFFER_MAX];
     int32_t res;
 
     if (!inst || !property || !property[0] || !body) {
@@ -955,10 +1012,10 @@ webapi_post_property_json(WEBAPI_INST_T *inst, const char *property, const char 
 }
 
 static int32_t
-webapi_invoke_action(WEBAPI_INST_T *inst, const char *property, const char *body, bool is_json)
+webapi_invoke_action(QORAAL_INST_T *inst, const char *property, const char *body, bool is_json)
 {
-    WEBAPI_PROP_T *prop;
-    char value_str[WEBAPI_GET_BUFFER_MAX];
+    QORAAL_PROP_T *prop;
+    char value_str[QORAAL_HTTP_API_BUFFER_MAX];
     const char *value = "true";
     int32_t res;
 
@@ -1005,8 +1062,8 @@ webapi_invoke_action(WEBAPI_INST_T *inst, const char *property, const char *body
 int32_t
 webapi_post(const char *ep, const char *property, const char *body, bool is_json)
 {
-    WEBAPI_INST_T *inst;
-    WEBAPI_PROP_T *prop = 0;
+    QORAAL_INST_T *inst;
+    QORAAL_PROP_T *prop = 0;
 
     if (!ep || !ep[0]) {
         return E_PARM;
