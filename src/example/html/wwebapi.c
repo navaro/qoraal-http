@@ -35,7 +35,7 @@ static bool _upgrade_init = false ;
 
 static const char  status_fail[] =              "{ \"status\": \"fail\" }" ;
 
-static char _upgrade_url[WEBAPI_GET_BUFFER_MAX] = "https://navaro.nl/upgrade.php" ;
+static char _upgrade_url[QORAAL_HTTP_API_BUFFER_MAX] = "https://navaro.nl/upgrade.php" ;
 static bool _upgrade_start = false ;
 
 
@@ -48,33 +48,33 @@ static bool _upgrade_start = false ;
 /*===========================================================================*/
 
 static int32_t
-upgrade_start_get(void* val, struct WEBAPI_PROP_S* prop)
+upgrade_start_get(void* val, QORAAL_PROP_T * prop)
 {
     *(bool*)val = _upgrade_start ;
     return sizeof(bool) ;
 }
 
 static int32_t
-upgrade_start_set(void* val, struct WEBAPI_PROP_S* prop)
+upgrade_start_set(void* val, QORAAL_PROP_T * prop)
 {
 	_upgrade_start = *(bool*)val ;
     return sizeof(bool) ;
 }
 
 static int32_t
-upgrade_url_get(void* val, struct WEBAPI_PROP_S* prop)
+upgrade_url_get(void* val, QORAAL_PROP_T * prop)
 {
-    return snprintf ((char*)val, WEBAPI_GET_BUFFER_MAX, "%s", _upgrade_url) ;
+    return snprintf ((char*)val, QORAAL_HTTP_API_BUFFER_MAX, "%s", _upgrade_url) ;
 }
 
 static int32_t
-upgrade_url_set(void* val, struct WEBAPI_PROP_S* prop)
+upgrade_url_set(void* val, QORAAL_PROP_T * prop)
 {
-    return snprintf (_upgrade_url, WEBAPI_GET_BUFFER_MAX, "%s", (const char*)val) ;
+    return snprintf (_upgrade_url, QORAAL_HTTP_API_BUFFER_MAX, "%s", (const char*)val) ;
 }
 
 static int32_t
-upgrade_status_get(void* val, struct WEBAPI_PROP_S* prop)
+upgrade_status_get(void* val, QORAAL_PROP_T * prop)
 {
     int32_t status = 0 ;
     *(int32_t*)val = status ;
@@ -82,20 +82,27 @@ upgrade_status_get(void* val, struct WEBAPI_PROP_S* prop)
 }
 
 static int32_t
-upgrade_version_get(void* val, struct WEBAPI_PROP_S* prop)
+upgrade_version_get(void* val, QORAAL_PROP_T * prop)
 {
-    snprintf ((char*)val, WEBAPI_GET_BUFFER_MAX - 1,
+    snprintf ((char*)val, QORAAL_HTTP_API_BUFFER_MAX - 1,
         "%d.%d.%d", 1, 0, 0) ;
  
     return strlen (val) ;
 }
 
 
-static WEBAPI_INST_DECL(_wupgrade_api, "UPGRADE API", "1.0", "upgrade");
-static WEBAPI_PROP_DECL(_wupgrade_prop_start, "start", PROPERTY_TYPE_BOOLEAN, "start upgrade", 0, upgrade_start_get, upgrade_start_set, 0) ;
-static WEBAPI_PROP_DECL(_wupgrade_prop_url, "url", PROPERTY_TYPE_STRING, "upgrade-config url", 0, upgrade_url_get, upgrade_url_set, 0) ;
-static WEBAPI_PROP_DECL(_wupgrade_prop_status, "status", PROPERTY_TYPE_INTEGER, "system status", 0, upgrade_status_get, 0, 0) ;
-static WEBAPI_PROP_DECL(_wupgrade_prop_version, "version", PROPERTY_TYPE_STRING, "current version", 0, upgrade_version_get, 0, 0) ;
+static QORAAL_PROP_T _wupgrade_props[] = {
+    QORAAL_PROP_INIT("version", QORAAL_PROP_STRING,  "current version",    0, upgrade_version_get, 0, 0),
+    QORAAL_PROP_INIT("url",     QORAAL_PROP_STRING,  "upgrade-config url", 0, upgrade_url_get, upgrade_url_set, 0),
+    QORAAL_PROP_INIT("start",   QORAAL_PROP_BOOLEAN, "start upgrade",      0, upgrade_start_get, upgrade_start_set, 0),
+    QORAAL_PROP_INIT("status",  QORAAL_PROP_INTEGER, "system status",      0, upgrade_status_get, 0, 0)
+};
+
+static QORAAL_INST_T _wupgrade_instances[] = {
+    QORAAL_INST_INIT("UPGRADE API", "1.0", "upgrade", "Upgrade", "Upgrade API", "Read upgrade status", "Update upgrade settings", _wupgrade_props)
+};
+
+static QORAAL_MODEL_T _wupgrade_model = QORAAL_MODEL_INIT("webapi", _wupgrade_instances);
 
 
 /*===========================================================================*/
@@ -142,12 +149,8 @@ wwebapi_handler(HTTP_USER_T *user, uint32_t method, char* endpoint)
 
     if (!_upgrade_init) {
         _upgrade_init = true ;
-        webapi_init ("webapi", QORAAL_HeapAuxiliary) ;
-        webapi_inst_add (&_wupgrade_api) ;
-        webapi_add_property (&_wupgrade_api, &_wupgrade_prop_version) ;
-        webapi_add_property (&_wupgrade_api, &_wupgrade_prop_url) ;
-        webapi_add_property (&_wupgrade_api, &_wupgrade_prop_start) ;
-        webapi_add_property (&_wupgrade_api, &_wupgrade_prop_status) ;
+        webapi_init (_wupgrade_model.root, QORAAL_HeapAuxiliary) ;
+        webapi_model_set (&_wupgrade_model) ;
 
     }
 

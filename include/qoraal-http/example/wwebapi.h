@@ -22,8 +22,8 @@
  */
 
 
-#ifndef __WWEBAPI_H__
-#define __WWEBAPI_H__
+#ifndef __QORAAL_HTTP_EXAMPLE_WWEB_H__
+#define __QORAAL_HTTP_EXAMPLE_WWEB_H__
 
 
 #include <stdint.h>
@@ -56,5 +56,4 @@ const char*     wwebapi_metadata (HTTP_USER_T *user, uint32_t method, char* endp
 }
 #endif
 
-#endif /* __WWEBAPI_H__ */
-
+#endif /* __QORAAL_HTTP_EXAMPLE_WWEB_H__ */
