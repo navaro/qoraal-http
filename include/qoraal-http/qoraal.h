@@ -29,13 +29,16 @@
 #include <string.h>
 #include "config.h"
 
+#ifndef __has_include
+#define __has_include(x) 0
+#endif
 
 #ifdef _WIN32
     #include <winsock2.h>
     #include <ws2tcpip.h>
     #pragma comment(lib, "ws2_32.lib")
     typedef int socklen_t;
-#elif defined(CONFIG_ZEPHYR)
+#elif defined(__ZEPHYR__)
     #include <zephyr/kernel.h>
     #include <zephyr/net/socket.h>
     #include <zephyr/net/net_ip.h>
