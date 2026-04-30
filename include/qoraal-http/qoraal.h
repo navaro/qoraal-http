@@ -38,7 +38,7 @@
     #include <ws2tcpip.h>
     #pragma comment(lib, "ws2_32.lib")
     typedef int socklen_t;
-#elif defined(__ZEPHYR__)
+#elif 0 // defined(CONFIG_ZEPHYR)
     #include <zephyr/kernel.h>
     #include <zephyr/net/socket.h>
     #include <zephyr/net/net_ip.h>
