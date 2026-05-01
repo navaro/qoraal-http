@@ -36,6 +36,10 @@ zephyr_library_sources_ifdef(CONFIG_QORAAL_HTTP
 
 )
 
+# Pull in mbedTLS interface include directories/defines for sources that
+# include <mbedtls/...> headers.
+zephyr_library_link_libraries_ifdef(CONFIG_MBEDTLS mbedTLS)
+
 # Optional compile defs (keep minimal for now)
 zephyr_compile_definitions(
     CFG_OS_ZEPHYR=1

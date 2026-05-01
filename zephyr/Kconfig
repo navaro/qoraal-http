@@ -6,10 +6,12 @@ config QORAAL_HTTP
 
 config QORAAL_HTTP_SERVER_TLS
     bool "Enable http server"
+    select MBEDTLS
     default y
 
 config QORAAL_HTTP_CLIENT_TLS
     bool "Enable http client"
+    select MBEDTLS
     default y
 
 
