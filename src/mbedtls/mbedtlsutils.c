@@ -57,9 +57,11 @@
 /* local variables.                                                    */
 /*===========================================================================*/
 
+#if !defined(MBEDTLS_USE_PSA_CRYPTO)
 static mbedtls_entropy_context          _ssl_entropy;
 static mbedtls_ctr_drbg_context         _ssl_ctr_drbg;
 static mbedtls_ctr_drbg_context   *     _ssl_ctr_drbg_inst = 0;
+#endif
 #if defined(MBEDTLS_SSL_CACHE_C)
 static mbedtls_ssl_cache_context        _ssl_cache;
 #endif
@@ -224,6 +226,7 @@ mbedtlsutils_start (mbedtls_ctr_drbg_context   * ctr_drbg_context)
             mbedtls_free_cb ) ;
 #endif
 
+#if !defined(MBEDTLS_USE_PSA_CRYPTO)
     if (ctr_drbg_context == 0) {
         mbedtls_entropy_init( &_ssl_entropy );
         mbedtls_entropy_add_source( &_ssl_entropy, mbedtls_hw_entropy_poll, NULL,
@@ -253,6 +256,7 @@ mbedtlsutils_start (mbedtls_ctr_drbg_context   * ctr_drbg_context)
         ctr_drbg_context = &_ssl_ctr_drbg ;
     }
     _ssl_ctr_drbg_inst = ctr_drbg_context ;
+#endif
 
 #if defined(MBEDTLS_SSL_CACHE_C)
     mbedtls_ssl_cache_init( &_ssl_cache );
