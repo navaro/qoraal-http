@@ -918,8 +918,7 @@ webapi_post_property_text(QORAAL_INST_T *inst, const char *property, const char 
     return webapi_prop_set_from_cstr(prop, body);
 }
 
-static int32_t
-typedef struct {
+typedef struct  {
     QORAAL_INST_T *inst;
     bool actions_only;
 } webapi_post_bulk_json_ctx_t;
