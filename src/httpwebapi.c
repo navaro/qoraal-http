@@ -953,7 +953,17 @@ webapi_post_bulk_json(QORAAL_INST_T *inst, const char *json)
     webapi_post_bulk_json_ctx_t ctx = { inst, false };
     int count = 0;
 
-    /* Pass 1: apply all non-ACTION properties first so registry values are
+    /* Two-pass processing ensures correct ordering: data properties are always
+     * committed to the registry before any ACTION callback fires, regardless
+     * of the key order in the incoming JSON body.
+     *
+     * NOTE: ACTION callbacks here are non-blocking , so the response is sent 
+     * normally after this function returns.  If an action would disrupt the 
+     * connection before the response is sent (e.g. reboot, firmware-swap, 
+     * WiFi reconfiguration),  it must NOT be executed here.  Instead, 
+     * schedule it for after the response.
+     *
+     * Pass 1: apply all non-ACTION properties first so registry values are
      * committed before any action callback (e.g. start) reads them. */
     int res = webapi_json_object_foreach(json, webapi_post_bulk_json_cb, &ctx, &count);
     if (res < 0) {
