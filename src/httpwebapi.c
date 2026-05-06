@@ -875,8 +875,11 @@ webapi_json_object_foreach(const char *json, webapi_json_kv_cb_t cb, void *arg, 
             break;
         }
 
-        jsmn_copy_str(json, key, key_str, sizeof(key_str));
-        jsmn_copy_str(json, val, val_str, sizeof(val_str));
+        if (jsmn_copy_str(json, key, key_str, sizeof(key_str)) >= (int)sizeof(key_str) ||
+            jsmn_copy_str(json, val, val_str, sizeof(val_str)) >= (int)sizeof(val_str)) {
+            res = E_PARM;
+            break;
+        }
 
         res = cb(key_str, val_str, arg);
         if (res < 0) {
