@@ -916,18 +916,28 @@ webapi_post_property_text(QORAAL_INST_T *inst, const char *property, const char 
 }
 
 static int32_t
+typedef struct {
+    QORAAL_INST_T *inst;
+    bool actions_only;
+} webapi_post_bulk_json_ctx_t;
+
+static int32_t
 webapi_post_bulk_json_cb(const char *key, const char *value, void *arg)
 {
-    QORAAL_INST_T *inst = (QORAAL_INST_T *) arg;
+    webapi_post_bulk_json_ctx_t *ctx = (webapi_post_bulk_json_ctx_t *) arg;
     QORAAL_PROP_T *prop;
 
-    if (!inst) {
+    if (!ctx || !ctx->inst) {
         return E_PARM;
     }
 
-    prop = webapi_prop_get(inst, key);
+    prop = webapi_prop_get(ctx->inst, key);
     if (!prop) {
         return E_NOTFOUND;
+    }
+
+    if (webapi_prop_is_action(prop) != ctx->actions_only) {
+        return EOK;
     }
 
     return webapi_prop_set_from_cstr(prop, value);
@@ -939,14 +949,26 @@ webapi_post_bulk_json(QORAAL_INST_T *inst, const char *json)
     if (!inst || !json) {
         return E_PARM;
     }
+
+    webapi_post_bulk_json_ctx_t ctx = { inst, false };
     int count = 0;
 
-    int res = webapi_json_object_foreach(json, webapi_post_bulk_json_cb, inst, &count);
+    /* Pass 1: apply all non-ACTION properties first so registry values are
+     * committed before any action callback (e.g. start) reads them. */
+    int res = webapi_json_object_foreach(json, webapi_post_bulk_json_cb, &ctx, &count);
     if (res < 0) {
         return res;
     }
 
-    if (count == 0) {
+    /* Pass 2: now trigger any ACTION properties. */
+    ctx.actions_only = true;
+    int action_count = 0;
+    res = webapi_json_object_foreach(json, webapi_post_bulk_json_cb, &ctx, &action_count);
+    if (res < 0) {
+        return res;
+    }
+
+    if ((count + action_count) == 0) {
         return E_PARM;
     }
 
