@@ -936,7 +936,7 @@ webapi_post_bulk_json_cb(const char *key, const char *value, void *arg)
 
     prop = webapi_prop_get(ctx->inst, key);
     if (!prop) {
-        return E_NOTFOUND;
+        return EOK;  /* skip unknown keys for forward compatibility */
     }
 
     if (webapi_prop_is_action(prop) != ctx->actions_only) {
