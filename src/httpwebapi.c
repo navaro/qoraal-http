@@ -38,6 +38,7 @@
 static QORAAL_MODEL_T *_webapi_model ;
 static QORAAL_HEAP _webapi_heap = QORAAL_HeapAuxiliary ;
 static const char * _webapi_root = "api" ;
+static qoraal_enum_resolver_t _enum_resolver = NULL ;
 
 int32_t webapi_init (const char * root, QORAAL_HEAP heap)
 {
@@ -45,6 +46,11 @@ int32_t webapi_init (const char * root, QORAAL_HEAP heap)
     _webapi_heap = heap ? heap : QORAAL_HeapAuxiliary ;
     _webapi_model = 0 ;
     return EOK ;
+}
+
+void webapi_set_enum_resolver(qoraal_enum_resolver_t resolver)
+{
+    _enum_resolver = resolver ;
 }
 
 static size_t
@@ -160,11 +166,26 @@ static const char * webapi_openapi_type_to_string(QORAAL_PROP_TYPE_T type)
            (type == QORAAL_PROP_ENUM) ? "string" : "boolean";
 }
 
-static size_t webapi_emit_enum_schema(struct json_out *out, const QORAAL_PROP_ENUM_INFO_T *enum_info)
+/* Returns false for enum props whose type cannot be resolved; such props are omitted from the schema. */
+static bool webapi_prop_enum_resolvable(QORAAL_PROP_T *prop)
+{
+    if (prop->type != QORAAL_PROP_ENUM) {
+        return true;
+    }
+    return _enum_resolver && prop->enum_name && _enum_resolver(prop->enum_name);
+}
+
+static size_t webapi_emit_enum_schema(struct json_out *out, const char *enum_name)
 {
     size_t total_length = 0;
+    const QORAAL_PROP_ENUM_INFO_T *enum_info;
     int i;
 
+    if (!enum_name || !_enum_resolver) {
+        return 0;
+    }
+
+    enum_info = _enum_resolver(enum_name);
     if (!enum_info || !enum_info->values || enum_info->count == 0) {
         return 0;
     }
@@ -194,7 +215,8 @@ static bool webapi_inst_has_writable_props(QORAAL_INST_T *inst)
     }
 
     for (i = 0; i < inst->props_count; i++) {
-        if (inst->props[i].set_callback != NULL) {
+        if (inst->props[i].set_callback != NULL &&
+            webapi_prop_enum_resolvable(&inst->props[i])) {
             return true ;
         }
     }
@@ -308,7 +330,7 @@ static size_t generate_openapi_json(struct json_out *out) {
         for (prop_idx = 0; prop_idx < inst->props_count; prop_idx++) {
             QORAAL_PROP_T* current = &inst->props[prop_idx];
 
-            if (!webapi_prop_is_action(current)) {
+            if (!webapi_prop_is_action(current) && webapi_prop_enum_resolvable(current)) {
                 if (!first_prop) {
                     total_length += json_printf(out, ",");
                 }
@@ -322,8 +344,8 @@ static size_t generate_openapi_json(struct json_out *out) {
                     webapi_openapi_type_to_string(current->type),
                     current->description ? current->description : "");
 
-                if (current->type == QORAAL_PROP_ENUM && current->enum_info) {
-                    total_length += webapi_emit_enum_schema(out, current->enum_info);
+                if (current->type == QORAAL_PROP_ENUM && current->enum_name) {
+                    total_length += webapi_emit_enum_schema(out, current->enum_name);
                 }
 
                 if (current->set_callback == NULL) {
@@ -366,7 +388,7 @@ static size_t generate_openapi_json(struct json_out *out) {
             for (prop_idx = 0; prop_idx < inst->props_count; prop_idx++) {
                 QORAAL_PROP_T* current = &inst->props[prop_idx];
 
-                if (current->set_callback != NULL) {
+                if (current->set_callback != NULL && webapi_prop_enum_resolvable(current)) {
                     if (!first_prop) {
                         total_length += json_printf(out, ",");
                     }
@@ -380,8 +402,8 @@ static size_t generate_openapi_json(struct json_out *out) {
                         webapi_openapi_type_to_string(current->type),
                         current->description ? current->description : "");
 
-                    if (current->type == QORAAL_PROP_ENUM && current->enum_info) {
-                        total_length += webapi_emit_enum_schema(out, current->enum_info);
+                    if (current->type == QORAAL_PROP_ENUM && current->enum_name) {
+                        total_length += webapi_emit_enum_schema(out, current->enum_name);
                     }
 
                     if (webapi_prop_is_action(current)) {
@@ -462,7 +484,7 @@ static size_t generate_wot_json(struct json_out *out, const char * uri) {
             QORAAL_PROP_T* current = &inst->props[prop_idx];
             char href[192];
 
-            if (!webapi_prop_is_action(current)) {
+            if (!webapi_prop_is_action(current) && webapi_prop_enum_resolvable(current)) {
                 snprintf(href, sizeof(href), "%s/%s/%s", _webapi_root, inst->ep, current->name);
 
                 if (!first_property) {
@@ -481,8 +503,8 @@ static size_t generate_wot_json(struct json_out *out, const char * uri) {
                 total_length += json_printf(out, ",readOnly:%B", 
                     current->set_callback == NULL);
 
-                if (current->type == QORAAL_PROP_ENUM && current->enum_info) {
-                    total_length += webapi_emit_enum_schema(out, current->enum_info);
+                if (current->type == QORAAL_PROP_ENUM && current->enum_name) {
+                    total_length += webapi_emit_enum_schema(out, current->enum_name);
                 }
 
                 total_length += json_printf(out,
