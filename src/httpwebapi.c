@@ -68,7 +68,7 @@ webapi_inst_at(size_t index)
 {
     if (_webapi_model && _webapi_model->instances) {
         if (index < _webapi_model->instances_count) {
-            return &_webapi_model->instances[index];
+            return _webapi_model->instances[index];
         }
     }
 
@@ -113,7 +113,7 @@ int32_t webapi_model_set(QORAAL_MODEL_T *model)
     }
 
     for (i = 0; i < model->instances_count; i++) {
-        res = webapi_model_add_callbacks(&model->instances[i]);
+        res = webapi_model_add_callbacks(model->instances[i]);
         if (res < EOK) {
             return res;
         }

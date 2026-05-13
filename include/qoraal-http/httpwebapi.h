@@ -96,7 +96,7 @@ typedef struct QORAAL_INST_S {
 
 typedef struct QORAAL_MODEL_S {
     const char *root;
-    QORAAL_INST_T *instances;
+    QORAAL_INST_T **instances;
     size_t instances_count;
 } QORAAL_MODEL_T;
 
