@@ -12,7 +12,7 @@
 - **Low Memory Footprint** – Optimized for embedded systems with constrained resources.
 - **Flexible Modular Design** – Framework supports modular development for maintainable and scalable applications.
 
-## Quick Start  
+## Quick Start
 
 The demo application can be compiled using the **POSIX port**, allowing you to evaluate it directly in a **GitHub Codespace** or on your PC! For embedded targets, the following RTOS options are supported: **Zephyr, ThreadX, FreeRTOS, and ChibiOS** (provided you have an IP stack like **LwIP** or **NetX**).
 
@@ -28,23 +28,23 @@ No additional source changes are required beyond including this module in your Z
 
 ⚠️ **Note:** If running in **GitHub Codespaces**, the application will use **port forwarding**. Once the server starts on port 8080, you'll get a browser link for accessing the web interface on that port.
 
-### Running on Windows/Linux/Codespace  
+### Running on Windows/Linux/Codespace
 
-1. Open your development environment and **clone the repository**. If you open a **GitHub Codespace**, the repository is preloaded—just open a terminal (ctrl+`). 
-2. Run the appropriate script based on your OS:  
+1. Open your development environment and **clone the repository**. If you open a **GitHub Codespace**, the repository is preloaded—just open a terminal (ctrl+`).
+2. Run the appropriate script based on your OS:
 
 ```sh
 # For Linux or Codespace or Windows:
-$ make all  
+$ make all
 ```
 
-3. When the application starts, a shell will open in the terminal, displaying **startup logs**. Look for `WSERV : : web server running on port 8080 without SSL!!`. 
+3. When the application starts, a shell will open in the terminal, displaying **startup logs**. Look for `WSERV : : web server running on port 8080 without SSL!!`.
 4. Now you can access the web interface:
    - In a codespace, click on the link for the forwarded port. This should show in the `PORTS` tab of your terminal.
    - On your local PC, use **http://127.0.0.1:8080** (or your build machine’s local IP if running remotely).
 
 
-That’s it—you're up and running! 🚀  
+That’s it—you're up and running! 🚀
 
 
 ## Overview
@@ -64,11 +64,11 @@ This module is optimized for small memory usage, making it well-suited for embed
 
 | Module | TEXT (bytes) | DATA (bytes) |
 |--------|------------|------------|
-| HTTP Parser (Required by all components) | 2074  | 276 | 
+| HTTP Parser (Required by all components) | 2074  | 276 |
 | HTTP Server | 2902  | 190 |
 | HTTP Client | 2764  | 1051 |
-| Multithreaded Webserver (Requires HTTP Server) | 1102 | 307 | 
-| HTTP WebSockets (Requires HTTP Client) | 1136 | 490 | 
+| Multithreaded Webserver (Requires HTTP Server) | 1102 | 307 |
+| HTTP WebSockets (Requires HTTP Client) | 1136 | 490 |
 
  - Compiled for a Cortex M33 using GNU C, optimized for size (-Os).
  - An aditional 4K RAM read/write buffer required per connection (configurable).
@@ -157,7 +157,7 @@ The **Qoraal HTTP Client** makes HTTP requests simple and efficient, designed fo
 #include <stdio.h>
 #include <stdlib.h>
 
-int32_t wget(char * url) 
+int32_t wget(char * url)
 {
     HTTP_CLIENT_T client;
     int32_t status;
@@ -184,7 +184,7 @@ int32_t wget(char * url)
     const char *filename = "index.html" ;
     if (path) {
         filename = strrchr(path, '/');
-        filename = (filename && *(filename + 1)) ? filename + 1 : path; 
+        filename = (filename && *(filename + 1)) ? filename + 1 : path;
     }
 
     // Open file for writing
@@ -209,7 +209,7 @@ int32_t wget(char * url)
     // initialise the client
     httpclient_init (&client, 0) ;
     // for name-based virtual hosting
-    httpclient_set_hostname (&client, host) ; 
+    httpclient_set_hostname (&client, host) ;
     // Connect to the server
     res = httpclient_connect(&client, &addr, https);
     if (res != HTTP_CLIENT_E_OK) {
@@ -250,7 +250,7 @@ int32_t wget(char * url)
     httpclient_close(&client);
 
     printf("Download complete: %s\n", filename);
-    
+
     return res >= EOK ?  res;
 }
 ```
@@ -283,21 +283,16 @@ The **Qoraal WebAPI** takes the pain out of API development. It provides an easy
        QORAAL_PROP_INIT("version", QORAAL_PROP_STRING, "current version", upgrade_version_get, 0, 0),
    };
 
-   static QORAAL_INST_T _wupgrade_inst =
-       QORAAL_INST_INIT("UPGRADE API", "1.0", "upgrade", "Upgrade", "Upgrade API", "Read upgrade status", "Update upgrade settings", _wupgrade_props);
+   static QORAAL_PROP_RESOURCE_T _wupgrade_inst =
+       QORAAL_PROP_RESOURCE_INIT("UPGRADE API", "1.0", "upgrade", "Upgrade", "Upgrade API", "Read upgrade status", "Update upgrade settings", _wupgrade_props);
 
-   static QORAAL_INST_T *_wupgrade_instances[] = {
-       &_wupgrade_inst
-   };
-
-   static QORAAL_MODEL_T _wupgrade_model = QORAAL_MODEL_INIT("webapi", _wupgrade_instances);
    ```
    These get/set functions need to be implemented separately.
-   
+
 2. **Register the API in the Web Server** – Just a few calls to integrate it:
    ```c
-   webapi_init(_wupgrade_model.root, QORAAL_HeapAuxiliary);
-   webapi_model_set(&_wupgrade_model);
+   webapi_init("webapi", QORAAL_HeapAuxiliary);
+   webapi_property_resources_set("webapi", &_wupgrade_inst);
    ```
 3. **Plug It Into the Web Server** – Expose the API via an endpoint:
    ```c
@@ -312,17 +307,17 @@ The **Qoraal WebAPI** takes the pain out of API development. It provides an easy
         if (!json) {
             return httpserver_write_response (user, WSERVER_RESP_CODE_500, HTTP_SERVER_CONTENT_TYPE_HTML,
                 0, 0, WSERVER_RESP_CONTENT_500, strlen(WSERVER_RESP_CONTENT_500)) ;
-    
+
         }
 
         // send the json to the user
         int32_t res = httpserver_write_response (user, 200, HTTP_SERVER_CONTENT_TYPE_JSON,
                 0, 0, json, strlen (json)) ;
-    
+
         webapi_simple_response_free (json) ;
-        return  res ; 
+        return  res ;
     }
-   
+
    int32_t wwebapi_handler(HTTP_USER_T *user, uint32_t method, char* endpoint) {
        if (method == HTTP_HEADER_METHOD_GET) {
            return write_response(user, endpoint);
@@ -330,7 +325,7 @@ The **Qoraal WebAPI** takes the pain out of API development. It provides an easy
            // we received JSON on the post request, update the webapi using webapi_post()
            char *content;
            int32_t len = httpserver_read_all_content_ex(user, 1000, &content);
-           return (len > 0 && webapi_post(endpoint, content) == EOK) ? 
+           return (len > 0 && webapi_post(endpoint, content) == EOK) ?
                    write_response(user, endpoint) : HTTP_SERVER_E_CONTENT;
        }
    }

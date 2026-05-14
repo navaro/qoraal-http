@@ -88,8 +88,7 @@ void
 qoraal_http_keep_webapi(void)
 {
 	webapi_init (0, 0) ;
-	webapi_model_set(0) ;
-	webapi_instances_set(0, 0) ;
+	webapi_property_resources_set(0, 0) ;
 	webapi_ep_available(0) ;
 	webapi_simple_response_free(0) ;
 	webapi_post(0, 0,0,0) ;

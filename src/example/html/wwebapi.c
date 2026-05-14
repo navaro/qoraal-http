@@ -86,7 +86,7 @@ upgrade_version_get(void* val, QORAAL_PROP_T * prop)
 {
     snprintf ((char*)val, QORAAL_HTTP_API_BUFFER_MAX - 1,
         "%d.%d.%d", 1, 0, 0) ;
- 
+
     return strlen (val) ;
 }
 
@@ -98,15 +98,8 @@ static QORAAL_PROP_T _wupgrade_props[] = {
     QORAAL_PROP_INIT("status",  QORAAL_PROP_INTEGER, "system status",      upgrade_status_get, 0, 0)
 };
 
-static QORAAL_INST_T _wupgrade_inst =
-    QORAAL_INST_INIT("UPGRADE API", "1.0", "upgrade", "Upgrade", "Upgrade API", "Read upgrade status", "Update upgrade settings", _wupgrade_props);
-
-static QORAAL_INST_T *_wupgrade_instances[] = {
-    &_wupgrade_inst
-};
-
-static QORAAL_MODEL_T _wupgrade_model = QORAAL_MODEL_INIT("webapi", _wupgrade_instances);
-
+static QORAAL_PROP_RESOURCE_T _wupgrade_inst =
+    QORAAL_PROP_RESOURCE_INIT("UPGRADE API", "1.0", "upgrade", "Upgrade", "Upgrade API", "Read upgrade status", "Update upgrade settings", _wupgrade_props);
 
 /*===========================================================================*/
 /* server API                                                                */
@@ -121,7 +114,7 @@ wwebapi_metadata (HTTP_USER_T *user, uint32_t method, char* endpoint, uint32_t t
 
     return 0 ;
 }
-    
+
 int32_t
 write_response (HTTP_USER_T *user, char * ep, char * property)
 {
@@ -137,23 +130,23 @@ write_response (HTTP_USER_T *user, char * ep, char * property)
             0, 0, json, strlen (json)) ;
 
     webapi_simple_response_free (json) ;
-    return  res ; 
+    return  res ;
 }
 
 /**
- * @brief   Handler 
+ * @brief   Handler
  *
  * @app
  */
 int32_t
 wwebapi_handler(HTTP_USER_T *user, uint32_t method, char* endpoint)
-{            
+{
     int32_t res = HTTP_SERVER_WSERVER_E_OK ;
 
     if (!_upgrade_init) {
         _upgrade_init = true ;
-        webapi_init (_wupgrade_model.root, QORAAL_HeapAuxiliary) ;
-        webapi_model_set (&_wupgrade_model) ;
+        webapi_init ("webapi", QORAAL_HeapAuxiliary) ;
+        webapi_property_resources_set ("webapi", &_wupgrade_inst) ;
 
     }
 
@@ -176,7 +169,7 @@ wwebapi_handler(HTTP_USER_T *user, uint32_t method, char* endpoint)
 
     if (method == HTTP_HEADER_METHOD_GET) {
 
-        
+
         if ((strcmp(cmd[0], "openapi.json") == 0) || (strcmp(cmd[0], "openapi") == 0)) {
 
             char * buffer = webapi_openapi_json () ;
@@ -190,10 +183,10 @@ wwebapi_handler(HTTP_USER_T *user, uint32_t method, char* endpoint)
             res = httpserver_write_response (user, 200, HTTP_SERVER_CONTENT_TYPE_JSON,
                     0, 0, buffer, strlen (buffer)) ;
             webapi_openapi_json_free (buffer) ;
-            return  res ; 
+            return  res ;
 
-        } 
-        
+        }
+
         if (strcmp(cmd[0], "swagger-ui") == 0 && cmd[1] && strcmp(cmd[1], "index.html") == 0) {
 
             return httpserver_write_response(user, 200, HTTP_SERVER_CONTENT_TYPE_HTML,
@@ -206,15 +199,15 @@ wwebapi_handler(HTTP_USER_T *user, uint32_t method, char* endpoint)
             return httpserver_write_response(user, 200, "application/javascript",
                 0, 0, swagger_ui_js, strlen(swagger_ui_js));
 
-        }        
-        
+        }
+
         if (webapi_ep_available(cmd[0])) {
 
             return write_response (user, cmd[0], cmd[1]) ;
         }
 
 
-        
+
 
     } else {
 
