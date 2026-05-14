@@ -92,14 +92,17 @@ upgrade_version_get(void* val, QORAAL_PROP_T * prop)
 
 
 static QORAAL_PROP_T _wupgrade_props[] = {
-    QORAAL_PROP_INIT("version", QORAAL_PROP_STRING,  "current version",    0, upgrade_version_get, 0, 0),
-    QORAAL_PROP_INIT("url",     QORAAL_PROP_STRING,  "upgrade-config url", 0, upgrade_url_get, upgrade_url_set, 0),
-    QORAAL_PROP_INIT("start",   QORAAL_PROP_BOOLEAN, "start upgrade",      0, upgrade_start_get, upgrade_start_set, 0),
-    QORAAL_PROP_INIT("status",  QORAAL_PROP_INTEGER, "system status",      0, upgrade_status_get, 0, 0)
+    QORAAL_PROP_INIT("version", QORAAL_PROP_STRING,  "current version",    upgrade_version_get, 0, 0),
+    QORAAL_PROP_INIT("url",     QORAAL_PROP_STRING,  "upgrade-config url", upgrade_url_get, upgrade_url_set, 0),
+    QORAAL_PROP_INIT("start",   QORAAL_PROP_BOOLEAN, "start upgrade",      upgrade_start_get, upgrade_start_set, 0),
+    QORAAL_PROP_INIT("status",  QORAAL_PROP_INTEGER, "system status",      upgrade_status_get, 0, 0)
 };
 
-static QORAAL_INST_T _wupgrade_instances[] = {
-    QORAAL_INST_INIT("UPGRADE API", "1.0", "upgrade", "Upgrade", "Upgrade API", "Read upgrade status", "Update upgrade settings", _wupgrade_props)
+static QORAAL_INST_T _wupgrade_inst =
+    QORAAL_INST_INIT("UPGRADE API", "1.0", "upgrade", "Upgrade", "Upgrade API", "Read upgrade status", "Update upgrade settings", _wupgrade_props);
+
+static QORAAL_INST_T *_wupgrade_instances[] = {
+    &_wupgrade_inst
 };
 
 static QORAAL_MODEL_T _wupgrade_model = QORAAL_MODEL_INIT("webapi", _wupgrade_instances);

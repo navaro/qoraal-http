@@ -58,12 +58,10 @@ typedef enum {
     QORAAL_PROP_ENUM,
 } QORAAL_PROP_TYPE_T;
 
-typedef QORAAL_ENUM_TYPE_T QORAAL_PROP_ENUM_INFO_T;
-
 /* Resolver callback: given an enum type name, returns the type descriptor.
  * Set via webapi_set_enum_resolver() so that qoraal-http remains decoupled
  * from qoraal-flash/regenum. */
-typedef const QORAAL_PROP_ENUM_INFO_T * (*qoraal_enum_resolver_t)(const char *name);
+typedef const QORAAL_ENUM_TYPE_T * (*qoraal_enum_resolver_t)(const char *name);
 
 typedef struct QORAAL_PROP_S QORAAL_PROP_T;
 
@@ -74,13 +72,14 @@ struct QORAAL_PROP_S {
     QORAAL_PROP_TYPE_T type;  // Data type of the property (string, integer, boolean, enum)
     const char * description;  // Description for Swagger documentation
     const char * enum_name;  // Enum type name resolved at runtime via the enum resolver
-    qoraal_prop_callback_t add_callback;  // Callback function when added/initialized to an instance (optional)
     qoraal_prop_callback_t get_callback;  // Callback function for GET requests (returns string for enum)
     qoraal_prop_callback_t set_callback;  // Callback function for POST/PUT requests (receives string for enum)
     uintptr_t arg;
 };
 
 typedef struct QORAAL_INST_S {
+    struct QORAAL_INST_S *next; /* Intrusive registration list. */
+
     const char * title;          /* Human title: "Device PKI Management API" */
     const char * version;        /* API version */
     const char * ep;             /* Endpoint base: "pki" */
@@ -103,38 +102,37 @@ typedef struct QORAAL_MODEL_S {
 #define QORAAL_ARRAY_SIZE(array_) \
     (sizeof(array_) / sizeof((array_)[0]))
 
-#define QORAAL_PROP_INIT(prop_, type_, description_, add_, get_, set_, arg_) \
+#define QORAAL_PROP_INIT(prop_, type_, description_, get_, set_, arg_) \
     {                                                   \
         prop_, \
         type_, \
         description_, \
         0, \
-        add_, \
         get_, \
         set_, \
         arg_                                                \
     }
 
-#define QORAAL_PROP_ENUM_INIT(prop_, description_, enum_name_, add_, get_, set_, arg_) \
+#define QORAAL_PROP_ENUM_INIT(prop_, description_, enum_name_, get_, set_, arg_) \
     {                                                   \
         prop_, \
         QORAAL_PROP_ENUM, \
         description_, \
         enum_name_, \
-        add_, \
         get_, \
         set_, \
         arg_                                                \
     }
 
-#define QORAAL_PROP_DECL(name, prop_, type_, description_, add_, get_, set_, arg_) \
-    QORAAL_PROP_T  name = QORAAL_PROP_INIT(prop_, type_, description_, add_, get_, set_, arg_)
+#define QORAAL_PROP_DECL(name, prop_, type_, description_, get_, set_, arg_) \
+    QORAAL_PROP_T  name = QORAAL_PROP_INIT(prop_, type_, description_, get_, set_, arg_)
 
-#define QORAAL_PROP_ENUM_DECL(name, prop_, description_, enum_name_, add_, get_, set_, arg_) \
-    QORAAL_PROP_T  name = QORAAL_PROP_ENUM_INIT(prop_, description_, enum_name_, add_, get_, set_, arg_)
+#define QORAAL_PROP_ENUM_DECL(name, prop_, description_, enum_name_, get_, set_, arg_) \
+    QORAAL_PROP_T  name = QORAAL_PROP_ENUM_INIT(prop_, description_, enum_name_, get_, set_, arg_)
 
 #define QORAAL_INST_INIT(title_, version_, ep_, tag_, desc_, get_sum_, post_sum_, props_) \
     {                                                                  \
+        0,                                                             \
         title_,                                                        \
         version_,                                                      \
         ep_,                                                           \
@@ -169,11 +167,12 @@ extern "C" {
 
     int32_t webapi_init (const char * root, QORAAL_HEAP heap) ;
     int32_t webapi_model_set(QORAAL_MODEL_T *model) ;
+    int32_t webapi_instances_set(const char *root, QORAAL_INST_T *instances) ;
     bool webapi_ep_available(const char * ep) ;
 
     /* Register a callback that resolves an enum type name to its descriptor.
-     * Must be set before webapi_model_set() if any QORAAL_PROP_ENUM props are
-     * used, so that the OpenAPI/WoT schema emitters can look up enum values. */
+     * Must be set before publishing any QORAAL_PROP_ENUM props, so that the
+     * OpenAPI/WoT schema emitters can look up enum values. */
     void webapi_set_enum_resolver(qoraal_enum_resolver_t resolver) ;
 
 /* New: OpenAPI JSON support for browser tooling */

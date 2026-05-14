@@ -36,15 +36,24 @@
 
 
 static QORAAL_MODEL_T *_webapi_model ;
+static QORAAL_INST_T *_webapi_instances ;
 static QORAAL_HEAP _webapi_heap = QORAAL_HeapAuxiliary ;
 static const char * _webapi_root = "api" ;
 static qoraal_enum_resolver_t _enum_resolver = NULL ;
 
+static void
+webapi_instances_clear(void)
+{
+    _webapi_model = NULL;
+    _webapi_instances = NULL;
+}
+
 int32_t webapi_init (const char * root, QORAAL_HEAP heap)
 {
+    webapi_instances_clear();
+
     _webapi_root = root ? root : "api" ;
     _webapi_heap = heap ? heap : QORAAL_HeapAuxiliary ;
-    _webapi_model = 0 ;
     return EOK ;
 }
 
@@ -56,6 +65,16 @@ void webapi_set_enum_resolver(qoraal_enum_resolver_t resolver)
 static size_t
 webapi_inst_count(void)
 {
+    size_t count = 0;
+    QORAAL_INST_T *inst;
+
+    if (_webapi_instances) {
+        for (inst = _webapi_instances; inst; inst = inst->next) {
+            count++;
+        }
+        return count;
+    }
+
     if (_webapi_model && _webapi_model->instances) {
         return _webapi_model->instances_count;
     }
@@ -66,6 +85,16 @@ webapi_inst_count(void)
 static QORAAL_INST_T *
 webapi_inst_at(size_t index)
 {
+    QORAAL_INST_T *inst = _webapi_instances;
+
+    while (inst) {
+        if (index == 0) {
+            return inst;
+        }
+        index--;
+        inst = inst->next;
+    }
+
     if (_webapi_model && _webapi_model->instances) {
         if (index < _webapi_model->instances_count) {
             return _webapi_model->instances[index];
@@ -75,49 +104,31 @@ webapi_inst_at(size_t index)
     return 0;
 }
 
-static int32_t
-webapi_model_add_callbacks(QORAAL_INST_T *inst)
-{
-    size_t i;
-    int32_t res;
-
-    if (!inst || !inst->props) {
-        return EOK;
-    }
-
-    for (i = 0; i < inst->props_count; i++) {
-        if (inst->props[i].add_callback) {
-            res = inst->props[i].add_callback(inst, &inst->props[i]);
-            if (res < EOK) {
-                return res;
-            }
-        }
-    }
-
-    return EOK;
-}
-
 int32_t webapi_model_set(QORAAL_MODEL_T *model)
 {
-    size_t i;
-    int32_t res;
-
     if (!model || !model->instances || (model->instances_count == 0)) {
         return E_PARM;
     }
-
-    _webapi_model = model;
 
     if (model->root && model->root[0]) {
         _webapi_root = model->root;
     }
 
-    for (i = 0; i < model->instances_count; i++) {
-        res = webapi_model_add_callbacks(model->instances[i]);
-        if (res < EOK) {
-            return res;
-        }
+    _webapi_model = model;
+    _webapi_instances = NULL;
+
+    return EOK;
+}
+
+int32_t
+webapi_instances_set(const char *root, QORAAL_INST_T *instances)
+{
+    if (root && root[0]) {
+        _webapi_root = root;
     }
+
+    _webapi_model = NULL;
+    _webapi_instances = instances;
 
     return EOK;
 }
@@ -133,7 +144,7 @@ static QORAAL_INST_T *  webapi_inst_get (const char * ep)
 
     for (i = 0; i < webapi_inst_count(); i++) {
         current = webapi_inst_at(i);
-        if (strcmp(ep, current->ep) == 0) return current ;
+        if (current && current->ep && (strcmp(ep, current->ep) == 0)) return current ;
     }
 
     return 0 ;
@@ -178,7 +189,7 @@ static bool webapi_prop_enum_resolvable(QORAAL_PROP_T *prop)
 static size_t webapi_emit_enum_schema(struct json_out *out, const char *enum_name)
 {
     size_t total_length = 0;
-    const QORAAL_PROP_ENUM_INFO_T *enum_info;
+    const QORAAL_ENUM_TYPE_T *enum_info;
     int i;
 
     if (!enum_name || !_enum_resolver) {
