@@ -45,7 +45,7 @@ main_thread(void* arg)
 {
     platform_start () ;
     /*
-     * Lets get the thing started!
+     * Let's get this thing started!
      */
     qoraal_start_default () ;
 }
