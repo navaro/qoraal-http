@@ -2,7 +2,9 @@ menu "Qoraal-http"
 
 config QORAAL_HTTP
     bool "Enable Qoraal framework"
-    default y
+    default n
+
+if QORAAL_HTTP
 
 config QORAAL_HTTP_SERVER_TLS
     bool "Enable http server"
@@ -14,11 +16,10 @@ config QORAAL_HTTP_CLIENT_TLS
     select MBEDTLS
     default y
 
-
 config QORAAL_HTTP_SERVER_USER_THREAD
     int "Enable http server user thread"
     default 2
 
-
+endif # QORAAL_HTTP
 
 endmenu
