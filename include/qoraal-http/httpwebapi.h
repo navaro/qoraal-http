@@ -57,6 +57,7 @@ extern "C" {
     int32_t webapi_init (const char * root, QORAAL_HEAP heap) ;
     int32_t webapi_property_resources_set(const char *root, QORAAL_PROP_RESOURCE_T *resources) ;
     bool webapi_ep_available(const char * ep) ;
+    int32_t webapi_ep_module(const char *ep) ;
 
     /* Must be set before publishing enum properties so schema emitters can
      * look up enum values. */

@@ -126,6 +126,12 @@ bool webapi_ep_available(const char * ep)
     return webapi_resource_get (ep) ? true : false ;
 }
 
+int32_t webapi_ep_module(const char *ep)
+{
+    QORAAL_PROP_RESOURCE_T *inst = webapi_resource_get(ep) ;
+    return inst ? inst->module : -1 ;
+}
+
 static bool webapi_prop_is_action(QORAAL_PROP_T *prop)
 {
     return prop && prop->type == QORAAL_PROP_ACTION;
@@ -247,6 +253,18 @@ webapi_resource_set_summary(QORAAL_PROP_RESOURCE_T *inst)
 static int json_printer_null(struct json_out *out, const char *buf, size_t len) {
     out->u.buf.len += len ;
     return len;
+}
+
+static bool
+webapi_has_event_resources(void)
+{
+    size_t i;
+    for (i = 0; i < webapi_resource_count(); i++) {
+        if (webapi_resource_at(i)->flags & QORAAL_PROP_RESOURCE_FLAG_EVENTS) {
+            return true;
+        }
+    }
+    return false;
 }
 
 #define JSON_OUT_NULL() \
@@ -415,7 +433,90 @@ static size_t generate_openapi_json(struct json_out *out) {
         total_length += json_printf(out, "}");
     }
 
-    total_length += json_printf(out, "}}");
+    if (webapi_has_event_resources()) {
+        char events_path[128];
+        bool first_mod = true;
+        size_t i;
+
+        snprintf(events_path, sizeof(events_path), "/%s/events", _webapi_root);
+
+        total_length += json_printf(out,
+            ",%Q:{"
+              "get:{"
+                "tags:[%Q],"
+                "summary:%Q,"
+                "parameters:[{"
+                  "name:%Q,"
+                  "in:%Q,"
+                  "required:%B,"
+                  "description:%Q,"
+                  "schema:{type:%Q,enum:[",
+            events_path,
+            "Events",
+            "Subscribe to Server-Sent Events",
+            "modules", "query", 0,
+            "Comma-separated module names to filter. Omit for all.",
+            "string");
+
+        for (i = 0; i < webapi_resource_count(); i++) {
+            QORAAL_PROP_RESOURCE_T *inst = webapi_resource_at(i);
+            if (!(inst->flags & QORAAL_PROP_RESOURCE_FLAG_EVENTS)) continue;
+            if (!first_mod) total_length += json_printf(out, ",");
+            first_mod = false;
+            total_length += json_printf(out, "%Q", inst->ep);
+        }
+
+        total_length += json_printf(out,
+                  "]}"
+                "}],"
+                "responses:{"
+                  "%Q:{"
+                    "description:%Q,"
+                    "content:{"
+                      "%Q:{"
+                        "schema:{%Q:%Q}"
+                      "},"
+                      "%Q:{"
+                        "schema:{%Q:%Q}"
+                      "}"
+                    "}"
+                  "}"
+                "}"
+              "}"
+            "}",
+            "200",
+            "SSE stream of module events",
+            "text/event-stream",
+            "$ref", "#/components/schemas/EventMessage",
+            "application/json",
+            "$ref", "#/components/schemas/EventMessage");
+    }
+
+    total_length += json_printf(out,
+        "},"
+        "components:{"
+          "schemas:{"
+            "EventMessage:{"
+              "type:%Q,"
+              "description:%Q,"
+              "properties:{"
+                "module:{type:%Q,description:%Q},"
+                "type:{type:%Q,description:%Q},"
+                "version:{type:%Q,description:%Q},"
+                "ts:{type:%Q,description:%Q},"
+                "d:{type:%Q,description:%Q}"
+              "}"
+            "}"
+          "}"
+        "}"
+        "}",
+        "object",
+        "A single Server-Sent Event data payload",
+        "integer", "Module ID",
+        "integer", "Event type",
+        "integer", "Event version",
+        "integer", "Unix timestamp (seconds)",
+        "object",  "Event-specific JSON payload");
 
     return total_length;
 }
@@ -546,7 +647,43 @@ static size_t generate_wot_json(struct json_out *out, const char * uri) {
         }
     }
 
-    total_length += json_printf(out, "}}");
+    total_length += json_printf(out, "}");  /* close actions */
+
+    if (webapi_has_event_resources()) {
+        bool first_event = true;
+        size_t i;
+        char href[192];
+
+        total_length += json_printf(out, ",\"events\":{");
+
+        for (i = 0; i < webapi_resource_count(); i++) {
+            QORAAL_PROP_RESOURCE_T *inst = webapi_resource_at(i);
+            if (!(inst->flags & QORAAL_PROP_RESOURCE_FLAG_EVENTS)) continue;
+            snprintf(href, sizeof(href), "%s/events?modules=%s", _webapi_root, inst->ep);
+            if (!first_event) total_length += json_printf(out, ",");
+            first_event = false;
+            total_length += json_printf(out,
+                "%Q:{"
+                  "description:%Q,"
+                  "forms:[{"
+                    "href:%Q,"
+                    "contentType:%Q,"
+                    "subprotocol:%Q,"
+                    "op:[%Q]"
+                  "}]"
+                "}",
+                inst->ep,
+                inst->description ? inst->description : inst->title,
+                href,
+                "text/event-stream",
+                "sse",
+                "subscribeevent");
+        }
+
+        total_length += json_printf(out, "}");  /* close events */
+    }
+
+    total_length += json_printf(out, "}");  /* close root */
 
     return total_length;
 }
