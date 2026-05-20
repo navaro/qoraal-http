@@ -272,8 +272,8 @@ mbedtlsutils_start (mbedtls_ctr_drbg_context   * ctr_drbg_context)
 
     // mbedtls_platform_set_time (mbedtls_time_cb) ;
 
-#if defined(MBEDTLS_SSL_CACHE_C)
-    mbedtls_ssl_cache_set_max_entries( &_ssl_cache, 5 );
+#if defined(MBEDTLS_SSL_CACHE_C) && defined(CFG_MBEDTLS_SESSION_CACHE_ENTRIES)
+    mbedtls_ssl_cache_set_max_entries( &_ssl_cache, CFG_MBEDTLS_SESSION_CACHE_ENTRIES );
 #endif
 
 #if defined(MBEDTLS_SSL_SESSION_TICKETS)

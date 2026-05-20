@@ -17,8 +17,25 @@ config QORAAL_HTTP_CLIENT_TLS
     default y
 
 config QORAAL_HTTP_SERVER_USER_THREAD
-    int "Enable http server user thread"
+    int "HTTP server user thread count"
     default 2
+    help
+      Maximum number of HTTP request worker threads.
+
+config QORAAL_HTTP_SERVER_USER_THREAD_SIZE
+    int "HTTP server user thread stack size"
+    default 4032
+    help
+      Stack size, in bytes, for each HTTP request worker thread.
+
+config QORAAL_HTTP_SERVER_TLS_SESSION_CACHE_ENTRIES
+    int "HTTP server TLS session cache entries"
+    default 16
+    depends on QORAAL_HTTP_SERVER_TLS
+    help
+      Number of recently negotiated TLS sessions to keep for session-ID
+      resumption. This is sized for clients/recent browser sockets, not one
+      entry per worker thread.
 
 endif # QORAAL_HTTP
 

@@ -144,7 +144,7 @@
  *          closed if no request was received after this timeout.
  * @{
  */
-#define HTTP_SERVER_KEEPALIVE_HEADER                            "timeout=120"
+#define HTTP_SERVER_KEEPALIVE_HEADER                            "timeout=30"
 /** @} */
 
 /**
@@ -186,6 +186,7 @@ typedef struct HTTP_USER_S {
     int32_t                 send_bytes ;
     uint32_t                read ;
     uint32_t                write ;
+    int32_t                 peer_closed ;
     HTTP_HEADER_T           headers[8] ;
 
     char*                   endpoint ;
@@ -220,6 +221,7 @@ extern int32_t      httpserver_user_accept (int server_sock, HTTP_USER_T* user, 
 extern int32_t      httpserver_user_ssl_accept (HTTP_USER_T* user, uint32_t timeout, void * ssl_config) ;
 extern int32_t      httpserver_user_select (HTTP_USER_T* user, uint32_t timeout) ;
 extern int32_t      httpserver_is_connected (HTTP_USER_T* user) ;
+extern int32_t      httpserver_user_abort (HTTP_USER_T* user) ;
 extern int32_t      httpserver_user_close (HTTP_USER_T* user) ;
 
 extern int32_t      httpserver_read_request_ex (HTTP_USER_T* user, uint32_t timeout, char** endpoint, int32_t* method) ;

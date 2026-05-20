@@ -51,7 +51,7 @@ logger_cb (void* channel, LOGGER_TYPE_T type, uint8_t facility, const char* msg)
         httpserver_chunked_append_fmtstr (user, "data: %s\n\n", msg) ;
         int32_t res = httpserver_chunked_flush (user) ;
         if (res < 0) {
-        	httpserver_user_close (user) ;
+            httpserver_user_abort (user) ;
         }
     }
 }
@@ -187,4 +187,3 @@ wrtlog_handler(HTTP_USER_T *user, uint32_t method, char* endpoint)
 
     return HTTP_SERVER_WSERVER_E_OK ;
 }
-

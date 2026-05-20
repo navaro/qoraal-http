@@ -325,6 +325,7 @@ httpserver_user_accept (int server_sock, HTTP_USER_T* user, uint32_t timeout)
     }
 
     user->timeout = timeout ;
+    user->peer_closed = 0 ;
 
     uint32_t addrlen = sizeof(user->address) ;
     user->socket = accept(server_sock, (struct sockaddr *)&user->address, &addrlen) ;
@@ -446,13 +447,23 @@ httpserver_user_ssl_accept (HTTP_USER_T* user, uint32_t timeout, void * ssl_conf
                     status == MBEDTLS_ERR_SSL_CRYPTO_IN_PROGRESS)) ;
 
             if (status < 0) {
-                if ((status != MBEDTLS_ERR_SSL_FATAL_ALERT_MESSAGE) &&
-                    (status != MBEDTLS_ERR_SSL_CONN_EOF) &&
-                    (status != MBEDTLS_ERR_NET_CONN_RESET)) {
+                if ((status == MBEDTLS_ERR_SSL_CONN_EOF) ||
+                    (status == MBEDTLS_ERR_NET_CONN_RESET)) {
+                    user->peer_closed = 1 ;
+                    DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_INFO,
+                        "HTTP  : : TLS handshake closed by peer socket %d (-0x%04X)",
+                        user->socket, -status);
+
+                } else if (status == MBEDTLS_ERR_SSL_FATAL_ALERT_MESSAGE) {
                     DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_WARNING,
-                        "HTTP  : : mbedtls_ssl_handshake() returned -0x%04X", -status);
+                        "HTTP  :W: TLS handshake failed with fatal alert socket %d",
+                        user->socket);
+
+                } else {
+                    DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_WARNING,
+                        "HTTP  :W: mbedtls_ssl_handshake() returned -0x%04X",
+                        -status);
                 }
-                mbedtls_ssl_close_notify ((mbedtls_ssl_context *)user->ssl) ;
 
                 return HTTP_SERVER_E_CONNECTION ;
 
@@ -483,7 +494,7 @@ httpserver_is_connected (HTTP_USER_T* user)
      fd_set   fdread;
     struct timeval tv;
 
-    if (user->socket < 0) {
+    if ((user->socket < 0) || user->peer_closed) {
         return 0 ;
     }
     FD_ZERO(&fdread) ;
@@ -496,6 +507,26 @@ httpserver_is_connected (HTTP_USER_T* user)
     }
 
     return 1 ;
+}
+
+int32_t
+httpserver_user_abort (HTTP_USER_T* user)
+{
+    int32_t res = HTTP_SERVER_E_OK ;
+
+    if (!user) {
+        return HTTP_SERVER_E_ERROR ;
+
+    }
+
+    user->peer_closed = 1 ;
+    if (user->socket >= 0) {
+        res = closesocket (user->socket) ;
+        user->socket = -1 ;
+
+    }
+
+    return res ;
 }
 
 /**
@@ -513,12 +544,12 @@ httpserver_is_connected (HTTP_USER_T* user)
 int32_t
 httpserver_user_close (HTTP_USER_T* user)
 {
-    int32_t res ;
+    int32_t res = HTTP_SERVER_E_OK ;
 #if defined WSERVER_CLOSE_WAIT_TIME /*&& WSERVER_CLOSE_WAIT_TIME*/
     httpserver_user_select(user, WSERVER_CLOSE_WAIT_TIME) ;
 #endif
 #if !defined(CFG_HTTPSERVER_TLS_DISABLE) || !CFG_HTTPSERVER_TLS_DISABLE
-    if (user->ssl) {
+    if (user->ssl && !user->peer_closed && (user->socket >= 0)) {
         mbedtls_ssl_close_notify ((mbedtls_ssl_context *)user->ssl) ;
 
     }
@@ -526,8 +557,11 @@ httpserver_user_close (HTTP_USER_T* user)
     DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_INFO,
                     "HTTP  : : httpserver_user_close %d", user->socket);
 
-    res = closesocket (user->socket);
-    user->socket = -1 ;
+    if (user->socket >= 0) {
+        res = closesocket (user->socket);
+        user->socket = -1 ;
+
+    }
 
 #if !defined(CFG_HTTPSERVER_TLS_DISABLE) || !CFG_HTTPSERVER_TLS_DISABLE
     if (user->ssl) {
@@ -555,36 +589,77 @@ httpserver_user_close (HTTP_USER_T* user)
  *
  * @http
  */
+static int32_t
+httpserver_wait_socket(HTTP_USER_T* user, bool wait_read, bool wait_write, uint32_t timeout)
+{
+    fd_set fdread;
+    fd_set fdwrite;
+    fd_set fdex;
+    struct timeval tv;
+    int32_t result;
+
+    if ((user->socket < 0) || user->peer_closed) {
+        return HTTP_SERVER_E_CONNECTION ;
+
+    }
+
+    FD_ZERO(&fdread);
+    FD_ZERO(&fdwrite);
+    FD_ZERO(&fdex);
+
+    if (wait_read) {
+        FD_SET(user->socket, &fdread);
+    }
+
+    if (wait_write) {
+        FD_SET(user->socket, &fdwrite);
+    }
+
+    FD_SET(user->socket, &fdex);
+    tv.tv_sec = timeout / 1000;
+    tv.tv_usec = (timeout % 1000) * 1000;
+
+    result = select(user->socket+1,
+            wait_read ? &fdread : 0,
+            wait_write ? &fdwrite : 0,
+            &fdex,
+            &tv) ;
+
+    if (FD_ISSET(user->socket, &fdex)) {
+        user->peer_closed = 1 ;
+        DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_REPORT,
+                    "HTTPD : : socket exception on 0x%x", user->socket);
+        return HTTP_SERVER_E_CONNECTION ;
+
+    }
+
+    if (result <= 0) {
+        DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_LOG,
+                    "HTTPD : : socket select failed with %d", result);
+        return HTTP_SERVER_E_ERROR ;
+
+    }
+
+    if ((wait_read && FD_ISSET(user->socket, &fdread)) ||
+        (wait_write && FD_ISSET(user->socket, &fdwrite))) {
+        return EOK ;
+
+    }
+
+    return HTTP_SERVER_E_ERROR ;
+}
+
 int32_t
 httpserver_write (HTTP_USER_T* user, const uint8_t* buffer, uint32_t length)
 {
     int32_t sent_bytes ;
-    uint32_t result = 0 ;
     uint32_t total = 0 ;
 
 
     while (length) {
 
-         fd_set   fdwrite;
-         fd_set   fdex;
-        struct timeval tv;
-        FD_ZERO(&fdwrite) ;
-        FD_ZERO(&fdex) ;
-        FD_SET(user->socket, &fdwrite);
-        FD_SET(user->socket, &fdex);
-        tv.tv_sec = user->timeout / 1000;
-        tv.tv_usec = (user->timeout % 1000) * 1000;
-
-        result = select(user->socket+1, 0, &fdwrite, &fdex, &tv) ;
-
-        if (FD_ISSET(user->socket, &fdex)) {
-            DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_REPORT,
-                        "HTTPD : : write exception on listening socket...");
-            return HTTP_SERVER_E_CONNECTION ;
-
-        } else if (result <= 0) {
-            DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_LOG,
-                        "HTTPD : : write select failed with %d", result);
+        if (httpserver_wait_socket(user, false, true, user->timeout) != EOK) {
+            user->peer_closed = 1 ;
             return HTTP_SERVER_E_CONNECTION ;
 
         }
@@ -592,7 +667,19 @@ httpserver_write (HTTP_USER_T* user, const uint8_t* buffer, uint32_t length)
     #if !defined(CFG_HTTPSERVER_TLS_DISABLE) || !CFG_HTTPSERVER_TLS_DISABLE
         if (user->ssl) {
             sent_bytes = mbedtls_ssl_write ((mbedtls_ssl_context *)user->ssl, (unsigned char*)&buffer[total], length) ;
-             
+            if (sent_bytes == MBEDTLS_ERR_SSL_WANT_READ) {
+                if (httpserver_wait_socket(user, true, false, user->timeout) != EOK) {
+                    user->peer_closed = 1 ;
+                    return HTTP_SERVER_E_CONNECTION ;
+
+                }
+                continue ;
+
+            } else if (sent_bytes == MBEDTLS_ERR_SSL_WANT_WRITE) {
+                continue ;
+
+            }
+
         }
         else {
     #endif
@@ -601,6 +688,7 @@ httpserver_write (HTTP_USER_T* user, const uint8_t* buffer, uint32_t length)
         }
     #endif
         if (sent_bytes <= 0) {
+            user->peer_closed = 1 ;
             DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_ERROR,
                     "HTTPD :E: socket 0x%x sent_bytes %d\r\n", user->socket, sent_bytes);
             return HTTP_SERVER_E_CONNECTION ;
@@ -624,6 +712,11 @@ httpserver_wait_read(HTTP_USER_T* user, uint32_t timeout)
      fd_set   fdex;
     struct timeval tv;
 
+    if ((user->socket < 0) || user->peer_closed) {
+        return HTTP_SERVER_E_CONNECTION ;
+
+    }
+
     FD_ZERO(&fdread) ;
     FD_SET(user->socket, &fdread);
     FD_ZERO(&fdex) ;
@@ -639,6 +732,7 @@ httpserver_wait_read(HTTP_USER_T* user, uint32_t timeout)
 
     }
     if (FD_ISSET(user->socket, &fdex)) {
+        user->peer_closed = 1 ;
         DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_LOG,
                 "HTTP  : : read select failed with exception");
         return HTTP_SERVER_E_CONNECTION ;
@@ -681,6 +775,12 @@ httpserver_read (HTTP_USER_T* user, void* buffer, uint32_t length, uint32_t time
             if (received == MBEDTLS_ERR_SSL_WANT_READ) {
                 received = httpserver_wait_read (user, timeout) ;
 
+            } else if ((received == MBEDTLS_ERR_NET_CONN_RESET) ||
+                       (received == MBEDTLS_ERR_SSL_CONN_EOF) ||
+                       (received == MBEDTLS_ERR_SSL_PEER_CLOSE_NOTIFY)) {
+                user->peer_closed = 1 ;
+                break ;
+
             } else {
                 break ;
 
@@ -693,6 +793,9 @@ httpserver_read (HTTP_USER_T* user, void* buffer, uint32_t length, uint32_t time
         received = httpserver_wait_read (user, timeout) ;
         if (received == EOK) {
             received = recv (user->socket, buffer, length, 0);
+            if (received <= 0) {
+                user->peer_closed = 1 ;
+            }
 
         }
 
@@ -709,8 +812,20 @@ httpserver_read (HTTP_USER_T* user, void* buffer, uint32_t length, uint32_t time
 int32_t
 httpserver_wait_close (HTTP_USER_T* user, uint32_t timeout)
 {
-    // ToDo: wait for actuall close or otherwise decrement the timer and continue
-    return httpserver_wait_read (user, timeout) ;
+    char discard ;
+    int32_t res = httpserver_wait_read (user, timeout) ;
+
+    if (res != EOK) {
+        return res ;
+
+    }
+
+    res = httpserver_read (user, &discard, 1, 0) ;
+    if (res <= 0) {
+        user->peer_closed = 1 ;
+    }
+
+    return res ;
 }
 
 void

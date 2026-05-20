@@ -81,7 +81,7 @@
  *          closed if no request was received after this timeout.
  * @{
  */
-#define WSERVER_KEEPALIVE_TIMEOUT                               285000
+#define WSERVER_KEEPALIVE_TIMEOUT                               30000
 #define WSERVER_NO_KEEPALIVE_TIMEOUT                            4000
 
 /** @} */
