@@ -521,10 +521,11 @@ httpserver_wserver_run (HTTPSERVER_INST_T * inst)
             } while ((res == HTTP_SERVER_E_ERROR)  && !inst->close) ;
 
             if (res == HTTP_SERVER_E_CONNECTION) {
-                DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_ERROR,
-                        "WSERV :E: HTTP_SERVER_E_CONNECTION!\r\n");
+                DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_WARNING,
+                        "WSERV :W: listening socket exception, retrying.\r\n");
                 HTTP_SERVER_FREE (thread) ;
-                break ;
+                os_thread_sleep (1000) ;
+                continue ;
 
             }
         } else {
