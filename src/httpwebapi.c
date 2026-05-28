@@ -435,10 +435,12 @@ static size_t generate_openapi_json(struct json_out *out) {
 
     if (webapi_has_event_resources()) {
         char events_path[128];
+        char replay_path[128];
         bool first_mod = true;
         size_t i;
 
         snprintf(events_path, sizeof(events_path), "/%s/events", _webapi_root);
+        snprintf(replay_path, sizeof(replay_path), "/%s/events/replay", _webapi_root);
 
         total_length += json_printf(out,
             ",%Q:{"
@@ -453,7 +455,7 @@ static size_t generate_openapi_json(struct json_out *out) {
                   "schema:{type:%Q,enum:[",
             events_path,
             "Events",
-            "Subscribe to Server-Sent Events",
+            "Subscribe to Server-Sent Events. The stream starts with recent replayed events, then continues live.",
             "modules", "query", 0,
             "Comma-separated module names to filter. Omit for all.",
             "string");
@@ -468,6 +470,18 @@ static size_t generate_openapi_json(struct json_out *out) {
 
         total_length += json_printf(out,
                   "]}"
+                "},{"
+                  "name:%Q,"
+                  "in:%Q,"
+                  "required:%B,"
+                  "description:%Q,"
+                  "schema:{type:%Q,enum:[%Q,%Q,%Q,%Q]}"
+                "},{"
+                  "name:%Q,"
+                  "in:%Q,"
+                  "required:%B,"
+                  "description:%Q,"
+                  "schema:{type:%Q,minimum:%u,maximum:%u,default:%u}"
                 "}],"
                 "responses:{"
                   "%Q:{"
@@ -484,11 +498,86 @@ static size_t generate_openapi_json(struct json_out *out) {
                 "}"
               "}"
             "}",
+            "severity", "query", 0,
+            "Comma-separated severity names to filter. Omit for all.",
+            "string", "debug", "info", "warn", "error",
+            "limit", "query", 0,
+            "Maximum replayed events sent before live streaming. Defaults to 20.",
+            "integer", 0U, 100U, 20U,
             "200",
             "SSE stream of module events",
             "text/event-stream",
             "$ref", "#/components/schemas/EventMessage",
             "application/json",
+            "$ref", "#/components/schemas/EventMessage");
+
+        first_mod = true;
+        total_length += json_printf(out,
+            ",%Q:{"
+              "get:{"
+                "tags:[%Q],"
+                "summary:%Q,"
+                "parameters:[{"
+                  "name:%Q,"
+                  "in:%Q,"
+                  "required:%B,"
+                  "description:%Q,"
+                  "schema:{type:%Q,enum:[",
+            replay_path,
+            "Events",
+            "Replay recent events",
+            "modules", "query", 0,
+            "Comma-separated module names to filter. Omit for all.",
+            "string");
+
+        for (i = 0; i < webapi_resource_count(); i++) {
+            QORAAL_PROP_RESOURCE_T *inst = webapi_resource_at(i);
+            if (!(inst->flags & QORAAL_PROP_RESOURCE_FLAG_EVENTS)) continue;
+            if (!first_mod) total_length += json_printf(out, ",");
+            first_mod = false;
+            total_length += json_printf(out, "%Q", inst->ep);
+        }
+
+        total_length += json_printf(out,
+                  "]}"
+                "},{"
+                  "name:%Q,"
+                  "in:%Q,"
+                  "required:%B,"
+                  "description:%Q,"
+                  "schema:{type:%Q,enum:[%Q,%Q,%Q,%Q]}"
+                "},{"
+                  "name:%Q,"
+                  "in:%Q,"
+                  "required:%B,"
+                  "description:%Q,"
+                  "schema:{type:%Q,minimum:%u,maximum:%u,default:%u}"
+                "}],"
+                "responses:{"
+                  "%Q:{"
+                    "description:%Q,"
+                    "content:{"
+                      "%Q:{"
+                        "schema:{"
+                          "type:%Q,"
+                          "items:{%Q:%Q}"
+                        "}"
+                      "}"
+                    "}"
+                  "}"
+                "}"
+              "}"
+            "}",
+            "severity", "query", 0,
+            "Comma-separated severity names to filter. Omit for all.",
+            "string", "debug", "info", "warn", "error",
+            "limit", "query", 0,
+            "Maximum number of replayed events. Defaults to 20.",
+            "integer", 0U, 100U, 20U,
+            "200",
+            "Recent module events",
+            "application/json",
+            "array",
             "$ref", "#/components/schemas/EventMessage");
     }
 
@@ -647,6 +736,51 @@ static size_t generate_wot_json(struct json_out *out, const char * uri) {
         }
     }
 
+    if (webapi_has_event_resources()) {
+        size_t i;
+
+        for (i = 0; i < webapi_resource_count(); i++) {
+            QORAAL_PROP_RESOURCE_T *inst = webapi_resource_at(i);
+            char href[192];
+            char action_name[96];
+
+            if (!(inst->flags & QORAAL_PROP_RESOURCE_FLAG_EVENTS)) continue;
+
+            snprintf(href, sizeof(href), "%s/events/replay?modules=%s{&limit,severity}", _webapi_root, inst->ep);
+            snprintf(action_name, sizeof(action_name), "replay.%s", inst->ep);
+
+            if (!first_action) {
+                total_length += json_printf(out, ",");
+            }
+            first_action = false;
+
+            total_length += json_printf(out,
+                "%Q:{"
+                  "description:%Q,"
+                  "safe:%B,"
+                  "idempotent:%B,"
+                  "output:{"
+                    "type:%Q,"
+                    "items:{type:%Q}"
+                  "},"
+                  "forms:[{"
+                    "href:%Q,"
+                    "contentType:%Q,"
+                    "op:[%Q]"
+                  "}]"
+                "}",
+                action_name,
+                inst->description ? inst->description : inst->title,
+                1,
+                1,
+                "array",
+                "object",
+                href,
+                "application/json",
+                "invokeaction");
+        }
+    }
+
     total_length += json_printf(out, "}");  /* close actions */
 
     if (webapi_has_event_resources()) {
@@ -659,7 +793,7 @@ static size_t generate_wot_json(struct json_out *out, const char * uri) {
         for (i = 0; i < webapi_resource_count(); i++) {
             QORAAL_PROP_RESOURCE_T *inst = webapi_resource_at(i);
             if (!(inst->flags & QORAAL_PROP_RESOURCE_FLAG_EVENTS)) continue;
-            snprintf(href, sizeof(href), "%s/events?modules=%s", _webapi_root, inst->ep);
+            snprintf(href, sizeof(href), "%s/events?modules=%s{&limit,severity}", _webapi_root, inst->ep);
             if (!first_event) total_length += json_printf(out, ",");
             first_event = false;
             total_length += json_printf(out,
