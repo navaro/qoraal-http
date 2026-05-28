@@ -129,7 +129,7 @@ bool webapi_ep_available(const char * ep)
 int32_t webapi_ep_module(const char *ep)
 {
     QORAAL_PROP_RESOURCE_T *inst = webapi_resource_get(ep) ;
-    return inst ? inst->module : -1 ;
+    return (inst && (inst->flags & QORAAL_PROP_RESOURCE_FLAG_EVENTS)) ? inst->module : -1 ;
 }
 
 static bool webapi_prop_is_action(QORAAL_PROP_T *prop)
@@ -307,6 +307,7 @@ static size_t generate_openapi_json(struct json_out *out) {
         total_length += json_printf(out,
             "%Q:{"
               "get:{"
+                "%Q:%d,"
                 "tags:[%Q],"
                 "summary:%Q,"
                 "responses:{"
@@ -318,6 +319,8 @@ static size_t generate_openapi_json(struct json_out *out) {
                           "type:%Q,"
                           "properties:{",
             path,
+            "x-module-id",
+            inst->module,
             webapi_resource_tag(inst),
             webapi_resource_get_summary(inst),
             "200",
@@ -667,10 +670,13 @@ static size_t generate_wot_json(struct json_out *out, const char * uri) {
                 total_length += json_printf(out,
                     "%Q:{"
                       "type:%Q,"
-                      "description:%Q",
+                      "description:%Q,"
+                      "%Q:%d",
                     current->name,
                     webapi_type_to_string(current->type),
-                    current->description ? current->description : "");
+                    current->description ? current->description : "",
+                    "x-module-id",
+                    inst->module);
 
                 total_length += json_printf(out, ",readOnly:%B",
                     current->set_callback == NULL);
@@ -721,6 +727,7 @@ static size_t generate_wot_json(struct json_out *out, const char * uri) {
                 total_length += json_printf(out,
                     "%Q:{"
                       "description:%Q,"
+                      "%Q:%d,"
                       "forms:[{"
                         "href:%Q,"
                         "contentType:%Q,"
@@ -729,6 +736,8 @@ static size_t generate_wot_json(struct json_out *out, const char * uri) {
                     "}",
                     current->name,
                     current->description ? current->description : "",
+                    "x-module-id",
+                    inst->module,
                     href,
                     "application/json",
                     "invokeaction");
@@ -757,6 +766,7 @@ static size_t generate_wot_json(struct json_out *out, const char * uri) {
             total_length += json_printf(out,
                 "%Q:{"
                   "description:%Q,"
+                  "%Q:%d,"
                   "safe:%B,"
                   "idempotent:%B,"
                   "output:{"
@@ -771,6 +781,8 @@ static size_t generate_wot_json(struct json_out *out, const char * uri) {
                 "}",
                 action_name,
                 inst->description ? inst->description : inst->title,
+                "x-module-id",
+                inst->module,
                 1,
                 1,
                 "array",
@@ -799,6 +811,7 @@ static size_t generate_wot_json(struct json_out *out, const char * uri) {
             total_length += json_printf(out,
                 "%Q:{"
                   "description:%Q,"
+                  "%Q:%d,"
                   "forms:[{"
                     "href:%Q,"
                     "contentType:%Q,"
@@ -808,6 +821,8 @@ static size_t generate_wot_json(struct json_out *out, const char * uri) {
                 "}",
                 inst->ep,
                 inst->description ? inst->description : inst->title,
+                "x-module-id",
+                inst->module,
                 href,
                 "text/event-stream",
                 "sse",
