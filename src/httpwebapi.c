@@ -40,6 +40,10 @@ static QORAAL_HEAP _webapi_heap = QORAAL_HeapAuxiliary ;
 static const char * _webapi_root = "api" ;
 static qoraal_enum_resolver_t _enum_resolver = NULL ;
 
+#define WEBAPI_RESPONSE_RENDER_RETRIES 3U
+#define WEBAPI_RESPONSE_SLACK_MIN      8U
+#define WEBAPI_RESPONSE_SLACK_DIV      25U
+
 static void
 webapi_property_resources_clear(void)
 {
@@ -996,13 +1000,70 @@ generate_simple_property_text(QORAAL_PROP_T *prop, struct json_out *out)
     return webapi_print_prop_value(prop, out, false);
 }
 
+static size_t
+webapi_generate_simple_response_len(QORAAL_PROP_RESOURCE_T *inst, QORAAL_PROP_T *prop, bool is_json)
+{
+    struct json_out out_size = JSON_OUT_NULL();
+
+    if (prop) {
+        if (is_json) {
+            return generate_simple_property_json(prop, &out_size);
+        }
+        return generate_simple_property_text(prop, &out_size);
+    }
+
+    return generate_simple_json(inst, &out_size);
+}
+
+static size_t
+webapi_render_simple_response(QORAAL_PROP_RESOURCE_T *inst, QORAAL_PROP_T *prop, bool is_json,
+                              char *buffer, size_t buffer_size)
+{
+    struct json_out out_buffer = JSON_OUT_BUF(buffer, buffer_size);
+
+    if (prop) {
+        if (is_json) {
+            return generate_simple_property_json(prop, &out_buffer);
+        }
+        return generate_simple_property_text(prop, &out_buffer);
+    }
+
+    return generate_simple_json(inst, &out_buffer);
+}
+
+static size_t
+webapi_response_slack(size_t response_length)
+{
+    size_t slack = response_length / WEBAPI_RESPONSE_SLACK_DIV;
+
+    if (slack < WEBAPI_RESPONSE_SLACK_MIN) {
+        slack = WEBAPI_RESPONSE_SLACK_MIN;
+    }
+
+    return slack;
+}
+
+static size_t
+webapi_response_buffer_size(size_t response_length)
+{
+    size_t slack = webapi_response_slack(response_length);
+
+    if (response_length > (SIZE_MAX - slack - 1U)) {
+        return 0U;
+    }
+
+    return response_length + slack + 1U;
+}
+
 char *
 webapi_generate_simple_response(const char *ep, const char *property, bool is_json)
 {
     QORAAL_PROP_RESOURCE_T *inst;
     QORAAL_PROP_T *prop = 0;
-    struct json_out out_size = JSON_OUT_NULL();
     size_t response_length;
+    size_t buffer_size;
+    size_t rendered_length;
+    uint32_t retry;
     char *buffer;
 
     if (!ep || !ep[0]) {
@@ -1025,33 +1086,32 @@ webapi_generate_simple_response(const char *ep, const char *property, bool is_js
             return buffer;
         }
 
-        if (is_json) {
-            response_length = generate_simple_property_json(prop, &out_size);
-        } else {
-            response_length = generate_simple_property_text(prop, &out_size);
-        }
+        response_length = webapi_generate_simple_response_len(inst, prop, is_json);
     } else {
-        response_length = generate_simple_json(inst, &out_size);
+        response_length = webapi_generate_simple_response_len(inst, NULL, is_json);
     }
 
-    buffer = (char *)qoraal_malloc(_webapi_heap, response_length + 1);
-    if (!buffer) {
-        return NULL;
-    }
-
-    struct json_out out_buffer = JSON_OUT_BUF(buffer, response_length + 1);
-
-    if (property && property[0]) {
-        if (is_json) {
-            generate_simple_property_json(prop, &out_buffer);
-        } else {
-            generate_simple_property_text(prop, &out_buffer);
+    for (retry = 0; retry < WEBAPI_RESPONSE_RENDER_RETRIES; retry++) {
+        buffer_size = webapi_response_buffer_size(response_length);
+        if (buffer_size == 0U) {
+            return NULL;
         }
-    } else {
-        generate_simple_json(inst, &out_buffer);
+
+        buffer = (char *)qoraal_malloc(_webapi_heap, buffer_size);
+        if (!buffer) {
+            return NULL;
+        }
+
+        rendered_length = webapi_render_simple_response(inst, prop, is_json, buffer, buffer_size);
+        if (rendered_length < buffer_size) {
+            return buffer;
+        }
+
+        qoraal_free(_webapi_heap, buffer);
+        response_length = rendered_length;
     }
 
-    return buffer;
+    return NULL;
 }
 
 void
