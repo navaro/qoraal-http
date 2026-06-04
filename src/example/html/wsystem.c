@@ -106,10 +106,10 @@ wsystem_handler (HTTP_USER_T *user, uint32_t method, char* endpoint)
                     "<div class=\"sys-card\">"
                     "<p class=\"sys-label\">Build Name</p>"
                     "<p class=\"sys-value\" style=\"font-size:1.9rem;\">%s</p>"
-                    "<p class=\"sys-note\">HTTP example environment</p>"
+                    "<p class=\"sys-note\">LXT-002 example environment</p>"
                     "</div>",
                     0, 0, 'a' + 1, 99,
-                    "Qoraal HTTP")) ;
+                    "LXT-002 Platform")) ;
 
     	RTCLIB_DATE_T   date ;
     	RTCLIB_TIME_T   time ;
@@ -146,7 +146,7 @@ wsystem_handler (HTTP_USER_T *user, uint32_t method, char* endpoint)
                 "<tr><td>Refresh</td><td>Reload the page for a fresh snapshot</td></tr>\r\n"
                 "</tbody></table>\r\n"
                 "<div class=\"sys-actions\">"
-                "<p>System-level actions live here. Keep them intentional.</p>"
+                "<p>System-level actions:</p>"
                 "<A style=\"width:100%%; margin-bottom:0;\" class=\"button button-primary\" href=\"system/shutdown\" >Shutdown</A>"
                 "</div>\r\n"
              )) ;
