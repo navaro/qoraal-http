@@ -38,8 +38,10 @@
 #endif
 
 
+#if MBEDTLS_VERSION_MAJOR < 4
 #include "mbedtls/entropy.h"
 #include "mbedtls/ctr_drbg.h"
+#endif
 #include "mbedtls/x509.h"
 #include "mbedtls/ssl.h"
 #include "mbedtls/net_sockets.h"
@@ -57,7 +59,7 @@
 /* local variables.                                                    */
 /*===========================================================================*/
 
-#if !defined(MBEDTLS_USE_PSA_CRYPTO)
+#if MBEDTLS_VERSION_MAJOR < 4 && !defined(MBEDTLS_USE_PSA_CRYPTO)
 static mbedtls_entropy_context          _ssl_entropy;
 static mbedtls_ctr_drbg_context         _ssl_ctr_drbg;
 static mbedtls_ctr_drbg_context   *     _ssl_ctr_drbg_inst = 0;
@@ -123,8 +125,9 @@ mbedtls_hw_entropy_poll( void *data,
 }
 
 
-static int 
-pkilib_psa_rng(void *ctx, unsigned char *output, size_t len)
+#if MBEDTLS_VERSION_MAJOR < 4
+static int
+mbedtlsutils_rng(void *ctx, unsigned char *output, size_t len)
 {
 #if !defined(MBEDTLS_USE_PSA_CRYPTO)
     // Use mbedtls_ctr_drbg_random with the global DRBG context
@@ -137,6 +140,7 @@ pkilib_psa_rng(void *ctx, unsigned char *output, size_t len)
 #endif
     return MBEDTLS_ERR_ENTROPY_SOURCE_FAILED ;
 }
+#endif
 
 static void 
 mbedtls_debug_cb ( void *ctx, int level, const char *file, int line,
@@ -189,9 +193,14 @@ mbedtls_load_certificates( const char * pem_cert, const char * pem_key)
 			break;
 		}
 
-		res =  mbedtls_pk_parse_key(&_ssl_pkey, (const unsigned char *) pem_key,
-							strlen(pem_key)+1, NULL, 0,
-							pkilib_psa_rng, 0);
+#if MBEDTLS_VERSION_MAJOR >= 4
+		res = mbedtls_pk_parse_key(&_ssl_pkey, (const unsigned char *) pem_key,
+						   strlen(pem_key) + 1, NULL, 0);
+#else
+		res = mbedtls_pk_parse_key(&_ssl_pkey, (const unsigned char *) pem_key,
+						   strlen(pem_key) + 1, NULL, 0,
+						   mbedtlsutils_rng, NULL);
+#endif
 		if( res != 0 ) {
 			mbedtls_x509_crt_free (&_ssl_srvcert) ;
 			DBG_MESSAGE_MBEDTLS(DBG_MESSAGE_SEVERITY_LOG,  
@@ -214,10 +223,12 @@ mbedtlsutils_init (void)
 }
 
 int32_t
-mbedtlsutils_start (mbedtls_ctr_drbg_context   * ctr_drbg_context)
+mbedtlsutils_start (void *ctr_drbg_context)
 {
     int32_t ret = 0;
+#if MBEDTLS_VERSION_MAJOR < 4 && !defined(MBEDTLS_USE_PSA_CRYPTO)
     const char *pers = "Qoraal" ;
+#endif
 
     psa_crypto_init() ;
 
@@ -226,8 +237,9 @@ mbedtlsutils_start (mbedtls_ctr_drbg_context   * ctr_drbg_context)
             mbedtls_free_cb ) ;
 #endif
 
-#if !defined(MBEDTLS_USE_PSA_CRYPTO)
-    if (ctr_drbg_context == 0) {
+#if MBEDTLS_VERSION_MAJOR < 4 && !defined(MBEDTLS_USE_PSA_CRYPTO)
+    mbedtls_ctr_drbg_context *drbg_context = ctr_drbg_context;
+    if (drbg_context == 0) {
         mbedtls_entropy_init( &_ssl_entropy );
         mbedtls_entropy_add_source( &_ssl_entropy, mbedtls_hw_entropy_poll, NULL,
                                     12, MBEDTLS_ENTROPY_SOURCE_STRONG );
@@ -253,9 +265,9 @@ mbedtlsutils_start (mbedtls_ctr_drbg_context   * ctr_drbg_context)
             }
         }
 
-        ctr_drbg_context = &_ssl_ctr_drbg ;
+        drbg_context = &_ssl_ctr_drbg ;
     }
-    _ssl_ctr_drbg_inst = ctr_drbg_context ;
+    _ssl_ctr_drbg_inst = drbg_context ;
 #endif
 
 #if defined(MBEDTLS_SSL_CACHE_C)
@@ -277,10 +289,16 @@ mbedtlsutils_start (mbedtls_ctr_drbg_context   * ctr_drbg_context)
 #endif
 
 #if defined(MBEDTLS_SSL_SESSION_TICKETS)
+#if MBEDTLS_VERSION_MAJOR >= 4
     mbedtls_ssl_ticket_setup( &_ssl_ticket_ctx,
-                        pkilib_psa_rng, 0,
+                        PSA_ALG_GCM, PSA_KEY_TYPE_AES, 256,
+                        86400 ) ;
+#else
+    mbedtls_ssl_ticket_setup( &_ssl_ticket_ctx,
+                        mbedtlsutils_rng, NULL,
                         MBEDTLS_CIPHER_AES_256_GCM,
                         86400 ) ;
+#endif
 #endif
 
 
@@ -311,7 +329,9 @@ mbedtls_client_inst_init (mbedtls_ssl_config * ssl_config)
         }
 
         mbedtls_ssl_conf_authmode(pconf, MBEDTLS_SSL_VERIFY_OPTIONAL);
-        mbedtls_ssl_conf_rng( pconf, pkilib_psa_rng, 0 );                    
+#if MBEDTLS_VERSION_MAJOR < 4
+        mbedtls_ssl_conf_rng( pconf, mbedtlsutils_rng, NULL );
+#endif
 
         // mbedtls_ssl_conf_dbg( pconf, mbedtls_debug_cb, NULL );
 
@@ -362,7 +382,9 @@ mbedtls_server_inst_init (mbedtls_ssl_config * ssl_config)
         }
 
         mbedtls_ssl_conf_authmode(pconf, MBEDTLS_SSL_VERIFY_NONE);
-        mbedtls_ssl_conf_rng( pconf, pkilib_psa_rng, 0 );
+#if MBEDTLS_VERSION_MAJOR < 4
+        mbedtls_ssl_conf_rng( pconf, mbedtlsutils_rng, NULL );
+#endif
         mbedtls_ssl_conf_dbg( pconf, mbedtls_debug_cb, NULL );
 
 #if defined(MBEDTLS_SSL_CACHE_C)
