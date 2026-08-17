@@ -25,8 +25,11 @@
 #define __MBEDTLSUTILS_H__
 
 #include <stdint.h>
+#include "mbedtls/build_info.h"
 #include "mbedtls/ssl.h"
+#if MBEDTLS_VERSION_MAJOR < 4
 #include "mbedtls/ctr_drbg.h"
+#endif
 #include "mbedtls/net_sockets.h"
 
 /*===========================================================================*/
@@ -79,7 +82,7 @@ extern "C" {
 
 
     int32_t                 mbedtlsutils_init (void) ;
-    int32_t                 mbedtlsutils_start (mbedtls_ctr_drbg_context   * ctr_drbg_context) ;
+    int32_t                 mbedtlsutils_start (void *ctr_drbg_context) ;
 
     mbedtls_ssl_config*     mbedtlsutils_get_client_config (void)    ;
     void                    mbedtls_release_client_config (void) ;
