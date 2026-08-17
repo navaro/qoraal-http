@@ -86,6 +86,7 @@ static OS_MUTEX_DECL(_mbedtls_mutex) ;
 /* function declarations.                                                    */
 /*===========================================================================*/
 
+#if MBEDTLS_VERSION_MAJOR < 4 && !defined(MBEDTLS_USE_PSA_CRYPTO)
 static int
 mbedtls_tick_entropy_poll( void *data,
                     unsigned char *output, size_t len, size_t *olen )
@@ -123,6 +124,7 @@ mbedtls_hw_entropy_poll( void *data,
 
     return( 0 );
 }
+#endif
 
 
 #if MBEDTLS_VERSION_MAJOR < 4
