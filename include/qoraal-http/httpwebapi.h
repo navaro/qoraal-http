@@ -41,6 +41,16 @@
 
 #define QORAAL_HTTP_API_BUFFER_MAX        QORAAL_PROP_VALUE_BUFFER_MAX
 
+/**
+ * Streams a generated JSON fragment to a caller-provided destination.
+ *
+ * Return a negative error to stop delivery. Any non-negative value indicates
+ * that the fragment was accepted.
+ */
+typedef int32_t (*webapi_json_stream_callback_t)(const char *data,
+                                                 size_t length,
+                                                 void *context);
+
 /*===========================================================================*/
 /* Client pre-compile time settings.                                         */
 /*===========================================================================*/
@@ -67,6 +77,9 @@ extern "C" {
 /* New: OpenAPI JSON support for browser tooling */
 char * webapi_openapi_json(void);
 void webapi_openapi_json_free(char * buffer);
+/** Streams the OpenAPI document without allocating a response buffer. */
+int32_t webapi_openapi_json_stream(webapi_json_stream_callback_t callback,
+                                   void *context);
 
 /* Existing simple endpoint JSON */
     char * webapi_generate_simple_response(const char *ep, const char *property, bool is_json) ;
@@ -75,6 +88,10 @@ void webapi_openapi_json_free(char * buffer);
 /* New WoT (https://playground.thingweb.io) */
     char * webapi_wot_json(const char * uri) ;
     void webapi_wot_json_free(char * buffer) ;
+    /** Streams the WoT Thing Description without allocating a response buffer. */
+    int32_t webapi_wot_json_stream(const char *uri,
+                                   webapi_json_stream_callback_t callback,
+                                   void *context) ;
 
     int32_t webapi_post(const char *ep, const char *property, const char *body, bool is_json) ;
 

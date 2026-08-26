@@ -28,6 +28,7 @@
 #include <stdint.h>
 #include <string.h>
 #include <ctype.h>
+#include <limits.h>
 #include "qoraal/qoraal.h"
 #include "qoraal-http/qoraal.h"
 #include "qoraal-http/httpwebapi.h"
@@ -257,6 +258,35 @@ webapi_resource_set_summary(QORAAL_PROP_RESOURCE_T *inst)
 static int json_printer_null(struct json_out *out, const char *buf, size_t len) {
     out->u.buf.len += len ;
     return len;
+}
+
+typedef struct {
+    webapi_json_stream_callback_t callback;
+    void *context;
+    int32_t result;
+} WEBAPI_JSON_STREAM_T;
+
+static int
+webapi_json_printer_stream(struct json_out *out, const char *buf, size_t len)
+{
+    WEBAPI_JSON_STREAM_T *stream = (WEBAPI_JSON_STREAM_T *)out->u.data;
+    int32_t result;
+
+    if (stream->result < EOK) {
+        return 0;
+    }
+    if (len > INT_MAX) {
+        stream->result = E_INVALID;
+        return 0;
+    }
+
+    result = stream->callback(buf, len, stream->context);
+    if (result < EOK) {
+        stream->result = result;
+        return 0;
+    }
+
+    return (int)len;
 }
 
 static bool
@@ -638,6 +668,23 @@ void webapi_openapi_json_free(char * buffer)
     qoraal_free(_webapi_heap, buffer);
 }
 
+int32_t
+webapi_openapi_json_stream(webapi_json_stream_callback_t callback, void *context)
+{
+    WEBAPI_JSON_STREAM_T stream = { callback, context, EOK };
+    struct json_out out_buffer = {
+        .printer = webapi_json_printer_stream,
+        .u.data = &stream
+    };
+
+    if (!callback) {
+        return E_INVALID;
+    }
+
+    generate_openapi_json(&out_buffer);
+    return stream.result;
+}
+
 static size_t generate_wot_json(struct json_out *out, const char * uri) {
     size_t total_length = 0;
     bool first_property = true;
@@ -804,7 +851,7 @@ static size_t generate_wot_json(struct json_out *out, const char * uri) {
         size_t i;
         char href[192];
 
-        total_length += json_printf(out, ",\"events\":{");
+        total_length += json_printf(out, "%s", ",\"events\":{");
 
         for (i = 0; i < webapi_resource_count(); i++) {
             QORAAL_PROP_RESOURCE_T *inst = webapi_resource_at(i);
@@ -860,6 +907,25 @@ char * webapi_wot_json(const char * uri)
 void webapi_wot_json_free(char * buffer)
 {
     qoraal_free(_webapi_heap, buffer);
+}
+
+int32_t
+webapi_wot_json_stream(const char *uri,
+                       webapi_json_stream_callback_t callback,
+                       void *context)
+{
+    WEBAPI_JSON_STREAM_T stream = { callback, context, EOK };
+    struct json_out out_buffer = {
+        .printer = webapi_json_printer_stream,
+        .u.data = &stream
+    };
+
+    if (!callback) {
+        return E_INVALID;
+    }
+
+    generate_wot_json(&out_buffer, uri);
+    return stream.result;
 }
 
 static QORAAL_PROP_T *
