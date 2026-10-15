@@ -56,6 +56,63 @@ const   HTTP_HEADER_T _http_headers_chunked[]   = {
 #define HTTPSERVER_RESPONSE_HEADER              \
         "HTTP/1.1 %u\r\n"
 
+/*
+ * Sends do not block where the platform allows it; httpserver_write() selects
+ * and retries instead. Without MSG_DONTWAIT (Winsock) sends block as before.
+ */
+#if defined(MSG_DONTWAIT)
+#define HTTPSERVER_SEND_FLAGS                   MSG_DONTWAIT
+#else
+#define HTTPSERVER_SEND_FLAGS                   0
+#endif
+
+/* Pause before retrying a send that would have blocked. */
+#define HTTPSERVER_SEND_RETRY_MS                10
+
+#if defined(MSG_DONTWAIT)
+static bool
+httpserver_send_would_block (int err)
+{
+    return (err == EAGAIN) || (err == EWOULDBLOCK) || (err == EINTR) ||
+           (err == ENOBUFS) || (err == ENOMEM) ;
+}
+#endif
+
+#if (!defined(CFG_HTTPSERVER_TLS_DISABLE) || !CFG_HTTPSERVER_TLS_DISABLE) && defined(MSG_DONTWAIT)
+/*
+ * Server-side TLS send that does not block. On WANT_WRITE, httpserver_write()
+ * and the handshake loop select and retry. The HTTP client keeps the blocking
+ * mbedtls_net_send().
+ */
+static int
+httpserver_tls_send (void *ctx, const unsigned char *buf, size_t len)
+{
+    int fd = (int)(intptr_t)ctx ;
+    int sent = (int)send (fd, buf, len, MSG_DONTWAIT) ;
+    int err ;
+
+    if (sent >= 0) {
+        return sent ;
+
+    }
+
+    err = errno ;
+    if (httpserver_send_would_block (err)) {
+        return MBEDTLS_ERR_SSL_WANT_WRITE ;
+
+    }
+    if ((err == ECONNRESET) || (err == ENOTCONN) || (err == EPIPE)) {
+        return MBEDTLS_ERR_NET_CONN_RESET ;
+
+    }
+
+    return MBEDTLS_ERR_NET_SEND_FAILED ;
+}
+#define HTTPSERVER_TLS_SEND                     httpserver_tls_send
+#else
+#define HTTPSERVER_TLS_SEND                     mbedtls_net_send
+#endif
+
 
 /**
  * @brief   httpserver_init
@@ -394,7 +451,7 @@ httpserver_user_ssl_accept (HTTP_USER_T* user, uint32_t timeout, void * ssl_conf
 
             }
             mbedtls_ssl_set_bio( (mbedtls_ssl_context *)user->ssl, (void*)(intptr_t)user->socket,
-                mbedtls_net_send, mbedtls_net_recv, 0 /*mbedtls_net_recv_timeout*/ )  ;
+                HTTPSERVER_TLS_SEND, mbedtls_net_recv, 0 /*mbedtls_net_recv_timeout*/ )  ;
 
        }
  
@@ -649,11 +706,50 @@ httpserver_wait_socket(HTTP_USER_T* user, bool wait_read, bool wait_write, uint3
     return HTTP_SERVER_E_ERROR ;
 }
 
+/**
+ * @brief   A send that would have blocked: give up, or pause and retry.
+ *
+ * Gives up once the connection has made no progress for user->timeout. A send
+ * that found no network buffer leaves the socket writable, so select()
+ * returns at once; the short pause keeps the retry from spinning.
+ *
+ * @return  true when the connection is given up.
+ */
+static inline bool
+httpserver_write_stalled (HTTP_USER_T* user, uint32_t progress)
+{
+    if ((os_sys_timestamp () - progress) >= user->timeout) {
+        user->peer_closed = 1 ;
+        DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_ERROR,
+                "HTTPD :E: socket 0x%x send stalled for %u ms\r\n",
+                user->socket, user->timeout);
+        return true ;
+
+    }
+
+    os_thread_sleep (HTTPSERVER_SEND_RETRY_MS) ;
+    return false ;
+}
+
+/**
+ * @brief   Write to the connection, giving up on a client that stops reading.
+ *
+ * Each send waits in select() for the socket to become writable, and then
+ * sends without blocking where the platform supports it. If the TCP window
+ * fills up again, the send returns at once and the loop selects again, rather
+ * than blocking in the network stack (10 s on Zephyr). A client that stops
+ * reading therefore costs at most user->timeout without progress. That
+ * matters most for event streams, which are written from a worker thread
+ * shared with everything else that posts events.
+ *
+ * @return  The number of bytes written, or HTTP_SERVER_E_CONNECTION.
+ */
 int32_t
 httpserver_write (HTTP_USER_T* user, const uint8_t* buffer, uint32_t length)
 {
     int32_t sent_bytes ;
     uint32_t total = 0 ;
+    uint32_t progress = os_sys_timestamp () ;
 
 
     while (length) {
@@ -676,6 +772,10 @@ httpserver_write (HTTP_USER_T* user, const uint8_t* buffer, uint32_t length)
                 continue ;
 
             } else if (sent_bytes == MBEDTLS_ERR_SSL_WANT_WRITE) {
+                if (httpserver_write_stalled (user, progress)) {
+                    return HTTP_SERVER_E_CONNECTION ;
+
+                }
                 continue ;
 
             }
@@ -683,7 +783,17 @@ httpserver_write (HTTP_USER_T* user, const uint8_t* buffer, uint32_t length)
         }
         else {
     #endif
-            sent_bytes = send (user->socket, (unsigned char*)&buffer[total], length, 0 /*MSG_DONTWAIT*/);
+            sent_bytes = send (user->socket, (unsigned char*)&buffer[total], length, HTTPSERVER_SEND_FLAGS);
+    #if defined(MSG_DONTWAIT)
+            if ((sent_bytes < 0) && httpserver_send_would_block (errno)) {
+                if (httpserver_write_stalled (user, progress)) {
+                    return HTTP_SERVER_E_CONNECTION ;
+
+                }
+                continue ;
+
+            }
+    #endif
     #if !defined(CFG_HTTPSERVER_TLS_DISABLE) || !CFG_HTTPSERVER_TLS_DISABLE
         }
     #endif
@@ -696,6 +806,7 @@ httpserver_write (HTTP_USER_T* user, const uint8_t* buffer, uint32_t length)
         } else {
             user->write += sent_bytes ;
             total += sent_bytes ;
+            progress = os_sys_timestamp () ;
             if (length >=  (unsigned int)sent_bytes) length -= sent_bytes ;
             else break ;
 
