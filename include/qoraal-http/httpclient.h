@@ -87,6 +87,24 @@
 #define HTTP_CLIENT_MAX_RECV_BUFFER_PADDING                 (32)
 #define MAX_IPv4_STR_LEN                                    32 /* a.b.c.d:port */
 #define MAX_HOSTNAME_LEN                                    64 /* xxx.com */
+#define MAX_CONTENT_TYPE_LEN                                64 /* application/pkcs10 */
+#ifndef HTTP_CLIENT_MAX_RESPONSE_LENGTH
+#define HTTP_CLIENT_MAX_RESPONSE_LENGTH                     (16*1024) /* largest body httpclient_read_response() accepts */
+#endif
+#ifndef HTTP_CLIENT_RESPONSE_INITIAL_LENGTH
+#define HTTP_CLIENT_RESPONSE_INITIAL_LENGTH                 (1024) /* first buffer for a body without Content-Length */
+#endif
+/** @} */
+
+/**
+ * @name    Features
+ * @brief   Lets callers that also build against older qoraal-http versions
+ *          test for these additions.
+ * @{
+ */
+#define HTTP_CLIENT_FEATURE_CONTENT_TYPE                    1 /* httpclient_set_content_type() */
+#define HTTP_CLIENT_FEATURE_RETRY_AFTER                     1 /* HTTP_CLIENT_T.retry_after */
+#define HTTP_CLIENT_FEATURE_READ_ALLOC                      1 /* httpclient_read_response_alloc() */
 /** @} */
 
 /**
@@ -146,6 +164,8 @@ typedef struct HTTP_CLIENT_S {
 
     char                    host[MAX_IPv4_STR_LEN] ;
     char                    hostname[MAX_HOSTNAME_LEN] ;
+    char                    content_type[MAX_CONTENT_TYPE_LEN] ; /* POST Content-Type; empty = text/plain */
+    uint32_t                retry_after ;   /* seconds from the last response's Retry-After, 0 if absent */
     uint32_t                total_read ;
 
     int32_t                 mss ;           /* maximum segment size */
@@ -179,6 +199,7 @@ extern "C" {
     extern int32_t      httpclient_init (HTTP_CLIENT_T* client, int32_t mss) ;
     extern int32_t      httpclient_connect (HTTP_CLIENT_T* client, const struct sockaddr_in* addr, void * ssl_config ) ;
     extern int32_t      httpclient_set_hostname (HTTP_CLIENT_T* client, const char* hostname) ;
+    extern int32_t      httpclient_set_content_type (HTTP_CLIENT_T* client, const char* content_type) ;
     extern int32_t      httpclient_is_connected (HTTP_CLIENT_T* client) ;
     extern void         httpclient_close (HTTP_CLIENT_T* client) ;
 
@@ -187,6 +208,8 @@ extern "C" {
     extern int32_t      httpclient_post_chunked (HTTP_CLIENT_T* client, const char* endpoint, const char* request, int32_t len, const char *credentials) ;
     extern int32_t      httpclient_post_stream (HTTP_CLIENT_T* client, const char* endpoint, HTTP_STREAM_NEXT_T stream, uint32_t parm, int32_t len, const char *credentials) ;
     extern int32_t      httpclient_read_response (HTTP_CLIENT_T* client, uint32_t timeout, char** response, int32_t* status) ;
+    extern int32_t      httpclient_read_response_alloc (HTTP_CLIENT_T* client, uint32_t timeout, char** response, int32_t* status,
+                                                        uint32_t initial, uint32_t grow, uint32_t max) ;
     extern void         httpclient_free_response (HTTP_CLIENT_T* client, void* reponse) ;
 
     extern int32_t      httpclient_read_response_ex (HTTP_CLIENT_T* client, uint32_t timeout, int32_t* status) ;
