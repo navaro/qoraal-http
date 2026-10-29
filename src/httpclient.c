@@ -534,55 +534,17 @@ httpclient_write (HTTP_CLIENT_T* client, uint8_t* buffer, uint32_t length, uint3
 static int32_t
 httpclient_write_chunked (HTTP_CLIENT_T* client, uint8_t* buffer, uint32_t length, uint32_t timeout)
 {
-    int32_t sent_bytes = 0;
-    unsigned int i ;
-    uint32_t total = 0 ;
     char chunkhead[16] ;
+    int32_t i ;
 
-    setsockopt (client->socket, SOL_SOCKET, SO_SNDTIMEO, (char *)&timeout, sizeof(timeout));
-
-    i = snprintf (chunkhead, 16, "%x\r\n", (unsigned int)length) ;
-#if !defined(CFG_HTTPCLIENT_TLS_DISABLE) || !CFG_HTTPCLIENT_TLS_DISABLE
-    if (client->ssl) {
-        sent_bytes = mbedtls_ssl_write ((mbedtls_ssl_context *)client->ssl,
-                    (const unsigned char *)chunkhead, i) ;
-    } else
-#endif
-    {
-        sent_bytes = send (client->socket, chunkhead, i, 0);
-    }
-    if (sent_bytes <= 0) {
-        DBG_MESSAGE_HTTP_CLIENT (DBG_MESSAGE_SEVERITY_ERROR,
-                "HTTP  :E: chunk head socket 0x%x sent_bytes %d",
-                client->socket, sent_bytes);
+    i = snprintf (chunkhead, sizeof(chunkhead), "%x\r\n", (unsigned int)length) ;
+    if (httpclient_write (client, (uint8_t*)chunkhead, i, timeout) != i) {
         return HTTP_CLIENT_E_CONNECTION ;
 
     }
+    if (httpclient_write (client, buffer, length, timeout) != (int32_t)length) {
+        return HTTP_CLIENT_E_CONNECTION ;
 
-    while (length) {
-
-#if !defined(CFG_HTTPCLIENT_TLS_DISABLE) || !CFG_HTTPCLIENT_TLS_DISABLE
-        if (client->ssl) {
-            sent_bytes = mbedtls_ssl_write ((mbedtls_ssl_context *)client->ssl,
-            		(unsigned char*)&buffer[total], length) ;
-        } else
-#endif
-        {
-            sent_bytes = send (client->socket, (unsigned char*)&buffer[total], length, 0);
-        }
-
-        if (sent_bytes <= 0) {
-            DBG_MESSAGE_HTTP_CLIENT (DBG_MESSAGE_SEVERITY_ERROR,
-                    "httpserver_write : ERROR: socket 0x%x sent_bytes %d",
-					client->socket, sent_bytes);
-            return HTTP_CLIENT_E_CONNECTION ;
-
-        } else {
-            total += sent_bytes ;
-            if (length >= (unsigned int)sent_bytes) length -= sent_bytes ;
-            else break ;
-
-        }
     }
     /* Without its CRLF the chunk, and for the last chunk the body, is not
      * complete, so the server would wait for it instead of answering. */
@@ -590,7 +552,7 @@ httpclient_write_chunked (HTTP_CLIENT_T* client, uint8_t* buffer, uint32_t lengt
         return HTTP_CLIENT_E_CONNECTION ;
 
     }
-    return total ;
+    return length ;
 }
 
 static int32_t
