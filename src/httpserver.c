@@ -455,8 +455,8 @@ httpserver_user_ssl_accept (HTTP_USER_T* user, uint32_t timeout, void * ssl_conf
                         user->socket, -status);
 
                 } else if (status == MBEDTLS_ERR_SSL_FATAL_ALERT_MESSAGE) {
-                    DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_WARNING,
-                        "HTTP  :W: TLS handshake failed with fatal alert socket %d",
+                    DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_INFO,
+                        "HTTP  : : TLS handshake failed with fatal alert socket %d",
                         user->socket);
 
                 } else {
