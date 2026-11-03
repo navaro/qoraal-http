@@ -50,18 +50,23 @@
 
 /**
  * @name    Error Codes
+ * @brief   Every public httpclient_*() function returns HTTP_CLIENT_E_OK, a
+ *          byte count of 0 or more, or one of these. Codes of mbedTLS, PSA
+ *          and qoraal never reach the caller.
  * @{
  */
 #define HTTP_CLIENT_E_OK                                 0
-#define HTTP_CLIENT_E_ERROR                             -1 /* A_ERROR */
-#define HTTP_CLIENT_E_CONNECTION                        -2 /* A_INVALID */
-#define HTTP_CLIENT_E_HEADER                            -3
-#define HTTP_CLIENT_E_CONTENT                           -4
-#define HTTP_CLIENT_E_LENGTH                            -5
-#define HTTP_CLIENT_E_MEMORY                            -6
-#define HTTP_CLIENT_E_SSL_CONNECT                       -7
-#define HTTP_CLIENT_E_SSL_TRUST                         -8
-#define HTTP_CLIENT_E_HOST                              -9
+#define HTTP_CLIENT_E_ERROR                             -1  /* anything else unexpected */
+#define HTTP_CLIENT_E_CONNECTION                        -2  /* connect failed, reset, or closed before the response was complete */
+#define HTTP_CLIENT_E_HEADER                            -3  /* malformed response header */
+#define HTTP_CLIENT_E_CONTENT                           -4  /* malformed body framing or an unsupported transfer coding */
+#define HTTP_CLIENT_E_LENGTH                            -5  /* over a limit: response header, body, or request buffer */
+#define HTTP_CLIENT_E_MEMORY                            -6  /* an allocation failed */
+#define HTTP_CLIENT_E_SSL_CONNECT                       -7  /* TLS handshake failed, other than on trust */
+#define HTTP_CLIENT_E_SSL_TRUST                         -8  /* the server certificate failed verification */
+#define HTTP_CLIENT_E_HOST                              -9  /* host name lookup failed; the client takes an address, so only callers return it */
+#define HTTP_CLIENT_E_TIMEOUT                           -10 /* no data, or no send progress, within the timeout */
+#define HTTP_CLIENT_E_PARM                              -11 /* invalid argument or setup */
 /** @} */
 
 /*===========================================================================*/
@@ -82,8 +87,16 @@
  * @{
  */
 #define HTTP_CLIENT_MAX_XMIT_BUFFER_LENGTH                  (1280)
-#define HTTP_CLIENT_MAX_RECV_HEADER_LENGTH                  (1280)
+#ifndef HTTP_CLIENT_MAX_RECV_BUFFER_LENGTH
 #define HTTP_CLIENT_MAX_RECV_BUFFER_LENGTH                  (4*1024)
+#endif
+/* The status lines and header fields of a response, interim 1xx responses
+ * included, up to the empty line before the body. The head is parsed in
+ * place in the receive buffer, so the limit can be at most its size, and
+ * by default it is all of it: what the streaming readers have accepted. */
+#ifndef HTTP_CLIENT_MAX_RECV_HEADER_LENGTH
+#define HTTP_CLIENT_MAX_RECV_HEADER_LENGTH                  (HTTP_CLIENT_MAX_RECV_BUFFER_LENGTH)
+#endif
 #define HTTP_CLIENT_MAX_RECV_BUFFER_PADDING                 (32)
 #define MAX_IPv4_STR_LEN                                    32 /* a.b.c.d:port */
 #define MAX_HOSTNAME_LEN                                    64 /* xxx.com */
@@ -104,14 +117,14 @@
  */
 #define HTTP_CLIENT_FEATURE_CONTENT_TYPE                    1 /* httpclient_set_content_type() */
 #define HTTP_CLIENT_FEATURE_RETRY_AFTER                     1 /* HTTP_CLIENT_T.retry_after */
-#define HTTP_CLIENT_FEATURE_READ_ALLOC                      1 /* httpclient_read_response_alloc() */
 /** @} */
 
 /**
  * @name    Timeouts
  * @{
  */
-#define HTTP_CLIENT_CONNECT_TIMEOUT                         (8000)
+#define HTTP_CLIENT_CONNECT_TIMEOUT                         (8000) /* each wait of the TLS handshake */
+#define HTTP_CLIENT_SEND_TIMEOUT                            (8000) /* a send of a request without progress */
 /** @} */
 
 
@@ -156,11 +169,15 @@ typedef struct HTTP_CLIENT_S {
     void                    *ssl ;
 
     uint8_t                 *read_buffer ;
-    int32_t                 payload_length ;
-    int32_t                 content_length ;
-    uint32_t                chunked ;
-    int32_t                 chunk_length ;
-    int32_t                 read ;
+    uint32_t                read_start ;    /* first byte in read_buffer not yet used */
+    uint32_t                read_end ;      /* end of the bytes received into read_buffer */
+    int32_t                 content_length ;/* Content-Length of the response being read, -1 when it has none */
+    uint32_t                body_state ;    /* where httpclient_read_next_ex() is in the body */
+    uint32_t                body_left ;     /* bytes to go of the Content-Length body or of the current chunk */
+    int32_t                 body_error ;    /* what a body read keeps returning after it failed */
+    uint32_t                body_read ;     /* body bytes returned so far */
+    uint32_t                chunks ;        /* chunks read so far */
+    uint32_t                send_timeout ;  /* SO_SNDTIMEO in ms last asked of the socket, 0 for none */
 
     char                    host[MAX_IPv4_STR_LEN] ;
     char                    hostname[MAX_HOSTNAME_LEN] ;
@@ -184,8 +201,12 @@ typedef struct HTTP_CLIENT_S {
 #define HTTP_CLIENT_STATUS_CLOSE_CLIENT                             (1 << 1)
 /** @} */
 
-typedef int32_t (*HTTP_STREAM_WRITE)(uint32_t ctx, const void* data, uint32_t len) ;
-typedef int32_t (*HTTP_STREAM_NEXT_T)(HTTP_STREAM_WRITE stream_write, uint32_t ctx, uint32_t parm, uint32_t len) ;
+/* httpclient_post_stream() calls the HTTP_STREAM_NEXT_T for up to len more
+ * bytes; it sends them with stream_write (ctx, ...) and returns how many it
+ * sent, or what stream_write returned when that failed. ctx holds a
+ * pointer, so it is a uintptr_t, the size of uint32_t on 32-bit targets. */
+typedef int32_t (*HTTP_STREAM_WRITE)(uintptr_t ctx, const void* data, uint32_t len) ;
+typedef int32_t (*HTTP_STREAM_NEXT_T)(HTTP_STREAM_WRITE stream_write, uintptr_t ctx, uint32_t parm, uint32_t len) ;
 
 
 /*===========================================================================*/
@@ -208,8 +229,6 @@ extern "C" {
     extern int32_t      httpclient_post_chunked (HTTP_CLIENT_T* client, const char* endpoint, const char* request, int32_t len, const char *credentials) ;
     extern int32_t      httpclient_post_stream (HTTP_CLIENT_T* client, const char* endpoint, HTTP_STREAM_NEXT_T stream, uint32_t parm, int32_t len, const char *credentials) ;
     extern int32_t      httpclient_read_response (HTTP_CLIENT_T* client, uint32_t timeout, char** response, int32_t* status) ;
-    extern int32_t      httpclient_read_response_alloc (HTTP_CLIENT_T* client, uint32_t timeout, char** response, int32_t* status,
-                                                        uint32_t initial, uint32_t grow, uint32_t max) ;
     extern void         httpclient_free_response (HTTP_CLIENT_T* client, void* reponse) ;
 
     extern int32_t      httpclient_read_response_ex (HTTP_CLIENT_T* client, uint32_t timeout, int32_t* status) ;

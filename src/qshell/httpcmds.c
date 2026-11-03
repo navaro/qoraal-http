@@ -207,7 +207,12 @@ int32_t qshell_wget(SVC_SHELL_IF_T *pif, char **argv, int argc)
 
     /* Init client */
     httpclient_init(&client, 0);
-    httpclient_set_hostname(&client, host);
+    res = httpclient_set_hostname(&client, host);
+    if (res != HTTP_CLIENT_E_OK) {
+        svc_shell_print(pif, SVC_SHELL_OUT_STD, "HTTP: host name %s not usable\r\n", host);
+        qfs_stream_close(&st);
+        return res;
+    }
 
     void *pssl_config = 0;
 #if !defined(CFG_HTTPCLIENT_TLS_DISABLE) || !CFG_HTTPCLIENT_TLS_DISABLE
@@ -262,8 +267,14 @@ int32_t qshell_wget(SVC_SHELL_IF_T *pif, char **argv, int argc)
     qfs_stream_close(&st);
     httpclient_close(&client);
 
+    /* httpclient_read_next_ex() gives 0 at the end of the body, < 0 on an error. */
+    if (res < 0) {
+        svc_shell_print(pif, SVC_SHELL_OUT_STD, "Download failed (rc %d): %s\r\n", res, leaf);
+        return res;
+    }
+
     svc_shell_print(pif, SVC_SHELL_OUT_STD, "Download complete: %s\r\n", leaf);
-    return res >= EOK ? SVC_SHELL_CMD_E_OK : res;
+    return SVC_SHELL_CMD_E_OK;
 }
 
 

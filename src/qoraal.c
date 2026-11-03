@@ -45,6 +45,7 @@ qoraal_http_keep_client(void)
     httpclient_init (0, 0) ;
     httpclient_connect (0, 0, 0) ;
     httpclient_set_hostname (0, 0) ;
+    httpclient_set_content_type (0, 0) ;
     httpclient_is_connected (0) ;
     httpclient_close (0) ;
 

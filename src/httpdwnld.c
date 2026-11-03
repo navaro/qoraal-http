@@ -109,7 +109,13 @@ httpdwnld_download (HTTPDWNLD_T * dwnld,
     httpclient_init (&client, dwnld->mss) ;
 
     if (dwnld->host) {
-        httpclient_set_hostname (&client, dwnld->host) ;
+        res = httpclient_set_hostname (&client, dwnld->host) ;
+        if (res != HTTP_CLIENT_E_OK) {
+            DBG_MESSAGE_HTTP_CLIENT (DBG_MESSAGE_SEVERITY_ERROR,
+                        "HTTP  : : host name %s not usable!", dwnld->host) ;
+            return res ;
+
+        }
 
     }
 
@@ -162,8 +168,9 @@ httpdwnld_download (HTTPDWNLD_T * dwnld,
 
             res = httpclient_read_response_ex (&client, timeout, &status) ;
 
-            if (status/100 != 2) {
-                res = status ? HTTP_CLIENT_E_CONTENT : HTTP_CLIENT_E_CONNECTION ;
+            /* A response that could not be read keeps its own error. */
+            if ((res >= 0) && (status/100 != 2)) {
+                res = HTTP_CLIENT_E_CONTENT ;
 
             }
 
