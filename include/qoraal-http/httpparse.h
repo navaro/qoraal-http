@@ -52,6 +52,7 @@
 #define HTTP_HEADER_KEY_WEBSOCK_ACCEPT          "Sec-WebSocket-Accept"
 #define HTTP_HEADER_KEY_WEBSOCK_PROT            "Sec-WebSocket-Protocol"
 #define HTTP_HEADER_KEY_ACCEPT                  "Accept"
+#define HTTP_HEADER_KEY_RETRY_AFTER             "Retry-After"
 
 
 

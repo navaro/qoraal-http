@@ -43,9 +43,15 @@
 
 const   HTTP_HEADER_T _http_headers[]   = {
         {"Server", HTTP_SERVER_NAME} ,
+#if CFG_WSERVER_USER_THREAD_MAX < 3
+        /* wserver_m.c closes a connection after its request while fewer
+         * than two workers are free: with two or fewer, always. */
+        {"Connection", "close"} ,
+#else
         {"Connection", "Keep-Alive"} ,
 #if defined HTTP_SERVER_KEEPALIVE_HEADER
         {"Keep-Alive", HTTP_SERVER_KEEPALIVE_HEADER} ,
+#endif
 #endif
 };
 
@@ -455,8 +461,8 @@ httpserver_user_ssl_accept (HTTP_USER_T* user, uint32_t timeout, void * ssl_conf
                         user->socket, -status);
 
                 } else if (status == MBEDTLS_ERR_SSL_FATAL_ALERT_MESSAGE) {
-                    DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_WARNING,
-                        "HTTP  :W: TLS handshake failed with fatal alert socket %d",
+                    DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_INFO,
+                        "HTTP  : : TLS handshake failed with fatal alert socket %d",
                         user->socket);
 
                 } else {

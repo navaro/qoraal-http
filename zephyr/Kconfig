@@ -3,6 +3,9 @@ menu "Qoraal-http"
 config QORAAL_HTTP
     bool "Enable Qoraal framework"
     default n
+    # The http client sets SO_SNDTIMEO, so a send cannot block for as long
+    # as the server does not read; without this Zephyr refuses the option.
+    imply NET_CONTEXT_SNDTIMEO
 
 if QORAAL_HTTP
 

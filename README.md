@@ -249,9 +249,14 @@ int32_t wget(char * url)
     fclose(file);
     httpclient_close(&client);
 
+    // 0 is the end of the body, < 0 an error
+    if (res < 0) {
+        printf("Download failed: %d\n", res);
+        return res;
+    }
     printf("Download complete: %s\n", filename);
 
-    return res >= EOK ?  res;
+    return EOK;
 }
 ```
 
@@ -261,7 +266,10 @@ int32_t wget(char * url)
 3. **Connects to the server** with `httpclient_connect`.
 4. **Sends a GET request** using `httpclient_get`.
 5. **Reads the response headers** with `httpclient_read_response_ex`.
-6. **Reads the response body** using `httpclient_read_next_ex`.
+6. **Reads the response body** using `httpclient_read_next_ex` until it
+   returns 0 at the end of the body. A `Content-Length` or chunked body that
+   ends early is an error. A body with neither runs until the server closes
+   the connection; over TLS only a close_notify ends it.
 7. **Closes the connection** with `httpclient_close`.
 
 Also try the `wget` qshell command in the shell to test this functionality.
