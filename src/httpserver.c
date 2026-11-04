@@ -1043,12 +1043,13 @@ httpserver_read_chunked_content_ex(HTTP_USER_T* user, uint32_t timeout, char** r
  * @param[out] endpoint    Pointer to store the endpoint string.
  * @param[out] method      Pointer to store the HTTP method.
  *
- * @return                          Number of bytes read in the request or an error code.
+ * @return                          The request's Content-Length (0 without one), or an error code.
  * @retval HTTP_SERVER_E_OK         Request was successfully read and parsed.
  * @retval HTTP_SERVER_E_ERROR      Error occurred during reading.
  * @retval HTTP_SERVER_E_CONNECTION Connection was closed during reading.
  * @retval HTTP_SERVER_E_HEADER     Error parsing the HTTP header.
- * @retval HTTP_SERVER_E_LENGTH     Request exceeded maximum allowed length.
+ * @retval HTTP_SERVER_E_LENGTH     Request exceeded maximum allowed length, or its
+ *                                  Content-Length is not 1*DIGIT up to INT32_MAX.
  * @retval HTTP_SERVER_E_MEMORY     Failed to allocate memory for request data.
  *
  * @http
@@ -1163,6 +1164,16 @@ httpserver_read_request_ex (HTTP_USER_T* user, uint32_t timeout, char** endpoint
 
         content_length = httpparse_content(content, left, user->headers,
                     sizeof(user->headers)/sizeof(user->headers[0]), &payload) ;
+
+        /* The length is returned, and a negative return is an error to the
+         * callers: wserver_m.c takes -1 for a read timeout. A malformed
+         * length is HTTPPARSE_CONTENT_INVALID, which is above INT32_MAX too. */
+        if (content_length > INT32_MAX) {
+            DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_WARNING,
+                    "HTTPD :W: invalid Content-Length");
+            return HTTP_SERVER_E_LENGTH ;
+
+        }
 
         if (content_length) {
 
@@ -1302,6 +1313,7 @@ httpserver_read_content_ex (HTTP_USER_T* user, uint32_t timeout, char** request)
  * @retval >0                       Total bytes read successfully.
  * @retval HTTP_SERVER_E_ERROR      Error occurred during reading.
  * @retval HTTP_SERVER_E_MEMORY     Failed to allocate memory for the content.
+ * @retval HTTP_SERVER_E_LENGTH     The body is larger than CFG_HTTPSERVER_CONTENT_MAX.
  *
  * @http
  */
@@ -1320,7 +1332,18 @@ httpserver_read_all_content_ex (HTTP_USER_T* user, uint32_t timeout, char** requ
         char* content = 0 ;
 
         while ((recvlen = httpserver_read_content_ex(user, timeout, &buffer)) > 0) {
-            char* newbuf = (char*)HTTP_SERVER_MALLOC(total + recvlen + 1) ;
+            char* newbuf ;
+
+            if (total + (uint32_t)recvlen > CFG_HTTPSERVER_CONTENT_MAX) {
+                if (content) {
+                    HTTP_SERVER_FREE(content) ;
+                }
+                DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_WARNING,
+                        "HTTPD :W: chunked content above %d bytes", (int)CFG_HTTPSERVER_CONTENT_MAX);
+                return HTTP_SERVER_E_LENGTH ;
+            }
+
+            newbuf = (char*)HTTP_SERVER_MALLOC(total + recvlen + 1) ;
             if (!newbuf) {
                 if (content) {
                     HTTP_SERVER_FREE(content) ;
@@ -1357,6 +1380,13 @@ httpserver_read_all_content_ex (HTTP_USER_T* user, uint32_t timeout, char** requ
 
     {
     uint32_t content_length = user->reader.content_length ;
+
+    if (content_length > CFG_HTTPSERVER_CONTENT_MAX) {
+        DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_WARNING,
+                "HTTPD :W: content of %u bytes above %d", content_length, (int)CFG_HTTPSERVER_CONTENT_MAX);
+        return HTTP_SERVER_E_LENGTH ;
+
+    }
 
     if (content_length) {
             user->content = HTTP_SERVER_MALLOC (content_length+1) ;
