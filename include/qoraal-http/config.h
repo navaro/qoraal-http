@@ -30,6 +30,15 @@
 */
 // #define CFG_MBEDTLS_PLATFORM_INIT_ENABLE    1
 
+/* CFG_HTTPSERVER_CONTENT_MAX
+    Largest request body httpserver_read_all_content_ex() reads into memory.
+    A larger one is refused before anything is allocated. Bodies read in
+    pieces, such as uploads, are not limited.
+*/
+#if !defined(CFG_HTTPSERVER_CONTENT_MAX)
+#define CFG_HTTPSERVER_CONTENT_MAX      (16*1024)
+#endif
+
 /* CFG_WSERVER_USER_THREAD_SIZE 
     Threadsize for incomming http connection
 */

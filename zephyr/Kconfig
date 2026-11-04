@@ -31,6 +31,15 @@ config QORAAL_HTTP_SERVER_USER_THREAD_SIZE
     help
       Stack size, in bytes, for each HTTP request worker thread.
 
+config QORAAL_HTTP_SERVER_CONTENT_MAX
+    int "HTTP server largest request body read into memory"
+    default 16384
+    help
+      Largest request body httpserver_read_all_content_ex() reads into
+      memory; a larger one is refused before anything is allocated. Bodies
+      read in pieces, such as file uploads, are not limited. Raise it for a
+      handler that reads a whole file this way.
+
 config QORAAL_HTTP_SERVER_TLS_SESSION_CACHE_ENTRIES
     int "HTTP server TLS session cache entries"
     default 16

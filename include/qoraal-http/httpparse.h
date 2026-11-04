@@ -68,6 +68,10 @@
 #define HTTP_HEADER_METHOD_TRACE                8
 #define HTTP_HEADER_METHOD_UNDEFINED            -1
 
+/* httpparse_content() returns this for a Content-Length that is not
+   1*DIGIT or is above INT32_MAX. */
+#define HTTPPARSE_CONTENT_INVALID               0xFFFFFFFFU
+
 /*===========================================================================*/
 /* Client data structures and types.                                         */
 /*===========================================================================*/

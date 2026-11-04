@@ -544,6 +544,48 @@ httpparse_request(char* data, int len, HTTP_HEADER_T* headers, int count, char**
 
 
 /**
+ * @brief   httpparse_content_length
+ * @details Parses a Content-Length field value: 1*DIGIT, then only the spaces
+ *          or tabs httpparse_headers() leaves after a value. Unlike
+ *          sscanf("%u") it refuses a sign and anything after the digits, and
+ *          refuses a value above INT32_MAX instead of wrapping it.
+ *
+ * @param[in] value         NUL-terminated field value.
+ *
+ * @return                  The length, or HTTPPARSE_CONTENT_INVALID.
+ *
+ * @http
+ */
+static uint32_t
+httpparse_content_length (const char* value)
+{
+    uint32_t length = 0 ;
+
+    if ((*value < '0') || (*value > '9')) {
+        return HTTPPARSE_CONTENT_INVALID ;
+
+    }
+
+    for ( ; (*value >= '0') && (*value <= '9'); value++) {
+        uint32_t digit = (uint32_t)(*value - '0') ;
+
+        if (length > (INT32_MAX - digit) / 10) {
+            return HTTPPARSE_CONTENT_INVALID ;
+
+        }
+        length = length * 10 + digit ;
+
+    }
+
+    while ((*value == ' ') || (*value == '\t')) {
+        value++ ;
+
+    }
+
+    return (*value == '\0') ? length : HTTPPARSE_CONTENT_INVALID ;
+}
+
+/**
  * @brief   This function will inspect the headers and if the content type is chunked it will
  *          put the content pointer to the start of the first chunk.
  *
@@ -553,7 +595,9 @@ httpparse_request(char* data, int len, HTTP_HEADER_T* headers, int count, char**
  * @param[in] count         Elements in array headers.
  * @param[out] content      Pointer to start of content.
  *
- * @return http result code, like 200 for OK.
+ * @return The Content-Length, the size of the first chunk, or 0 with
+ *         neither. HTTPPARSE_CONTENT_INVALID for a Content-Length that is
+ *         not 1*DIGIT or is above INT32_MAX.
  *
  * @http
  */
@@ -587,7 +631,8 @@ httpparse_content (char* data, int len, HTTP_HEADER_T* headers, int count, char*
     }
     for (i=0; i<count; i++) {
        if (headers[i].value && (strcmp(headers[i].key, HTTP_HEADER_KEY_CONTENT_LENGTH) == 0)) {
-            if (sscanf(headers[i].value, "%u", (unsigned int*)&length)) {
+            length = httpparse_content_length (headers[i].value) ;
+            if (length != HTTPPARSE_CONTENT_INVALID) {
                 if (*content == 0) {
                 *content = data ;
                 }
