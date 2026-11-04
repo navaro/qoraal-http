@@ -43,9 +43,15 @@
 
 const   HTTP_HEADER_T _http_headers[]   = {
         {"Server", HTTP_SERVER_NAME} ,
+#if CFG_WSERVER_USER_THREAD_MAX < 3
+        /* wserver_m.c closes a connection after its request while fewer
+         * than two workers are free: with two or fewer, always. */
+        {"Connection", "close"} ,
+#else
         {"Connection", "Keep-Alive"} ,
 #if defined HTTP_SERVER_KEEPALIVE_HEADER
         {"Keep-Alive", HTTP_SERVER_KEEPALIVE_HEADER} ,
+#endif
 #endif
 };
 
