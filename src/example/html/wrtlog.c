@@ -169,9 +169,16 @@ wrtlog_handler(HTTP_USER_T *user, uint32_t method, char* endpoint)
             log_channel.filter[0].mask = SVC_LOGGER_MASK ;
             log_channel.filter[0].type = SVC_LOGGER_SEVERITY_LOG|SVC_LOGGER_FLAGS_PROGRESS ;
 
+            /* Log lines are written from the logger's svc_tasks queue: drop a
+             * client that stops reading rather than hold up the logger. */
+            uint32_t write_timeout = httpserver_user_set_write_timeout (user,
+                                        HTTP_SERVER_STREAM_WRITE_TIMEOUT) ;
+
             svc_logger_channel_add (&log_channel) ;
             httpserver_wait_close (user, 900000) ; // keep the socket open for 15 minutes from our side
             svc_logger_channel_remove (&log_channel) ;
+
+            httpserver_user_set_write_timeout (user, write_timeout) ;
 
             if (!httpserver_is_connected(user)) {
                 return HTTP_SERVER_E_CONNECTION ;

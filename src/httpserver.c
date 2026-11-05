@@ -309,12 +309,78 @@ httpserver_user_init (HTTP_USER_T* user)
 }
 
 /**
+ * @brief   httpserver_apply_write_timeout
+ * @details Bounds a blocking send on the user's socket by its write timeout,
+ *          so a client that stops reading cannot hold a send for longer.
+ *
+ * @param[in] user      Pointer to the user structure.
+ */
+static void
+httpserver_apply_write_timeout (HTTP_USER_T* user)
+{
+#if defined(_WIN32)
+    DWORD           tv = user->write_timeout ;
+#else
+    struct timeval  tv ;
+
+    tv.tv_sec = user->write_timeout / 1000 ;
+    tv.tv_usec = (user->write_timeout % 1000) * 1000 ;
+#endif
+
+    if (setsockopt (user->socket, SOL_SOCKET, SO_SNDTIMEO,
+                (const char *) &tv, sizeof (tv)) != 0) {
+        DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_WARNING,
+                "HTTP  :W: SO_SNDTIMEO of %u ms not set on socket %d",
+                (unsigned) user->write_timeout, user->socket);
+    }
+}
+
+/**
+ * @brief   httpserver_user_set_write_timeout
+ * @details Sets how long a write to the user's connection may wait without
+ *          progress before it fails and the connection is dropped. It bounds
+ *          both the wait for the socket to become writable and a blocking
+ *          send. A stream written from another thread, such as an SSE event
+ *          sink, sets a short one, so a client that stops reading is dropped
+ *          instead of holding up the writer.
+ *
+ * @param[in] user          Pointer to the user structure.
+ * @param[in] timeout       Write timeout in milliseconds.
+ *
+ * @return                  The previous write timeout, to restore later.
+ *
+ * @http
+ */
+uint32_t
+httpserver_user_set_write_timeout (HTTP_USER_T* user, uint32_t timeout)
+{
+    uint32_t previous ;
+
+    if (!user) {
+        return 0 ;
+
+    }
+
+    previous = user->write_timeout ;
+    user->write_timeout = timeout ;
+    if (user->socket >= 0) {
+        httpserver_apply_write_timeout (user) ;
+
+    }
+
+    return previous ;
+}
+
+/**
  * @brief   httpserver_user_accept
  * @details Waits for a client to connect and assigns it to the provided user structure.
  *
  * @param[in] server_sock   The server socket descriptor.
  * @param[out] user         Pointer to the user structure to hold the client data.
- * @param[in] timeout       Timeout in milliseconds.
+ * @param[in] timeout       Write timeout in milliseconds: how long a write
+ *                          may wait without progress before it fails. The
+ *                          accept itself does not wait, so select the server
+ *                          socket first. See httpserver_user_set_write_timeout().
  *
  * @return                          The function status.
  * @retval HTTP_SERVER_E_OK         Client connection accepted successfully.
@@ -330,7 +396,7 @@ httpserver_user_accept (int server_sock, HTTP_USER_T* user, uint32_t timeout)
 
     }
 
-    user->timeout = timeout ;
+    user->write_timeout = timeout ;
     user->peer_closed = 0 ;
 
     uint32_t addrlen = sizeof(user->address) ;
@@ -350,6 +416,23 @@ httpserver_user_accept (int server_sock, HTTP_USER_T* user, uint32_t timeout)
 
     DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_INFO,
                 "HTTP  : : httpserver_user_accept %d", user->socket);
+
+#if defined(TCP_NODELAY)
+    /* Send each response record as soon as it is written. With Nagle a
+     * response body waits for the client's ACK of the header record, and a
+     * client that delays its ACKs adds about 60 ms to every response and
+     * to the handshake flights. */
+    {
+        int nodelay = 1 ;
+        if (setsockopt (user->socket, IPPROTO_TCP, TCP_NODELAY,
+                    (const char *) &nodelay, sizeof (nodelay)) != 0) {
+            DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_WARNING,
+                    "HTTP  :W: TCP_NODELAY failed on socket %d", user->socket);
+        }
+    }
+#endif
+
+    httpserver_apply_write_timeout (user) ;
 
 #if 0
     unsigned long flags = 1;
@@ -664,7 +747,7 @@ httpserver_write (HTTP_USER_T* user, const uint8_t* buffer, uint32_t length)
 
     while (length) {
 
-        if (httpserver_wait_socket(user, false, true, user->timeout) != EOK) {
+        if (httpserver_wait_socket(user, false, true, user->write_timeout) != EOK) {
             user->peer_closed = 1 ;
             return HTTP_SERVER_E_CONNECTION ;
 
@@ -674,7 +757,7 @@ httpserver_write (HTTP_USER_T* user, const uint8_t* buffer, uint32_t length)
         if (user->ssl) {
             sent_bytes = mbedtls_ssl_write ((mbedtls_ssl_context *)user->ssl, (unsigned char*)&buffer[total], length) ;
             if (sent_bytes == MBEDTLS_ERR_SSL_WANT_READ) {
-                if (httpserver_wait_socket(user, true, false, user->timeout) != EOK) {
+                if (httpserver_wait_socket(user, true, false, user->write_timeout) != EOK) {
                     user->peer_closed = 1 ;
                     return HTTP_SERVER_E_CONNECTION ;
 
