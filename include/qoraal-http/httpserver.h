@@ -157,6 +157,18 @@
 
 #define HTTP_SERVER_USER_SCRATCH                            512
 
+/**
+ * @name    Write timeout of an event stream (SSE), in milliseconds. The
+ *          stream is dropped when the client does not take an event within
+ *          this time. It allows one TCP retransmission (200 ms initially on
+ *          Zephyr), so a single lost segment does not drop a healthy client.
+ * @{
+ */
+#ifndef HTTP_SERVER_STREAM_WRITE_TIMEOUT
+#define HTTP_SERVER_STREAM_WRITE_TIMEOUT                    500
+#endif
+/** @} */
+
 /*===========================================================================*/
 /* Client data structures and types.                                         */
 /*===========================================================================*/
@@ -178,7 +190,7 @@ typedef struct HTTP_READ_S {
 typedef struct HTTP_USER_S {
     int32_t                 socket ;
     struct sockaddr_in      address ;
-    uint32_t                timeout ;
+    uint32_t                write_timeout ;
 
     char*                   rw_buffer ;
 
@@ -218,6 +230,7 @@ extern int32_t      httpserver_user_init (HTTP_USER_T* user) ;
 extern int32_t      httpserver_listen (int server_sock) ;
 extern int32_t      httpserver_select (int server_sock, uint32_t timeout) ;
 extern int32_t      httpserver_user_accept (int server_sock, HTTP_USER_T* user, uint32_t timeout) ;
+extern uint32_t     httpserver_user_set_write_timeout (HTTP_USER_T* user, uint32_t timeout) ;
 extern int32_t      httpserver_user_ssl_accept (HTTP_USER_T* user, uint32_t timeout, void * ssl_config) ;
 extern int32_t      httpserver_user_select (HTTP_USER_T* user, uint32_t timeout) ;
 extern int32_t      httpserver_is_connected (HTTP_USER_T* user) ;
