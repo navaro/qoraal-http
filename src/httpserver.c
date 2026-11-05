@@ -351,6 +351,21 @@ httpserver_user_accept (int server_sock, HTTP_USER_T* user, uint32_t timeout)
     DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_INFO,
                 "HTTP  : : httpserver_user_accept %d", user->socket);
 
+#if defined(TCP_NODELAY)
+    /* Send each response record as soon as it is written. With Nagle a
+     * response body waits for the client's ACK of the header record, and a
+     * client that delays its ACKs adds about 60 ms to every response and
+     * to the handshake flights. */
+    {
+        int nodelay = 1 ;
+        if (setsockopt (user->socket, IPPROTO_TCP, TCP_NODELAY,
+                    (const char *) &nodelay, sizeof (nodelay)) != 0) {
+            DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_WARNING,
+                    "HTTP  :W: TCP_NODELAY failed on socket %d", user->socket);
+        }
+    }
+#endif
+
 #if 0
     unsigned long flags = 1;
     int32_t status = ioctlsocket (user->socket, FIONBIO, &flags) ;
