@@ -133,6 +133,7 @@ wserver_thread_authenticate (HTTPSERVER_INST_T * inst, const WSERVER_HANDLERS_T*
                 headers_authenticate, 1, WSERVER_RESP_CONTENT_401, strlen(WSERVER_RESP_CONTENT_401))) < HTTP_SERVER_E_OK) {
             DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_REPORT,
                     "WSERV :E: write WSERVER_RESP_CODE_401 failed %d (1).\r\n", res);
+            httpserver_free_request (&thread->user) ;
             return EFAIL ;
 
         }
