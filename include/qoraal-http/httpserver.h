@@ -48,6 +48,9 @@
 #define HTTP_SERVER_E_CONTENT                               -4
 #define HTTP_SERVER_E_LENGTH                                -5
 #define HTTP_SERVER_E_MEMORY                                -6
+/* The request was not read within its time limit. Unlike a read timeout
+ * (HTTP_SERVER_E_ERROR), it is not retried: the connection is closed. */
+#define HTTP_SERVER_E_TIMEOUT                               -7
 #define HTTP_SERVER_WSERVER_E_OK                            HTTP_SERVER_E_OK
 #define HTTP_SERVER_WSERVER_E_METHOD                        HTTP_SERVER_E_ERROR
 /** @} */
@@ -212,6 +215,11 @@ typedef struct HTTP_USER_S {
      * one, kept from one request to the next and freed on close. */
     char*                   pending ;
     uint32_t                pending_length ;
+
+    /* When the first bytes of the request being read arrived, in
+     * os_sys_timestamp() milliseconds. Its header must be complete
+     * within CFG_HTTPSERVER_HEADER_TIMEOUT of it. */
+    uint32_t                request_started ;
 
     SVC_WDT_HANDLE_T        * hwdt ;
 

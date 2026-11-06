@@ -39,6 +39,26 @@
 #define CFG_HTTPSERVER_CONTENT_MAX      (16*1024)
 #endif
 
+/* CFG_HTTPSERVER_HEADER_TIMEOUT
+    Milliseconds a request header may take to arrive, from its first byte.
+    A client that sends it slower is dropped. Without this limit a client
+    that sends a byte now and then holds its worker until the watchdog
+    resets the device.
+*/
+#if !defined(CFG_HTTPSERVER_HEADER_TIMEOUT)
+#define CFG_HTTPSERVER_HEADER_TIMEOUT   10000
+#endif
+
+/* CFG_HTTPSERVER_CONTENT_TIMEOUT
+    Milliseconds httpserver_read_all_content_ex() may take to read a whole
+    body. With the header time it stays well below the worker's watchdog
+    timeout (60 s). Bodies read in pieces, such as uploads, are bounded
+    per read only.
+*/
+#if !defined(CFG_HTTPSERVER_CONTENT_TIMEOUT)
+#define CFG_HTTPSERVER_CONTENT_TIMEOUT  20000
+#endif
+
 /* CFG_WSERVER_USER_THREAD_SIZE 
     Threadsize for incomming http connection
 */
