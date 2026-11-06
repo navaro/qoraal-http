@@ -215,6 +215,11 @@ typedef struct HTTP_USER_S {
 
     SVC_WDT_HANDLE_T        * hwdt ;
 
+    /* Non-zero once the server is stopping: a handler that keeps the
+     * connection, such as an event stream, ends then. NULL outside a
+     * server worker. */
+    const volatile int32_t  * server_close ;
+
     /* Whether the connection stays open after this response. The server
      * sets it before the handler runs; responses say "Connection:
      * Keep-Alive" or "Connection: close" from it. */
