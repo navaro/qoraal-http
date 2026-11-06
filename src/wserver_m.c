@@ -593,7 +593,7 @@ httpserver_wserver_run (HTTPSERVER_INST_T * inst)
         if (os_sem_count(&inst->count_sem) >= CFG_WSERVER_USER_THREAD_MAX + 1) {
             break;
         }
-        os_thread_sleep (100) ;
+        os_thread_sleep (200) ;
     }
     //svc_system_speed (SYSTEM_SVC_SPEED_IDLE, SYSTEM_SVC_SPEED_REQUESTOR_HTTP) ;
 
