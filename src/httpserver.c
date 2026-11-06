@@ -1263,6 +1263,10 @@ httpserver_read_request_ex (HTTP_USER_T* user, uint32_t timeout, char** endpoint
         if (user->endpoint == 0) {
             DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_WARNING,
                     "HTTP  :W: out of memory");
+            /* The header values still point into rw_buffer; they are only
+             * copied by alloc_headers() below, so free_headers() must not
+             * see them. */
+            memset (user->headers, 0, sizeof(user->headers)) ;
             return HTTP_SERVER_E_MEMORY ;
 
         }

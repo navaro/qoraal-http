@@ -69,6 +69,7 @@ static int          _asserts ;
 static int          _live ;
 static size_t       _largest ;
 static int          _failures ;
+static size_t       _fail_size ;        /* an allocation of this size fails */
 
 /* ------------------------------------------------------------------ fakes */
 
@@ -116,9 +117,13 @@ fake_closesocket (int s)
 void*
 qoraal_malloc (QORAAL_HEAP heap, size_t size)
 {
-    void* p = malloc (size ? size : 1) ;
+    void* p ;
 
     (void)heap ;
+    if (_fail_size && (size == _fail_size)) {
+        return 0 ;
+    }
+    p = malloc (size ? size : 1) ;
     if (p) {
         _live++ ;
         if (size > _largest) {
@@ -349,6 +354,35 @@ test_body_limit (void)
     check (largest <= CFG_HTTPSERVER_CONTENT_MAX + 1, "chunked over the limit", "allocated past the limit") ;
 }
 
+/* The endpoint copy fails: the request is refused, and closing the user
+ * frees only what was allocated (the header values still point into the
+ * read buffer then). */
+static void
+test_endpoint_alloc_fails (void)
+{
+    static const char request[] =
+        "GET /endpoint-allocation-fails HTTP/1.1\r\nHost: device\r\nConnection: Keep-Alive\r\n\r\n" ;
+    const char* name = "endpoint allocation fails" ;
+    HTTP_USER_T user ;
+
+    start (&user, request, sizeof(request) - 1) ;
+    _fail_size = strlen ("/endpoint-allocation-fails") + 1 ;
+    int32_t res = read_request (&user) ;
+    if (res != HTTP_SERVER_E_MEMORY) {
+        /* The endpoint may be kept without its slash. */
+        httpserver_user_close (&user) ;
+        start (&user, request, sizeof(request) - 1) ;
+        _fail_size = strlen ("endpoint-allocation-fails") + 1 ;
+        res = read_request (&user) ;
+    }
+    _fail_size = 0 ;
+    check (res == HTTP_SERVER_E_MEMORY, name, "not refused") ;
+    check (user.headers[3].value == 0, name, "header values left pointing into the read buffer") ;
+    httpserver_user_close (&user) ;
+    check (_asserts == 0, name, "the server asserted") ;
+    check (_live == 0, name, "memory left allocated") ;
+}
+
 int
 main (int argc, char** argv)
 {
@@ -356,6 +390,7 @@ main (int argc, char** argv)
 
     test_content_length () ;
     test_body_limit () ;
+    test_endpoint_alloc_fails () ;
 
     if (_failures) {
         printf ("%d failure(s)\n", _failures) ;
