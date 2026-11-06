@@ -347,11 +347,14 @@ httpserver_apply_write_timeout (HTTP_USER_T* user)
 
 /**
  * @brief   httpserver_user_set_write_timeout
- * @details Sets how long a write to the user's connection may wait without
- *          progress before it fails and the connection is dropped. It bounds
- *          both the wait for the socket to become writable and a blocking
- *          send. A stream written from another thread, such as an SSE event
- *          sink, sets a short one, so a client that stops reading is dropped
+ * @details Sets how long one httpserver_write() to the user's connection may
+ *          take before it fails and the connection is dropped. It bounds the
+ *          whole write, so a client that opens its receive window a few
+ *          bytes at a time cannot stretch it, and also each blocking send. A
+ *          send that started just before the time ran out can still block for
+ *          this long, so a write takes at most about twice the timeout. A
+ *          stream written from another thread, such as an SSE event sink,
+ *          sets a short one, so a client that stops reading is dropped
  *          instead of holding up the writer.
  *
  * @param[in] user          Pointer to the user structure.
@@ -388,9 +391,9 @@ httpserver_user_set_write_timeout (HTTP_USER_T* user, uint32_t timeout)
  * @param[in] server_sock   The server socket descriptor.
  * @param[out] user         Pointer to the user structure to hold the client data.
  * @param[in] timeout       Write timeout in milliseconds: how long a write
- *                          may wait without progress before it fails. The
- *                          accept itself does not wait, so select the server
- *                          socket first. See httpserver_user_set_write_timeout().
+ *                          may take before it fails. The accept itself does
+ *                          not wait, so select the server socket first. See
+ *                          httpserver_user_set_write_timeout().
  *
  * @return                          The function status.
  * @retval HTTP_SERVER_E_OK         Client connection accepted successfully.
@@ -625,24 +628,35 @@ httpserver_is_connected (HTTP_USER_T* user)
     return 1 ;
 }
 
+/**
+ * @brief   httpserver_user_abort
+ * @details Drop a connection from another thread, such as the event sink
+ *          that writes a stream. The connection is only marked closed: from
+ *          then on reads and writes fail, httpserver_stream_wait() returns
+ *          within a second, and the worker closes the socket. Closing it
+ *          here would close it under the worker's select, and the next
+ *          connection could get the same descriptor before the worker is
+ *          done with it.
+ *
+ * @param[in] user   Pointer to the user structure of the connection.
+ *
+ * @return                          The function status.
+ * @retval HTTP_SERVER_E_OK         The connection is marked closed.
+ * @retval HTTP_SERVER_E_ERROR      No user.
+ *
+ * @http
+ */
 int32_t
 httpserver_user_abort (HTTP_USER_T* user)
 {
-    int32_t res = HTTP_SERVER_E_OK ;
-
     if (!user) {
         return HTTP_SERVER_E_ERROR ;
 
     }
 
     user->peer_closed = 1 ;
-    if (user->socket >= 0) {
-        res = closesocket (user->socket) ;
-        user->socket = -1 ;
 
-    }
-
-    return res ;
+    return HTTP_SERVER_E_OK ;
 }
 
 /**
@@ -728,19 +742,16 @@ httpserver_wdt_kick (HTTP_USER_T* user)
     return HTTP_SERVER_E_OK ;
 }
 
-/**
- * @brief   httpserver_write
- * @details Write data to a user's connection.
- *
- * @param[in] user      Pointer to the user structure.
- * @param[in] buffer    Pointer to the data buffer to send.
- * @param[in] length    Length of the data to send.
- *
- * @return                          Number of bytes sent or an error code.
- * @retval HTTP_SERVER_E_CONNECTION Connection error during sending.
- *
- * @http
- */
+/* Milliseconds left of timeout since started (os_sys_timestamp()), 0 when
+ * it has run out. */
+static uint32_t
+httpserver_time_left (uint32_t started, uint32_t timeout)
+{
+    uint32_t elapsed = os_sys_timestamp () - started ;
+
+    return (elapsed < timeout) ? (timeout - elapsed) : 0 ;
+}
+
 static int32_t
 httpserver_wait_socket(HTTP_USER_T* user, bool wait_read, bool wait_write, uint32_t timeout)
 {
@@ -801,17 +812,45 @@ httpserver_wait_socket(HTTP_USER_T* user, bool wait_read, bool wait_write, uint3
     return HTTP_SERVER_E_ERROR ;
 }
 
+/**
+ * @brief   httpserver_write
+ * @details Write data to a user's connection. The whole write is bounded by
+ *          the connection's write timeout, see
+ *          httpserver_user_set_write_timeout(). When it runs out the
+ *          connection is dropped: it cannot be used after part of a write.
+ *
+ * @param[in] user      Pointer to the user structure.
+ * @param[in] buffer    Pointer to the data buffer to send.
+ * @param[in] length    Length of the data to send.
+ *
+ * @return                          Number of bytes sent or an error code.
+ * @retval HTTP_SERVER_E_CONNECTION Connection error, or the write timed out.
+ *
+ * @http
+ */
 int32_t
 httpserver_write (HTTP_USER_T* user, const uint8_t* buffer, uint32_t length)
 {
     int32_t sent_bytes ;
     uint32_t total = 0 ;
-
+    uint32_t started = os_sys_timestamp () ;
+    uint32_t left ;
+    int32_t res ;
 
     while (length) {
 
-        if (httpserver_wait_socket(user, false, true, user->write_timeout) != EOK) {
+        left = httpserver_time_left (started, user->write_timeout) ;
+        res = left ? httpserver_wait_socket (user, false, true, left) : HTTP_SERVER_E_ERROR ;
+        if (res != EOK) {
+            /* Marked first: the log line may go to this connection's own
+             * stream (rtlog), which must not write to it again. */
             user->peer_closed = 1 ;
+            if (res == HTTP_SERVER_E_ERROR) {
+                DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_LOG,
+                        "HTTPD : : socket 0x%x took %u of %u bytes in %u ms, dropped",
+                        user->socket, (unsigned)total, (unsigned)(total + length),
+                        (unsigned)user->write_timeout) ;
+            }
             return HTTP_SERVER_E_CONNECTION ;
 
         }
@@ -820,7 +859,8 @@ httpserver_write (HTTP_USER_T* user, const uint8_t* buffer, uint32_t length)
         if (user->ssl) {
             sent_bytes = mbedtls_ssl_write ((mbedtls_ssl_context *)user->ssl, (unsigned char*)&buffer[total], length) ;
             if (sent_bytes == MBEDTLS_ERR_SSL_WANT_READ) {
-                if (httpserver_wait_socket(user, true, false, user->write_timeout) != EOK) {
+                left = httpserver_time_left (started, user->write_timeout) ;
+                if (!left || (httpserver_wait_socket (user, true, false, left) != EOK)) {
                     user->peer_closed = 1 ;
                     return HTTP_SERVER_E_CONNECTION ;
 
@@ -1053,9 +1093,18 @@ httpserver_stream_close (HTTP_USER_T* user)
 
 /**
  * @brief   httpserver_stream_wait
- * @details Hold an open stream until the client closes it, the server stops,
- *          or @p max_ms have passed. Another thread writes the stream's
- *          data meanwhile.
+ * @details Hold an open stream until the client closes it, the writer drops
+ *          it, the server stops, or @p max_ms have passed. Another thread
+ *          writes the stream's data meanwhile, and owns the connection's TLS
+ *          context while it does: mbedtls is not thread-safe, so this only
+ *          watches the socket and never reads from it. A stream's client
+ *          sends nothing, so anything to read, data or the end of the
+ *          connection, ends the stream. The worker's watchdog is kicked
+ *          every second.
+ *
+ *          When it returns, remove the writer (its channel or sink) before
+ *          the connection is used again: the removal waits for a write in
+ *          progress.
  *
  * @param[in] user      Pointer to the user structure of the connection.
  * @param[in] max_ms    The longest the stream lasts, in milliseconds. A
@@ -1063,7 +1112,9 @@ httpserver_stream_close (HTTP_USER_T* user)
  *
  * @return                          The function status.
  * @retval HTTP_SERVER_E_OK         The time ran out or the server stops.
- * @retval HTTP_SERVER_E_CONNECTION The client closed the connection.
+ * @retval HTTP_SERVER_E_CONNECTION The client closed the connection or sent
+ *                                  something, or the writer dropped it
+ *                                  (httpserver_user_abort()).
  *
  * @http
  */
@@ -1073,19 +1124,19 @@ httpserver_stream_wait (HTTP_USER_T* user, uint32_t max_ms)
     uint32_t started = os_sys_timestamp () ;
 
     while ((os_sys_timestamp () - started) < max_ms) {
-        int32_t res ;
 
         if (user->server_close && *user->server_close) {
             return HTTP_SERVER_E_OK ;
 
         }
-        httpserver_wdt_kick (user) ;
-        res = httpserver_wait_close (user, 1000) ;
-        if (res == HTTP_SERVER_E_ERROR) {
-            continue ;      /* a second without data from the client */
+        if (user->peer_closed || (user->socket < 0)) {
+            return HTTP_SERVER_E_CONNECTION ;
 
         }
-        if ((res <= 0) || user->peer_closed || (user->socket < 0)) {
+        httpserver_wdt_kick (user) ;
+        if (httpserver_wait_read (user, 1000) != HTTP_SERVER_E_ERROR) {
+            /* Readable, or an exception: what is there is left unread. */
+            user->peer_closed = 1 ;
             return HTTP_SERVER_E_CONNECTION ;
 
         }
