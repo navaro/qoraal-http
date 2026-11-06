@@ -1079,6 +1079,7 @@ httpserver_stream_wait (HTTP_USER_T* user, uint32_t max_ms)
             return HTTP_SERVER_E_OK ;
 
         }
+        httpserver_wdt_kick (user) ;
         res = httpserver_wait_close (user, 1000) ;
         if (res == HTTP_SERVER_E_ERROR) {
             continue ;      /* a second without data from the client */
