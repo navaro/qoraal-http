@@ -43,17 +43,27 @@
 
 const   HTTP_HEADER_T _http_headers[]   = {
         {"Server", HTTP_SERVER_NAME} ,
-#if CFG_WSERVER_USER_THREAD_MAX < 3
-        /* wserver_m.c closes a connection after its request while fewer
-         * than two workers are free: with two or fewer, always. */
-        {"Connection", "close"} ,
-#else
+};
+
+/* The Connection header follows user->keep_alive, which the server sets
+ * for each request. */
+static const HTTP_HEADER_T _http_headers_keep_alive[] = {
         {"Connection", "Keep-Alive"} ,
 #if defined HTTP_SERVER_KEEPALIVE_HEADER
         {"Keep-Alive", HTTP_SERVER_KEEPALIVE_HEADER} ,
 #endif
-#endif
 };
+
+static const HTTP_HEADER_T _http_headers_close[] = {
+        {"Connection", "close"} ,
+};
+
+#define HTTPSERVER_CONNECTION_HEADERS(user)                                  \
+        ((user)->keep_alive ? _http_headers_keep_alive : _http_headers_close)
+#define HTTPSERVER_CONNECTION_HEADERS_COUNT(user)                            \
+        ((user)->keep_alive ?                                                \
+            sizeof(_http_headers_keep_alive)/sizeof(_http_headers_keep_alive[0]) : \
+            sizeof(_http_headers_close)/sizeof(_http_headers_close[0]))
 
 const   HTTP_HEADER_T _http_headers_chunked[]   = {
         {"Transfer-Encoding", "chunked"} ,
@@ -1613,6 +1623,10 @@ httpserver_write_response (HTTP_USER_T* user, uint32_t result, const char* conte
     count += httpparse_append_headers (user->rw_buffer, 
             HTTP_SERVER_MAX_XMIT_CONTENT_LENGTH - count,
             _http_headers, sizeof(_http_headers)/sizeof(_http_headers[0]), 0) ;
+    count += httpparse_append_headers (user->rw_buffer,
+            HTTP_SERVER_MAX_XMIT_CONTENT_LENGTH - count,
+            HTTPSERVER_CONNECTION_HEADERS(user),
+            HTTPSERVER_CONNECTION_HEADERS_COUNT(user), 0) ;
     count += httpparse_append_headers (user->rw_buffer, 
             HTTP_SERVER_MAX_XMIT_CONTENT_LENGTH - count,
             _http_headers_content_type, 
@@ -1686,11 +1700,15 @@ httpserver_chunked_response (HTTP_USER_T* user, uint32_t result, const char* con
     }
     user->write_idx += httpparse_append_headers ((char*)user->rw_buffer, 
             HTTP_SERVER_MAX_XMIT_CONTENT_LENGTH - user->write_idx,
-            _http_headers, 
+            _http_headers,
             sizeof(_http_headers)/sizeof(_http_headers[0]), 0) ;
-    user->write_idx += httpparse_append_headers ((char*)user->rw_buffer, 
+    user->write_idx += httpparse_append_headers ((char*)user->rw_buffer,
             HTTP_SERVER_MAX_XMIT_CONTENT_LENGTH - user->write_idx,
-            _http_headers_chunked, 
+            HTTPSERVER_CONNECTION_HEADERS(user),
+            HTTPSERVER_CONNECTION_HEADERS_COUNT(user), 0) ;
+    user->write_idx += httpparse_append_headers ((char*)user->rw_buffer,
+            HTTP_SERVER_MAX_XMIT_CONTENT_LENGTH - user->write_idx,
+            _http_headers_chunked,
             sizeof(_http_headers_chunked)/sizeof(_http_headers_chunked[0]), 0) ;
     user->write_idx += httpparse_append_headers ((char*)user->rw_buffer, 
             HTTP_SERVER_MAX_XMIT_CONTENT_LENGTH - user->write_idx,

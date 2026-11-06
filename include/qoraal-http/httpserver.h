@@ -210,6 +210,11 @@ typedef struct HTTP_USER_S {
     
     SVC_WDT_HANDLE_T        * hwdt ;
 
+    /* Whether the connection stays open after this response. The server
+     * sets it before the handler runs; responses say "Connection:
+     * Keep-Alive" or "Connection: close" from it. */
+    int32_t                 keep_alive ;
+
 #if !defined(CFG_HTTPSERVER_TLS_DISABLE) || !CFG_HTTPSERVER_TLS_DISABLE
     void*                  ssl ;
 #endif

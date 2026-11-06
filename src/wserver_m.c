@@ -227,25 +227,23 @@ _wserver_thread (void *arg)
 
         timeout = WSERVER_KEEPALIVE_TIMEOUT ;
 
+        /* Decide now whether the connection stays open after this request,
+         * so that the response can say so: not when the client asks to
+         * close it, and not while fewer than two other workers are free
+         * (the connection gives way). With two workers it never stays. */
 #if HTTPSERVER_USE_KEEPALIVE
-        if (
-                !thread->user.headers[3].value ||
-                strnicmp(thread->user.headers[3].value, "Keep-Alive", 10) != 0
-            ) {
-            DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_INFO,
-                    "WSERV : : connection close no keep-alive connection (%s).\r\n",
-                    thread->user.headers[3].value ? thread->user.headers[3].value : "null") ;
-            timeout = WSERVER_NO_KEEPALIVE_TIMEOUT ;
-
-        } else {
-            DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_INFO,
-                    "WSERV : : connection Keep-Alive threads available %d.\r\n",
-                    os_sem_count(&inst->count_sem));
-
-        }
+        thread->user.keep_alive =
+                !(thread->user.headers[3].value &&
+                  (strnicmp(thread->user.headers[3].value, "close", 5) == 0)) &&
+                (os_sem_count(&inst->count_sem) >= 2) ;
 #else
-        timeout = WSERVER_NO_KEEPALIVE_TIMEOUT ;
+        thread->user.keep_alive = 0 ;
 #endif
+        DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_INFO,
+                "WSERV : : connection %s (client '%s', workers free %d).\r\n",
+                thread->user.keep_alive ? "kept" : "closed after the response",
+                thread->user.headers[3].value ? thread->user.headers[3].value : "",
+                os_sem_count(&inst->count_sem));
 
         const WSERVER_HANDLERS_T* handler = 0 ;
         const WSERVER_HANDLERS_T* default_handler = 0 ;
@@ -271,7 +269,16 @@ _wserver_thread (void *arg)
 
         if (handler) {
 
-            if (wserver_thread_authenticate(inst, handler, thread) != EOK) {
+            int32_t auth = wserver_thread_authenticate(inst, handler, thread) ;
+            if (auth != EOK) {
+                /* After a 401 the client may send its credentials on this
+                 * connection, but gets only the time a new connection gets
+                 * for its first request, not the keep-alive time. */
+                if ((auth != E_AUTH) || !thread->user.keep_alive) {
+                    break ;
+
+                }
+                timeout = WSERVER_CONNECT_TIMEOUT ;
                 continue ;
 
             }
@@ -351,9 +358,9 @@ _wserver_thread (void *arg)
 
         }
 
-        if (os_sem_count(&inst->count_sem) < 2)  {
+        if (!thread->user.keep_alive)  {
             DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_INFO,
-                "WSERV : : timeout close thread limit.\r\n");
+                "WSERV : : close after the response.\r\n");
             break ;
 
         }
