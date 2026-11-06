@@ -207,7 +207,12 @@ typedef struct HTTP_USER_S {
     HTTP_READ_T             reader ;
 
     char*                   content ;
-    
+
+    /* Bytes received after the current request: the start of the next
+     * one, kept from one request to the next and freed on close. */
+    char*                   pending ;
+    uint32_t                pending_length ;
+
     SVC_WDT_HANDLE_T        * hwdt ;
 
     /* Whether the connection stays open after this response. The server

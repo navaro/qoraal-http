@@ -689,6 +689,13 @@ httpserver_user_close (HTTP_USER_T* user)
 #endif
     httpserver_free_request (user) ;
 
+    if (user->pending) {
+        HTTP_SERVER_FREE (user->pending) ;
+        user->pending = 0 ;
+        user->pending_length = 0 ;
+
+    }
+
     return res ;
 }
 
@@ -1002,6 +1009,30 @@ free_headers (HTTP_USER_T* user)
     }
 }
 
+/* Keep bytes that belong to the connection's next request; the next
+ * httpserver_read_request_ex() starts from them. */
+static int32_t
+httpserver_keep_pending(HTTP_USER_T* user, const char* data, uint32_t len)
+{
+    char* pending = (char*)HTTP_SERVER_MALLOC(len) ;
+
+    if (!pending) {
+        DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_WARNING,
+                "HTTP  :W: out of memory");
+        return HTTP_SERVER_E_MEMORY ;
+
+    }
+    memcpy (pending, data, len) ;
+    if (user->pending) {
+        HTTP_SERVER_FREE (user->pending) ;
+
+    }
+    user->pending = pending ;
+    user->pending_length = len ;
+
+    return HTTP_SERVER_E_OK ;
+}
+
 static int32_t
 httpserver_buffer_consume(HTTP_USER_T* user, char** buffer, uint32_t len)
 {
@@ -1130,6 +1161,13 @@ httpserver_read_chunked_content_ex(HTTP_USER_T* user, uint32_t timeout, char** r
             } while (received > 0);
 
             user->reader.chunk_complete = 1;
+            /* Bytes after the last chunk are the next request. They share
+             * rw_buffer with the chunks, so they are not kept: say
+             * Connection: close, and the client sends it again on a new
+             * connection. */
+            if (user->reader.payload_length) {
+                user->keep_alive = 0;
+            }
             return 0;
         }
 
@@ -1225,16 +1263,18 @@ httpserver_read_request_ex (HTTP_USER_T* user, uint32_t timeout, char** endpoint
 
     }
 
-    do {
-        received = httpserver_read (user, &user->rw_buffer[offset], HTTP_SERVER_MAX_XMIT_CONTENT_LENGTH - offset, timeout) ;
-        if(received <= 0) {
-            return received ;
+    /* Start with what arrived after the previous request: the start of
+     * this one, or all of it when the client pipelined. */
+    if (user->pending) {
+        memcpy (user->rw_buffer, user->pending, user->pending_length) ;
+        offset = (int32_t)user->pending_length ;
+        HTTP_SERVER_FREE (user->pending) ;
+        user->pending = 0 ;
+        user->pending_length = 0 ;
 
-        }
+    }
 
-        offset += received ;
-        if (strnstr(user->rw_buffer, "\r\n\r\n", offset)) break ;
-
+    while (!strnstr(user->rw_buffer, "\r\n\r\n", offset)) {
         if (offset >= HTTP_SERVER_MAX_XMIT_CONTENT_LENGTH) {
             DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_ERROR,
                     "HTTPD :E: HTTP_SERVER_MAX_XMIT_CONTENT_LENGTH to small for HTTP headers!");
@@ -1242,7 +1282,22 @@ httpserver_read_request_ex (HTTP_USER_T* user, uint32_t timeout, char** endpoint
 
         }
 
-    } while (offset < HTTP_SERVER_MAX_XMIT_CONTENT_LENGTH) ;
+        received = httpserver_read (user, &user->rw_buffer[offset], HTTP_SERVER_MAX_XMIT_CONTENT_LENGTH - offset, timeout) ;
+        if(received <= 0) {
+            /* After a read timeout the caller reads again: keep what has
+             * come of the request so far for that call. */
+            if ((received == HTTP_SERVER_E_ERROR) && offset &&
+                    (httpserver_keep_pending (user, user->rw_buffer, (uint32_t)offset) != HTTP_SERVER_E_OK)) {
+                return HTTP_SERVER_E_MEMORY ;
+
+            }
+            return received ;
+
+        }
+
+        offset += received ;
+
+    }
 
     memset (user->headers, 0, sizeof(user->headers)) ;
     user->headers[0].key = HTTP_HEADER_KEY_CONTENT_TYPE ;
@@ -1318,15 +1373,22 @@ httpserver_read_request_ex (HTTP_USER_T* user, uint32_t timeout, char** endpoint
 
         }
 
-        if (content_length) {
+        /* Bytes past this request's body are the next request (pipelined,
+         * or sent before this response): keep them for the next call, and
+         * give the handler only this request's body. */
+        if ((uint32_t)left > content_length) {
+            if (httpserver_keep_pending (user, content + content_length,
+                        (uint32_t)left - content_length) != HTTP_SERVER_E_OK) {
+                return HTTP_SERVER_E_MEMORY ;
 
-                left = offset - (payload - user->rw_buffer) ;
+            }
+            left = (int)content_length ;
 
-                if (left) {
-                    user->reader.payload = payload ;
-                    user->reader.payload_length = (uint32_t)left ;
+        }
 
-                }
+        if (content_length && (left > 0)) {
+            user->reader.payload = content ;
+            user->reader.payload_length = (uint32_t)left ;
 
         }
 
@@ -1427,7 +1489,11 @@ httpserver_read_content_ex (HTTP_USER_T* user, uint32_t timeout, char** request)
 
     }
 
-    received = httpserver_read (user, user->rw_buffer, HTTP_SERVER_MAX_XMIT_CONTENT_LENGTH, timeout) ;
+    /* Read no further than this body: what follows is the next request. */
+    received = httpserver_read (user, user->rw_buffer,
+            ((uint32_t)user->reader.content_length < HTTP_SERVER_MAX_XMIT_CONTENT_LENGTH) ?
+                (uint32_t)user->reader.content_length : HTTP_SERVER_MAX_XMIT_CONTENT_LENGTH,
+            timeout) ;
     if (received <= 0) {
         DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_REPORT,
                     "HTTPD : : read error %d",

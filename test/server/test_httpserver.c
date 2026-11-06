@@ -383,6 +383,102 @@ test_endpoint_alloc_fails (void)
     check (_live == 0, name, "memory left allocated") ;
 }
 
+/* One request read as the worker does it, then freed. Returns the length
+ * read_request_ex() returned and copies the endpoint and the body. */
+static int32_t
+next_request (HTTP_USER_T* user, char* endpoint_out, size_t endpoint_size, char* body_out, size_t body_size)
+{
+    char* endpoint = 0 ;
+    char* content = 0 ;
+    int32_t method ;
+    int32_t res = httpserver_read_request_ex (user, 500, &endpoint, &method) ;
+
+    endpoint_out[0] = 0 ;
+    if (body_out) {
+        body_out[0] = 0 ;
+    }
+    if (res >= 0) {
+        snprintf (endpoint_out, endpoint_size, "%s", endpoint ? endpoint : "") ;
+        if (res > 0) {
+            int32_t len = httpserver_read_all_content_ex (user, 500, &content) ;
+            if (body_out && (len > 0) && content) {
+                snprintf (body_out, body_size, "%.*s", (int)len, content) ;
+            }
+        }
+        (void)httpserver_free_request (user) ;
+    }
+    return res ;
+}
+
+static void
+test_pipelined (void)
+{
+    char endpoint[64] ;
+    char body[64] ;
+    HTTP_USER_T user ;
+    int32_t res ;
+
+    /* Two GETs in one write. */
+    static const char two_gets[] =
+        "GET /first HTTP/1.1\r\nHost: device\r\n\r\n"
+        "GET /second HTTP/1.1\r\nHost: device\r\n\r\n" ;
+    start (&user, two_gets, sizeof(two_gets) - 1) ;
+    res = next_request (&user, endpoint, sizeof(endpoint), 0, 0) ;
+    check ((res == 0) && (strcmp (endpoint, "first") == 0), "two GETs", "first request wrong") ;
+    res = next_request (&user, endpoint, sizeof(endpoint), 0, 0) ;
+    check ((res == 0) && (strcmp (endpoint, "second") == 0), "two GETs", "second request lost") ;
+    check (_asserts == 0, "two GETs", "the server asserted") ;
+    httpserver_user_close (&user) ;
+    check (_live == 0, "two GETs", "memory left allocated") ;
+
+    /* A POST with a body, then a GET: the body must not take the GET. */
+    static const char post_get[] =
+        "POST /api HTTP/1.1\r\nContent-Length: 5\r\n\r\nhello"
+        "GET /after HTTP/1.1\r\nHost: device\r\n\r\n" ;
+    start (&user, post_get, sizeof(post_get) - 1) ;
+    res = next_request (&user, endpoint, sizeof(endpoint), body, sizeof(body)) ;
+    check ((res == 5) && (strcmp (body, "hello") == 0), "POST then GET", "body wrong") ;
+    res = next_request (&user, endpoint, sizeof(endpoint), 0, 0) ;
+    check ((res == 0) && (strcmp (endpoint, "after") == 0), "POST then GET", "GET after the body lost") ;
+    check (_asserts == 0, "POST then GET", "the server asserted") ;
+    httpserver_user_close (&user) ;
+    check (_live == 0, "POST then GET", "memory left allocated") ;
+
+    /* The body arrives after the header, followed by the next request:
+     * the body read must stop at the end of the body. */
+    static const char header_then_body[] =
+        "POST /api HTTP/1.1\r\nContent-Length: 5\r\n\r\n" ;
+    static const char body_then_get[] =
+        "POST /api HTTP/1.1\r\nContent-Length: 5\r\n\r\nworld"
+        "GET /later HTTP/1.1\r\nHost: device\r\n\r\n" ;
+    start (&user, body_then_get, sizeof(header_then_body) - 1) ;
+    char* ep = 0 ;
+    char* content = 0 ;
+    int32_t method ;
+    res = httpserver_read_request_ex (&user, 500, &ep, &method) ;
+    _script_len = sizeof(body_then_get) - 1 ;
+    int32_t len = httpserver_read_all_content_ex (&user, 500, &content) ;
+    check ((res == 5) && (len == 5) && content && (memcmp (content, "world", 5) == 0),
+            "body read from the socket", "body wrong") ;
+    (void)httpserver_free_request (&user) ;
+    res = next_request (&user, endpoint, sizeof(endpoint), 0, 0) ;
+    check ((res == 0) && (strcmp (endpoint, "later") == 0), "body read from the socket", "next request lost") ;
+    httpserver_user_close (&user) ;
+    check (_live == 0, "body read from the socket", "memory left allocated") ;
+
+    /* A header split by a read timeout is kept for the next read. */
+    static const char split[] = "GET /split HTTP/1.1\r\nHost: device\r\n\r\n" ;
+    start (&user, split, 12) ;
+    res = httpserver_read_request_ex (&user, 500, &ep, &method) ;
+    check (res == HTTP_SERVER_E_ERROR, "split header", "first part not a read timeout") ;
+    _script_len = sizeof(split) - 1 ;
+    res = next_request (&user, endpoint, sizeof(endpoint), 0, 0) ;
+    check ((res == 0) && (strcmp (endpoint, "split") == 0), "split header", "first part lost") ;
+    check (_asserts == 0, "split header", "the server asserted") ;
+    httpserver_user_close (&user) ;
+    check (_live == 0, "split header", "memory left allocated") ;
+}
+
 int
 main (int argc, char** argv)
 {
@@ -391,6 +487,7 @@ main (int argc, char** argv)
     test_content_length () ;
     test_body_limit () ;
     test_endpoint_alloc_fails () ;
+    test_pipelined () ;
 
     if (_failures) {
         printf ("%d failure(s)\n", _failures) ;
