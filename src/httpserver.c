@@ -1769,7 +1769,10 @@ httpserver_read_content_part (HTTP_USER_T* user, uint32_t started, uint32_t time
  *          Allocates memory for the full content and stores it in the provided
  *          request pointer. The function attempts to read until all content is
  *          received or an error occurs. The whole body must come within
- *          CFG_HTTPSERVER_CONTENT_TIMEOUT.
+ *          CFG_HTTPSERVER_CONTENT_TIMEOUT. A body that ends before its
+ *          Content-Length is an error: no content is returned. After an
+ *          error the response says Connection: close, as the rest of the
+ *          body may still come and would be taken for the next request.
  *
  * @param[in] user         Pointer to the user structure representing the connection.
  * @param[in] timeout      Timeout in milliseconds for each read of the content.
@@ -1778,16 +1781,32 @@ httpserver_read_content_part (HTTP_USER_T* user, uint32_t started, uint32_t time
  * @return                          Total number of bytes read from the request body.
  * @retval >0                       Total bytes read successfully.
  * @retval HTTP_SERVER_E_ERROR      A read timed out.
+ * @retval HTTP_SERVER_E_CONNECTION The connection closed before the body ended.
  * @retval HTTP_SERVER_E_TIMEOUT    The body did not come within CFG_HTTPSERVER_CONTENT_TIMEOUT.
  * @retval HTTP_SERVER_E_MEMORY     Failed to allocate memory for the content.
  * @retval HTTP_SERVER_E_LENGTH     The body is larger than CFG_HTTPSERVER_CONTENT_MAX.
  *
  * @http
  */
+static int32_t      httpserver_read_all_body (HTTP_USER_T* user, uint32_t timeout, char** request) ;
+
 int32_t
 httpserver_read_all_content_ex (HTTP_USER_T* user, uint32_t timeout, char** request)
 {
-    int32_t recvlen ;
+    int32_t res = httpserver_read_all_body (user, timeout, request) ;
+
+    if (res < 0) {
+        user->keep_alive = 0 ;
+
+    }
+
+    return res ;
+}
+
+static int32_t
+httpserver_read_all_body (HTTP_USER_T* user, uint32_t timeout, char** request)
+{
+    int32_t recvlen = 0 ;
     uint32_t total = 0 ;
     char* buffer ;
     uint32_t started = os_sys_timestamp () ;
@@ -1870,6 +1889,19 @@ httpserver_read_all_content_ex (HTTP_USER_T* user, uint32_t timeout, char** requ
                 total += recvlen ;
 
             }
+
+                /* A body cut short is not returned: the rest of the buffer
+                 * is whatever the heap held before, maybe another
+                 * connection's data. */
+                if (total < content_length) {
+                    DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_LOG,
+                            "HTTPD : : body ended at %u of %u bytes (%d)",
+                            (unsigned)total, (unsigned)content_length, (int)recvlen);
+                    HTTP_SERVER_FREE (user->content) ;
+                    user->content = 0 ;
+                    return (recvlen < 0) ? recvlen : HTTP_SERVER_E_CONNECTION ;
+
+                }
 
                 if (request) {
                     *request = user->content ;
