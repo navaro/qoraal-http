@@ -151,6 +151,12 @@ debug_assert (const char* format, ...)
     printf ("\n") ;
 }
 
+void
+svc_wdt_handler_kick (SVC_WDT_HANDLE_T * handler)
+{
+    (void)handler ;
+}
+
 int32_t
 svc_logger_type_log (LOGGER_TYPE_T type, uint8_t facility, const char* str, ...)
 {
