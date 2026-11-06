@@ -56,6 +56,7 @@ typedef struct HTTPSERVER_INST_S {
     int32_t                     close;             /**< Flag indicating if the server should close */
     p_sem_t                     count_sem;         /**< Semaphore to limit concurrent connections */
     WSERVER_AUTHENTICATE        authenticate;      /**< Function pointer for authentication */
+    volatile int32_t            running;           /**< Workers started and not yet completed (stack freed), under os_sys_lock */
 } HTTPSERVER_INST_T ;
 
 #define HTTPSERVER_USER_ACCEPT_IN_THREAD            1
@@ -133,6 +134,7 @@ wserver_thread_authenticate (HTTPSERVER_INST_T * inst, const WSERVER_HANDLERS_T*
                 headers_authenticate, 1, WSERVER_RESP_CONTENT_401, strlen(WSERVER_RESP_CONTENT_401))) < HTTP_SERVER_E_OK) {
             DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_REPORT,
                     "WSERV :E: write WSERVER_RESP_CODE_401 failed %d (1).\r\n", res);
+            httpserver_free_request (&thread->user) ;
             return EFAIL ;
 
         }
@@ -161,14 +163,15 @@ _wserver_thread (void *arg)
     char * endpoint = 0 ;
     int32_t len ;
     int32_t method ;
-    int32_t timeout = WSERVER_KEEPALIVE_TIMEOUT  ;
+    int32_t timeout = WSERVER_CONNECT_TIMEOUT  ;
     HTTPSERVER_THREAD_T*    thread = (HTTPSERVER_THREAD_T* )arg ;
     HTTPSERVER_INST_T *     inst = thread->inst ;
 
     SVC_WDT_HANDLE_T hwdt ;
     svc_wdt_register (&hwdt, TIMEOUT_60_SEC) ;
     svc_wdt_activate (&hwdt) ;
-
+    thread->user.hwdt = &hwdt ;
+    thread->user.server_close = &inst->close ;
 
     DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_INFO,
             "WSERV : : start socket 0x%x.\r\n", thread->user.socket);
@@ -226,25 +229,23 @@ _wserver_thread (void *arg)
 
         timeout = WSERVER_KEEPALIVE_TIMEOUT ;
 
+        /* Decide now whether the connection stays open after this request,
+         * so that the response can say so: not when the client asks to
+         * close it, and not while fewer than two other workers are free
+         * (the connection gives way). With two workers it never stays. */
 #if HTTPSERVER_USE_KEEPALIVE
-        if (
-                !thread->user.headers[3].value ||
-                strnicmp(thread->user.headers[3].value, "Keep-Alive", 10) != 0
-            ) {
-            DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_INFO,
-                    "WSERV : : connection close no keep-alive connection (%s).\r\n",
-                    thread->user.headers[3].value ? thread->user.headers[3].value : "null") ;
-            timeout = WSERVER_NO_KEEPALIVE_TIMEOUT ;
-
-        } else {
-            DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_INFO,
-                    "WSERV : : connection Keep-Alive threads available %d.\r\n",
-                    os_sem_count(&inst->count_sem));
-
-        }
+        thread->user.keep_alive =
+                !(thread->user.headers[3].value &&
+                  (strnicmp(thread->user.headers[3].value, "close", 5) == 0)) &&
+                (os_sem_count(&inst->count_sem) >= 2) ;
 #else
-        timeout = WSERVER_NO_KEEPALIVE_TIMEOUT ;
+        thread->user.keep_alive = 0 ;
 #endif
+        DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_INFO,
+                "WSERV : : connection %s (client '%s', workers free %d).\r\n",
+                thread->user.keep_alive ? "kept" : "closed after the response",
+                thread->user.headers[3].value ? thread->user.headers[3].value : "",
+                os_sem_count(&inst->count_sem));
 
         const WSERVER_HANDLERS_T* handler = 0 ;
         const WSERVER_HANDLERS_T* default_handler = 0 ;
@@ -270,7 +271,16 @@ _wserver_thread (void *arg)
 
         if (handler) {
 
-            if (wserver_thread_authenticate(inst, handler, thread) != EOK) {
+            int32_t auth = wserver_thread_authenticate(inst, handler, thread) ;
+            if (auth != EOK) {
+                /* After a 401 the client may send its credentials on this
+                 * connection, but gets only the time a new connection gets
+                 * for its first request, not the keep-alive time. */
+                if ((auth != E_AUTH) || !thread->user.keep_alive) {
+                    break ;
+
+                }
+                timeout = WSERVER_CONNECT_TIMEOUT ;
                 continue ;
 
             }
@@ -350,9 +360,9 @@ _wserver_thread (void *arg)
 
         }
 
-        if (os_sem_count(&inst->count_sem) < 2)  {
+        if (!thread->user.keep_alive)  {
             DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_INFO,
-                "WSERV : : timeout close thread limit.\r\n");
+                "WSERV : : close after the response.\r\n");
             break ;
 
         }
@@ -369,6 +379,8 @@ _wserver_thread (void *arg)
     os_sem_signal(&inst->count_sem) ;
 
 
+    thread->user.hwdt = 0 ;
+    thread->user.server_close = 0 ;
     svc_wdt_unregister (&hwdt, TIMEOUT_60_SEC) ;
 
 
@@ -386,13 +398,19 @@ _wserver_thread (void *arg)
  */
 void _wserver_thread_complete(SVC_THREADS_T * service_thread, void* arg)
 {
-#ifndef NDEBUG
     HTTPSERVER_THREAD_T*    thread = (HTTPSERVER_THREAD_T* )arg ;
     HTTPSERVER_INST_T *     inst = thread->inst ;
+
     DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_INFO,
         "WSERV : : complete (%d)\r\n", os_sem_count(&inst->count_sem)) ;
-#endif
     HTTP_SERVER_FREE (service_thread) ;
+
+    /* The worker's stack is freed now. This is the last use of inst:
+     * httpserver_wserver_run() may return and the instance be freed as
+     * soon as the count reaches zero. */
+    os_sys_lock () ;
+    inst->running-- ;
+    os_sys_unlock () ;
 
 }
 
@@ -543,6 +561,9 @@ httpserver_wserver_run (HTTPSERVER_INST_T * inst)
                 //svc_system_speed (SYSTEM_SVC_SPEED_SLOW, SYSTEM_SVC_SPEED_REQUESTOR_HTTP) ;
 
                 thread->inst = inst ;
+                os_sys_lock () ;
+                inst->running++ ;
+                os_sys_unlock () ;
                 if (
 #if !HTTPSERVER_USER_ACCEPT_IN_THREAD                    
                     (httpserver_user_ssl_accept (&thread->user, 4000, thread->inst->ssl) != HTTP_SERVER_E_OK) ||
@@ -550,6 +571,9 @@ httpserver_wserver_run (HTTPSERVER_INST_T * inst)
                     (svc_threads_create ((SVC_THREADS_T*)thread, _wserver_thread_complete,
                         CFG_WSERVER_USER_THREAD_SIZE, OS_THREAD_PRIO_4, _wserver_thread, (void*)thread, "wuser") != EOK)) {
 
+                    os_sys_lock () ;
+                    inst->running-- ;
+                    os_sys_unlock () ;
                     os_sem_signal(&inst->count_sem) ;
                     if (os_sem_count(&inst->count_sem) >= CFG_WSERVER_USER_THREAD_MAX +1) {
                         //svc_system_speed (SYSTEM_SVC_SPEED_IDLE, SYSTEM_SVC_SPEED_REQUESTOR_HTTP) ;
@@ -581,15 +605,24 @@ httpserver_wserver_run (HTTPSERVER_INST_T * inst)
     httpserver_close (inst->server_sock) ;
     inst->server_sock = -1 ;
 
-    if (os_sem_count(&inst->count_sem) < CFG_WSERVER_USER_THREAD_MAX +1) {
-        DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_REPORT,
-                "WSERV : : waiting for threads to exit...\r\n");
+    /* The caller frees the instance and the TLS config when this returns,
+     * so wait until every worker has completed, its stack freed too. A
+     * worker sees inst->close within a read timeout and an event stream
+     * within a second; a long request, such as an upload, ends first. */
+    for (i=0; ; i++) {
+        int32_t running ;
 
-    }
+        os_sys_lock () ;
+        running = inst->running ;
+        os_sys_unlock () ;
+        if (running <= 0) {
+            break ;
 
-    for (i=0; i<50; i++) {
-        if (os_sem_count(&inst->count_sem) >= CFG_WSERVER_USER_THREAD_MAX + 1) {
-            break;
+        }
+        if ((i % 50) == 0) {
+            DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_REPORT,
+                    "WSERV : : waiting for %d worker(s) to exit...\r\n", (int)running);
+
         }
         os_thread_sleep (100) ;
     }

@@ -69,6 +69,7 @@ static int          _asserts ;
 static int          _live ;
 static size_t       _largest ;
 static int          _failures ;
+static size_t       _fail_size ;        /* an allocation of this size fails */
 
 /* ------------------------------------------------------------------ fakes */
 
@@ -116,9 +117,13 @@ fake_closesocket (int s)
 void*
 qoraal_malloc (QORAAL_HEAP heap, size_t size)
 {
-    void* p = malloc (size ? size : 1) ;
+    void* p ;
 
     (void)heap ;
+    if (_fail_size && (size == _fail_size)) {
+        return 0 ;
+    }
+    p = malloc (size ? size : 1) ;
     if (p) {
         _live++ ;
         if (size > _largest) {
@@ -149,6 +154,28 @@ debug_assert (const char* format, ...)
     vprintf (format, args) ;
     va_end (args) ;
     printf ("\n") ;
+}
+
+void
+svc_wdt_handler_kick (SVC_WDT_HANDLE_T * handler)
+{
+    (void)handler ;
+}
+
+void
+os_sys_lock (void)
+{
+}
+
+void
+os_sys_unlock (void)
+{
+}
+
+uint32_t
+os_sys_timestamp (void)
+{
+    return 0 ;
 }
 
 int32_t
@@ -343,6 +370,161 @@ test_body_limit (void)
     check (largest <= CFG_HTTPSERVER_CONTENT_MAX + 1, "chunked over the limit", "allocated past the limit") ;
 }
 
+/* The endpoint copy fails: the request is refused, and closing the user
+ * frees only what was allocated (the header values still point into the
+ * read buffer then). */
+static void
+test_endpoint_alloc_fails (void)
+{
+    static const char request[] =
+        "GET /endpoint-allocation-fails HTTP/1.1\r\nHost: device\r\nConnection: Keep-Alive\r\n\r\n" ;
+    const char* name = "endpoint allocation fails" ;
+    HTTP_USER_T user ;
+
+    start (&user, request, sizeof(request) - 1) ;
+    _fail_size = strlen ("/endpoint-allocation-fails") + 1 ;
+    int32_t res = read_request (&user) ;
+    if (res != HTTP_SERVER_E_MEMORY) {
+        /* The endpoint may be kept without its slash. */
+        httpserver_user_close (&user) ;
+        start (&user, request, sizeof(request) - 1) ;
+        _fail_size = strlen ("endpoint-allocation-fails") + 1 ;
+        res = read_request (&user) ;
+    }
+    _fail_size = 0 ;
+    check (res == HTTP_SERVER_E_MEMORY, name, "not refused") ;
+    check (user.headers[3].value == 0, name, "header values left pointing into the read buffer") ;
+    httpserver_user_close (&user) ;
+    check (_asserts == 0, name, "the server asserted") ;
+    check (_live == 0, name, "memory left allocated") ;
+}
+
+/* One request read as the worker does it, then freed. Returns the length
+ * read_request_ex() returned and copies the endpoint and the body. */
+static int32_t
+next_request (HTTP_USER_T* user, char* endpoint_out, size_t endpoint_size, char* body_out, size_t body_size)
+{
+    char* endpoint = 0 ;
+    char* content = 0 ;
+    int32_t method ;
+    int32_t res = httpserver_read_request_ex (user, 500, &endpoint, &method) ;
+
+    endpoint_out[0] = 0 ;
+    if (body_out) {
+        body_out[0] = 0 ;
+    }
+    if (res >= 0) {
+        snprintf (endpoint_out, endpoint_size, "%s", endpoint ? endpoint : "") ;
+        if (res > 0) {
+            int32_t len = httpserver_read_all_content_ex (user, 500, &content) ;
+            if (body_out && (len > 0) && content) {
+                snprintf (body_out, body_size, "%.*s", (int)len, content) ;
+            }
+        }
+        (void)httpserver_free_request (user) ;
+    }
+    return res ;
+}
+
+static void
+test_pipelined (void)
+{
+    char endpoint[64] ;
+    char body[64] ;
+    HTTP_USER_T user ;
+    int32_t res ;
+
+    /* Two GETs in one write. */
+    static const char two_gets[] =
+        "GET /first HTTP/1.1\r\nHost: device\r\n\r\n"
+        "GET /second HTTP/1.1\r\nHost: device\r\n\r\n" ;
+    start (&user, two_gets, sizeof(two_gets) - 1) ;
+    res = next_request (&user, endpoint, sizeof(endpoint), 0, 0) ;
+    check ((res == 0) && (strcmp (endpoint, "first") == 0), "two GETs", "first request wrong") ;
+    res = next_request (&user, endpoint, sizeof(endpoint), 0, 0) ;
+    check ((res == 0) && (strcmp (endpoint, "second") == 0), "two GETs", "second request lost") ;
+    check (_asserts == 0, "two GETs", "the server asserted") ;
+    httpserver_user_close (&user) ;
+    check (_live == 0, "two GETs", "memory left allocated") ;
+
+    /* A POST with a body, then a GET: the body must not take the GET. */
+    static const char post_get[] =
+        "POST /api HTTP/1.1\r\nContent-Length: 5\r\n\r\nhello"
+        "GET /after HTTP/1.1\r\nHost: device\r\n\r\n" ;
+    start (&user, post_get, sizeof(post_get) - 1) ;
+    res = next_request (&user, endpoint, sizeof(endpoint), body, sizeof(body)) ;
+    check ((res == 5) && (strcmp (body, "hello") == 0), "POST then GET", "body wrong") ;
+    res = next_request (&user, endpoint, sizeof(endpoint), 0, 0) ;
+    check ((res == 0) && (strcmp (endpoint, "after") == 0), "POST then GET", "GET after the body lost") ;
+    check (_asserts == 0, "POST then GET", "the server asserted") ;
+    httpserver_user_close (&user) ;
+    check (_live == 0, "POST then GET", "memory left allocated") ;
+
+    /* The body arrives after the header, followed by the next request:
+     * the body read must stop at the end of the body. */
+    static const char header_then_body[] =
+        "POST /api HTTP/1.1\r\nContent-Length: 5\r\n\r\n" ;
+    static const char body_then_get[] =
+        "POST /api HTTP/1.1\r\nContent-Length: 5\r\n\r\nworld"
+        "GET /later HTTP/1.1\r\nHost: device\r\n\r\n" ;
+    start (&user, body_then_get, sizeof(header_then_body) - 1) ;
+    char* ep = 0 ;
+    char* content = 0 ;
+    int32_t method ;
+    res = httpserver_read_request_ex (&user, 500, &ep, &method) ;
+    _script_len = sizeof(body_then_get) - 1 ;
+    int32_t len = httpserver_read_all_content_ex (&user, 500, &content) ;
+    check ((res == 5) && (len == 5) && content && (memcmp (content, "world", 5) == 0),
+            "body read from the socket", "body wrong") ;
+    (void)httpserver_free_request (&user) ;
+    res = next_request (&user, endpoint, sizeof(endpoint), 0, 0) ;
+    check ((res == 0) && (strcmp (endpoint, "later") == 0), "body read from the socket", "next request lost") ;
+    httpserver_user_close (&user) ;
+    check (_live == 0, "body read from the socket", "memory left allocated") ;
+
+    /* A header split by a read timeout is kept for the next read. */
+    static const char split[] = "GET /split HTTP/1.1\r\nHost: device\r\n\r\n" ;
+    start (&user, split, 12) ;
+    res = httpserver_read_request_ex (&user, 500, &ep, &method) ;
+    check (res == HTTP_SERVER_E_ERROR, "split header", "first part not a read timeout") ;
+    _script_len = sizeof(split) - 1 ;
+    res = next_request (&user, endpoint, sizeof(endpoint), 0, 0) ;
+    check ((res == 0) && (strcmp (endpoint, "split") == 0), "split header", "first part lost") ;
+    check (_asserts == 0, "split header", "the server asserted") ;
+    httpserver_user_close (&user) ;
+    check (_live == 0, "split header", "memory left allocated") ;
+}
+
+/* Streams leave one worker for requests: the one after the last slot is
+ * refused (here the refusal cannot be sent, as send() is not faked) and its
+ * connection is not kept. */
+static void
+test_stream_limit (void)
+{
+    HTTP_USER_T users[CFG_HTTPSERVER_STREAMS_MAX + 1] ;
+    const char* name = "stream limit" ;
+    int i ;
+
+    for (i = 0; i < CFG_HTTPSERVER_STREAMS_MAX + 1; i++) {
+        start (&users[i], "", 0) ;
+        users[i].keep_alive = 1 ;
+    }
+    for (i = 0; i < CFG_HTTPSERVER_STREAMS_MAX; i++) {
+        check (httpserver_stream_open (&users[i]) == 1, name, "a free slot refused") ;
+    }
+    check (httpserver_stream_open (&users[i]) <= 0, name, "one stream too many opened") ;
+    check (users[i].keep_alive == 0, name, "refused connection kept") ;
+    httpserver_stream_close (&users[0]) ;
+    check (httpserver_stream_open (&users[i]) == 1, name, "a closed slot not given back") ;
+    for (i = 1; i < CFG_HTTPSERVER_STREAMS_MAX + 1; i++) {
+        httpserver_stream_close (&users[i]) ;
+    }
+    for (i = 0; i < CFG_HTTPSERVER_STREAMS_MAX + 1; i++) {
+        httpserver_user_close (&users[i]) ;
+    }
+    check (_live == 0, name, "memory left allocated") ;
+}
+
 int
 main (int argc, char** argv)
 {
@@ -350,6 +532,9 @@ main (int argc, char** argv)
 
     test_content_length () ;
     test_body_limit () ;
+    test_endpoint_alloc_fails () ;
+    test_pipelined () ;
+    test_stream_limit () ;
 
     if (_failures) {
         printf ("%d failure(s)\n", _failures) ;

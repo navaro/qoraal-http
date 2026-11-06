@@ -56,3 +56,11 @@
 #define CFG_WSERVER_USER_THREAD_MAX     4
 #endif
 #endif
+
+/*
+ * Max number of event streams (or other responses that hold their worker)
+ * open at a time. One worker is always left for other requests.
+ */
+#ifndef CFG_HTTPSERVER_STREAMS_MAX
+#define CFG_HTTPSERVER_STREAMS_MAX      (CFG_WSERVER_USER_THREAD_MAX - 1)
+#endif

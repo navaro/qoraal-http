@@ -83,6 +83,7 @@
  */
 #define WSERVER_KEEPALIVE_TIMEOUT                               30000
 #define WSERVER_NO_KEEPALIVE_TIMEOUT                            4000
+#define WSERVER_CONNECT_TIMEOUT                                 2000
 
 /** @} */
 

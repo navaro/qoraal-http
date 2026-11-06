@@ -43,17 +43,27 @@
 
 const   HTTP_HEADER_T _http_headers[]   = {
         {"Server", HTTP_SERVER_NAME} ,
-#if CFG_WSERVER_USER_THREAD_MAX < 3
-        /* wserver_m.c closes a connection after its request while fewer
-         * than two workers are free: with two or fewer, always. */
-        {"Connection", "close"} ,
-#else
+};
+
+/* The Connection header follows user->keep_alive, which the server sets
+ * for each request. */
+static const HTTP_HEADER_T _http_headers_keep_alive[] = {
         {"Connection", "Keep-Alive"} ,
 #if defined HTTP_SERVER_KEEPALIVE_HEADER
         {"Keep-Alive", HTTP_SERVER_KEEPALIVE_HEADER} ,
 #endif
-#endif
 };
+
+static const HTTP_HEADER_T _http_headers_close[] = {
+        {"Connection", "close"} ,
+};
+
+#define HTTPSERVER_CONNECTION_HEADERS(user)                                  \
+        ((user)->keep_alive ? _http_headers_keep_alive : _http_headers_close)
+#define HTTPSERVER_CONNECTION_HEADERS_COUNT(user)                            \
+        ((user)->keep_alive ?                                                \
+            sizeof(_http_headers_keep_alive)/sizeof(_http_headers_keep_alive[0]) : \
+            sizeof(_http_headers_close)/sizeof(_http_headers_close[0]))
 
 const   HTTP_HEADER_T _http_headers_chunked[]   = {
         {"Transfer-Encoding", "chunked"} ,
@@ -453,7 +463,9 @@ httpserver_user_accept (int server_sock, HTTP_USER_T* user, uint32_t timeout)
  * @details Perform an SSL handshake for a connected client.
  *
  * @param[in] user      Pointer to the user structure containing the client connection.
- * @param[in] timeout   Timeout in milliseconds.
+ * @param[in] timeout   Time in milliseconds the whole handshake may take. A
+ *                      client that sends its handshake slowly, even a byte
+ *                      at a time, is dropped when it runs out.
  *
  * @return                          The function status.
  * @retval HTTP_SERVER_E_OK         SSL handshake completed successfully.
@@ -489,6 +501,7 @@ httpserver_user_ssl_accept (HTTP_USER_T* user, uint32_t timeout, void * ssl_conf
  
         if (user->ssl) {
             int32_t status ;
+            uint32_t started = os_sys_timestamp () ;
 
             do {
 
@@ -499,7 +512,16 @@ httpserver_user_ssl_accept (HTTP_USER_T* user, uint32_t timeout, void * ssl_conf
 
                     fd_set   rfds, wfds, fdex;
                     struct timeval tv;
-                    
+                    uint32_t elapsed = os_sys_timestamp () - started ;
+
+                    /* One deadline for the whole handshake: each select
+                     * waits only for what is left of it. */
+                    if (elapsed >= timeout) {
+                        status = MBEDTLS_ERR_SSL_TIMEOUT ;
+                        break ;
+
+                    }
+
                     FD_ZERO(&fdex) ;
                     FD_ZERO(&rfds);
                     FD_ZERO(&wfds);
@@ -508,8 +530,8 @@ httpserver_user_ssl_accept (HTTP_USER_T* user, uint32_t timeout, void * ssl_conf
                     if (status == MBEDTLS_ERR_SSL_WANT_WRITE) FD_SET(user->socket, &wfds);
 
                     FD_SET(user->socket, &fdex);
-                    tv.tv_sec = 8 ;
-                    tv.tv_usec = 0 ;
+                    tv.tv_sec = (timeout - elapsed) / 1000 ;
+                    tv.tv_usec = ((timeout - elapsed) % 1000) * 1000 ;
 
                     int received = select(user->socket+1, &rfds, &wfds, &fdex, &tv) ;
                     if (received == 0) {
@@ -546,6 +568,11 @@ httpserver_user_ssl_accept (HTTP_USER_T* user, uint32_t timeout, void * ssl_conf
                 } else if (status == MBEDTLS_ERR_SSL_FATAL_ALERT_MESSAGE) {
                     DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_INFO,
                         "HTTP  : : TLS handshake failed with fatal alert socket %d",
+                        user->socket);
+
+                } else if (status == MBEDTLS_ERR_SSL_TIMEOUT) {
+                    DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_INFO,
+                        "HTTP  : : TLS handshake timed out socket %d",
                         user->socket);
 
                 } else {
@@ -662,7 +689,43 @@ httpserver_user_close (HTTP_USER_T* user)
 #endif
     httpserver_free_request (user) ;
 
+    if (user->pending) {
+        HTTP_SERVER_FREE (user->pending) ;
+        user->pending = 0 ;
+        user->pending_length = 0 ;
+
+    }
+
     return res ;
+}
+
+/**
+ * @brief   httpserver_wdt_kick
+ * @details Kick the watchdog of the worker that serves this connection.
+ *          A handler that keeps a request for longer than the worker's
+ *          watchdog timeout (60 s), such as a firmware or file upload, calls
+ *          this for every chunk it handles. Without it the worker is
+ *          reported and the device resets mid-transfer.
+ *
+ * @param[in] user   Pointer to the user structure of the connection.
+ *
+ * @return                          The function status.
+ * @retval HTTP_SERVER_E_OK         The watchdog was kicked.
+ * @retval HTTP_SERVER_E_ERROR      The connection has no worker watchdog.
+ *
+ * @http
+ */
+int32_t
+httpserver_wdt_kick (HTTP_USER_T* user)
+{
+    if (!user || !user->hwdt) {
+        return HTTP_SERVER_E_ERROR ;
+
+    }
+
+    svc_wdt_handler_kick (user->hwdt) ;
+
+    return HTTP_SERVER_E_OK ;
 }
 
 /**
@@ -917,6 +980,121 @@ httpserver_wait_close (HTTP_USER_T* user, uint32_t timeout)
     return res ;
 }
 
+/* Streams in progress, under os_sys_lock. A stream holds its worker for as
+ * long as it lasts, so at least one worker is always left for requests. */
+static int32_t _httpserver_streams ;
+
+/**
+ * @brief   httpserver_stream_open
+ * @details Take a slot for a long response that holds the worker, such as an
+ *          event stream. At most CFG_HTTPSERVER_STREAMS_MAX are open at a
+ *          time; when all are taken the request is answered with 503 and a
+ *          Retry-After, and the connection is closed after it.
+ *
+ * @param[in] user   Pointer to the user structure of the connection.
+ *
+ * @return          1 when the stream may start: end it with
+ *                  httpserver_stream_close(). 0 when it was refused and
+ *                  answered, or the error of that answer: the handler
+ *                  returns it.
+ *
+ * @http
+ */
+int32_t
+httpserver_stream_open (HTTP_USER_T* user)
+{
+    static const HTTP_HEADER_T retry_headers[] = {
+            {"Retry-After", "5"} ,
+    };
+    static const char busy[] = "Too many event streams, retry later.\r\n" ;
+    int32_t open = 0 ;
+    int32_t res ;
+
+    os_sys_lock () ;
+    if (_httpserver_streams < CFG_HTTPSERVER_STREAMS_MAX) {
+        _httpserver_streams++ ;
+        open = 1 ;
+    }
+    os_sys_unlock () ;
+    if (open) {
+        return 1 ;
+
+    }
+
+    DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_LOG,
+            "HTTP  : : stream refused, %d open", (int)CFG_HTTPSERVER_STREAMS_MAX);
+    user->keep_alive = 0 ;
+    res = httpserver_write_response (user, 503, HTTP_SERVER_CONTENT_TYPE_TEXT,
+            (HTTP_HEADER_T*)retry_headers, sizeof(retry_headers)/sizeof(retry_headers[0]),
+            busy, sizeof(busy) - 1) ;
+
+    return (res < 0) ? res : 0 ;
+}
+
+/**
+ * @brief   httpserver_stream_close
+ * @details Give back the slot of a stream that httpserver_stream_open()
+ *          opened.
+ *
+ * @param[in] user   Pointer to the user structure of the connection.
+ *
+ * @http
+ */
+void
+httpserver_stream_close (HTTP_USER_T* user)
+{
+    (void)user ;
+    os_sys_lock () ;
+    if (_httpserver_streams > 0) {
+        _httpserver_streams-- ;
+    }
+    os_sys_unlock () ;
+}
+
+/**
+ * @brief   httpserver_stream_wait
+ * @details Hold an open stream until the client closes it, the server stops,
+ *          or @p max_ms have passed. Another thread writes the stream's
+ *          data meanwhile.
+ *
+ * @param[in] user      Pointer to the user structure of the connection.
+ * @param[in] max_ms    The longest the stream lasts, in milliseconds. A
+ *                      browser's EventSource reconnects after it ends.
+ *
+ * @return                          The function status.
+ * @retval HTTP_SERVER_E_OK         The time ran out or the server stops.
+ * @retval HTTP_SERVER_E_CONNECTION The client closed the connection.
+ *
+ * @http
+ */
+int32_t
+httpserver_stream_wait (HTTP_USER_T* user, uint32_t max_ms)
+{
+    uint32_t started = os_sys_timestamp () ;
+
+    while ((os_sys_timestamp () - started) < max_ms) {
+        int32_t res ;
+
+        if (user->server_close && *user->server_close) {
+            return HTTP_SERVER_E_OK ;
+
+        }
+        httpserver_wdt_kick (user) ;
+        res = httpserver_wait_close (user, 1000) ;
+        if (res == HTTP_SERVER_E_ERROR) {
+            continue ;      /* a second without data from the client */
+
+        }
+        if ((res <= 0) || user->peer_closed || (user->socket < 0)) {
+            return HTTP_SERVER_E_CONNECTION ;
+
+        }
+
+    }
+
+    return HTTP_SERVER_E_OK ;
+}
+
 void
 alloc_headers (HTTP_USER_T* user)
 {
@@ -944,6 +1122,30 @@ free_headers (HTTP_USER_T* user)
         }
 
     }
+}
+
+/* Keep bytes that belong to the connection's next request; the next
+ * httpserver_read_request_ex() starts from them. */
+static int32_t
+httpserver_keep_pending(HTTP_USER_T* user, const char* data, uint32_t len)
+{
+    char* pending = (char*)HTTP_SERVER_MALLOC(len) ;
+
+    if (!pending) {
+        DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_WARNING,
+                "HTTP  :W: out of memory");
+        return HTTP_SERVER_E_MEMORY ;
+
+    }
+    memcpy (pending, data, len) ;
+    if (user->pending) {
+        HTTP_SERVER_FREE (user->pending) ;
+
+    }
+    user->pending = pending ;
+    user->pending_length = len ;
+
+    return HTTP_SERVER_E_OK ;
 }
 
 static int32_t
@@ -1074,6 +1276,13 @@ httpserver_read_chunked_content_ex(HTTP_USER_T* user, uint32_t timeout, char** r
             } while (received > 0);
 
             user->reader.chunk_complete = 1;
+            /* Bytes after the last chunk are the next request. They share
+             * rw_buffer with the chunks, so they are not kept: say
+             * Connection: close, and the client sends it again on a new
+             * connection. */
+            if (user->reader.payload_length) {
+                user->keep_alive = 0;
+            }
             return 0;
         }
 
@@ -1169,16 +1378,18 @@ httpserver_read_request_ex (HTTP_USER_T* user, uint32_t timeout, char** endpoint
 
     }
 
-    do {
-        received = httpserver_read (user, &user->rw_buffer[offset], HTTP_SERVER_MAX_XMIT_CONTENT_LENGTH - offset, timeout) ;
-        if(received <= 0) {
-            return received ;
+    /* Start with what arrived after the previous request: the start of
+     * this one, or all of it when the client pipelined. */
+    if (user->pending) {
+        memcpy (user->rw_buffer, user->pending, user->pending_length) ;
+        offset = (int32_t)user->pending_length ;
+        HTTP_SERVER_FREE (user->pending) ;
+        user->pending = 0 ;
+        user->pending_length = 0 ;
 
-        }
+    }
 
-        offset += received ;
-        if (strnstr(user->rw_buffer, "\r\n\r\n", offset)) break ;
-
+    while (!strnstr(user->rw_buffer, "\r\n\r\n", offset)) {
         if (offset >= HTTP_SERVER_MAX_XMIT_CONTENT_LENGTH) {
             DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_ERROR,
                     "HTTPD :E: HTTP_SERVER_MAX_XMIT_CONTENT_LENGTH to small for HTTP headers!");
@@ -1186,7 +1397,22 @@ httpserver_read_request_ex (HTTP_USER_T* user, uint32_t timeout, char** endpoint
 
         }
 
-    } while (offset < HTTP_SERVER_MAX_XMIT_CONTENT_LENGTH) ;
+        received = httpserver_read (user, &user->rw_buffer[offset], HTTP_SERVER_MAX_XMIT_CONTENT_LENGTH - offset, timeout) ;
+        if(received <= 0) {
+            /* After a read timeout the caller reads again: keep what has
+             * come of the request so far for that call. */
+            if ((received == HTTP_SERVER_E_ERROR) && offset &&
+                    (httpserver_keep_pending (user, user->rw_buffer, (uint32_t)offset) != HTTP_SERVER_E_OK)) {
+                return HTTP_SERVER_E_MEMORY ;
+
+            }
+            return received ;
+
+        }
+
+        offset += received ;
+
+    }
 
     memset (user->headers, 0, sizeof(user->headers)) ;
     user->headers[0].key = HTTP_HEADER_KEY_CONTENT_TYPE ;
@@ -1217,6 +1443,10 @@ httpserver_read_request_ex (HTTP_USER_T* user, uint32_t timeout, char** endpoint
         if (user->endpoint == 0) {
             DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_WARNING,
                     "HTTP  :W: out of memory");
+            /* The header values still point into rw_buffer; they are only
+             * copied by alloc_headers() below, so free_headers() must not
+             * see them. */
+            memset (user->headers, 0, sizeof(user->headers)) ;
             return HTTP_SERVER_E_MEMORY ;
 
         }
@@ -1258,15 +1488,22 @@ httpserver_read_request_ex (HTTP_USER_T* user, uint32_t timeout, char** endpoint
 
         }
 
-        if (content_length) {
+        /* Bytes past this request's body are the next request (pipelined,
+         * or sent before this response): keep them for the next call, and
+         * give the handler only this request's body. */
+        if ((uint32_t)left > content_length) {
+            if (httpserver_keep_pending (user, content + content_length,
+                        (uint32_t)left - content_length) != HTTP_SERVER_E_OK) {
+                return HTTP_SERVER_E_MEMORY ;
 
-                left = offset - (payload - user->rw_buffer) ;
+            }
+            left = (int)content_length ;
 
-                if (left) {
-                    user->reader.payload = payload ;
-                    user->reader.payload_length = (uint32_t)left ;
+        }
 
-                }
+        if (content_length && (left > 0)) {
+            user->reader.payload = content ;
+            user->reader.payload_length = (uint32_t)left ;
 
         }
 
@@ -1367,7 +1604,11 @@ httpserver_read_content_ex (HTTP_USER_T* user, uint32_t timeout, char** request)
 
     }
 
-    received = httpserver_read (user, user->rw_buffer, HTTP_SERVER_MAX_XMIT_CONTENT_LENGTH, timeout) ;
+    /* Read no further than this body: what follows is the next request. */
+    received = httpserver_read (user, user->rw_buffer,
+            ((uint32_t)user->reader.content_length < HTTP_SERVER_MAX_XMIT_CONTENT_LENGTH) ?
+                (uint32_t)user->reader.content_length : HTTP_SERVER_MAX_XMIT_CONTENT_LENGTH,
+            timeout) ;
     if (received <= 0) {
         DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_REPORT,
                     "HTTPD : : read error %d",
@@ -1563,6 +1804,10 @@ httpserver_write_response (HTTP_USER_T* user, uint32_t result, const char* conte
     count += httpparse_append_headers (user->rw_buffer, 
             HTTP_SERVER_MAX_XMIT_CONTENT_LENGTH - count,
             _http_headers, sizeof(_http_headers)/sizeof(_http_headers[0]), 0) ;
+    count += httpparse_append_headers (user->rw_buffer,
+            HTTP_SERVER_MAX_XMIT_CONTENT_LENGTH - count,
+            HTTPSERVER_CONNECTION_HEADERS(user),
+            HTTPSERVER_CONNECTION_HEADERS_COUNT(user), 0) ;
     count += httpparse_append_headers (user->rw_buffer, 
             HTTP_SERVER_MAX_XMIT_CONTENT_LENGTH - count,
             _http_headers_content_type, 
@@ -1636,11 +1881,15 @@ httpserver_chunked_response (HTTP_USER_T* user, uint32_t result, const char* con
     }
     user->write_idx += httpparse_append_headers ((char*)user->rw_buffer, 
             HTTP_SERVER_MAX_XMIT_CONTENT_LENGTH - user->write_idx,
-            _http_headers, 
+            _http_headers,
             sizeof(_http_headers)/sizeof(_http_headers[0]), 0) ;
-    user->write_idx += httpparse_append_headers ((char*)user->rw_buffer, 
+    user->write_idx += httpparse_append_headers ((char*)user->rw_buffer,
             HTTP_SERVER_MAX_XMIT_CONTENT_LENGTH - user->write_idx,
-            _http_headers_chunked, 
+            HTTPSERVER_CONNECTION_HEADERS(user),
+            HTTPSERVER_CONNECTION_HEADERS_COUNT(user), 0) ;
+    user->write_idx += httpparse_append_headers ((char*)user->rw_buffer,
+            HTTP_SERVER_MAX_XMIT_CONTENT_LENGTH - user->write_idx,
+            _http_headers_chunked,
             sizeof(_http_headers_chunked)/sizeof(_http_headers_chunked[0]), 0) ;
     user->write_idx += httpparse_append_headers ((char*)user->rw_buffer, 
             HTTP_SERVER_MAX_XMIT_CONTENT_LENGTH - user->write_idx,

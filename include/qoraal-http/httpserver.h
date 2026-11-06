@@ -31,6 +31,7 @@
 #include <stddef.h>
 #include "qoraal-http/qoraal.h"
 #include "qoraal-http/httpparse.h"
+#include "qoraal/svc/svc_wdt.h"
 
 /*===========================================================================*/
 /* Client constants.                                                         */
@@ -206,7 +207,24 @@ typedef struct HTTP_USER_S {
     HTTP_READ_T             reader ;
 
     char*                   content ;
-    
+
+    /* Bytes received after the current request: the start of the next
+     * one, kept from one request to the next and freed on close. */
+    char*                   pending ;
+    uint32_t                pending_length ;
+
+    SVC_WDT_HANDLE_T        * hwdt ;
+
+    /* Non-zero once the server is stopping: a handler that keeps the
+     * connection, such as an event stream, ends then. NULL outside a
+     * server worker. */
+    const volatile int32_t  * server_close ;
+
+    /* Whether the connection stays open after this response. The server
+     * sets it before the handler runs; responses say "Connection:
+     * Keep-Alive" or "Connection: close" from it. */
+    int32_t                 keep_alive ;
+
 #if !defined(CFG_HTTPSERVER_TLS_DISABLE) || !CFG_HTTPSERVER_TLS_DISABLE
     void*                  ssl ;
 #endif
@@ -236,6 +254,7 @@ extern int32_t      httpserver_user_select (HTTP_USER_T* user, uint32_t timeout)
 extern int32_t      httpserver_is_connected (HTTP_USER_T* user) ;
 extern int32_t      httpserver_user_abort (HTTP_USER_T* user) ;
 extern int32_t      httpserver_user_close (HTTP_USER_T* user) ;
+extern int32_t      httpserver_wdt_kick (HTTP_USER_T* user) ;
 
 extern int32_t      httpserver_read_request_ex (HTTP_USER_T* user, uint32_t timeout, char** endpoint, int32_t* method) ;
 extern const char*  httpserver_get_authorization_header (HTTP_USER_T* user) ;
@@ -246,6 +265,10 @@ extern int32_t      httpserver_read_all_content_ex (HTTP_USER_T* user, uint32_t 
 extern int32_t      httpserver_free_request (HTTP_USER_T* user) ;
 extern int32_t      httpserver_wait_close (HTTP_USER_T* user, uint32_t timeout) ;
 extern int32_t      httpserver_write_response (HTTP_USER_T* user, uint32_t result, const char* content_type, HTTP_HEADER_T* headers, uint32_t headers_count, const char* content, uint32_t length) ;
+
+extern int32_t      httpserver_stream_open (HTTP_USER_T* user) ;
+extern void         httpserver_stream_close (HTTP_USER_T* user) ;
+extern int32_t      httpserver_stream_wait (HTTP_USER_T* user, uint32_t max_ms) ;
 
 extern int32_t      httpserver_chunked_response (HTTP_USER_T* user, uint32_t result, const char* content_type, const HTTP_HEADER_T* headers, uint32_t headers_count) ;
 extern int32_t      httpserver_chunked_append_fmtstr (HTTP_USER_T* user, const char* format_str, ...) ;
