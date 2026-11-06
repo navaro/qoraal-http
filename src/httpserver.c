@@ -453,7 +453,9 @@ httpserver_user_accept (int server_sock, HTTP_USER_T* user, uint32_t timeout)
  * @details Perform an SSL handshake for a connected client.
  *
  * @param[in] user      Pointer to the user structure containing the client connection.
- * @param[in] timeout   Timeout in milliseconds.
+ * @param[in] timeout   Time in milliseconds the whole handshake may take. A
+ *                      client that sends its handshake slowly, even a byte
+ *                      at a time, is dropped when it runs out.
  *
  * @return                          The function status.
  * @retval HTTP_SERVER_E_OK         SSL handshake completed successfully.
@@ -489,6 +491,7 @@ httpserver_user_ssl_accept (HTTP_USER_T* user, uint32_t timeout, void * ssl_conf
  
         if (user->ssl) {
             int32_t status ;
+            uint32_t started = os_sys_timestamp () ;
 
             do {
 
@@ -499,7 +502,16 @@ httpserver_user_ssl_accept (HTTP_USER_T* user, uint32_t timeout, void * ssl_conf
 
                     fd_set   rfds, wfds, fdex;
                     struct timeval tv;
-                    
+                    uint32_t elapsed = os_sys_timestamp () - started ;
+
+                    /* One deadline for the whole handshake: each select
+                     * waits only for what is left of it. */
+                    if (elapsed >= timeout) {
+                        status = MBEDTLS_ERR_SSL_TIMEOUT ;
+                        break ;
+
+                    }
+
                     FD_ZERO(&fdex) ;
                     FD_ZERO(&rfds);
                     FD_ZERO(&wfds);
@@ -508,8 +520,8 @@ httpserver_user_ssl_accept (HTTP_USER_T* user, uint32_t timeout, void * ssl_conf
                     if (status == MBEDTLS_ERR_SSL_WANT_WRITE) FD_SET(user->socket, &wfds);
 
                     FD_SET(user->socket, &fdex);
-                    tv.tv_sec = 8 ;
-                    tv.tv_usec = 0 ;
+                    tv.tv_sec = (timeout - elapsed) / 1000 ;
+                    tv.tv_usec = ((timeout - elapsed) % 1000) * 1000 ;
 
                     int received = select(user->socket+1, &rfds, &wfds, &fdex, &tv) ;
                     if (received == 0) {
@@ -546,6 +558,11 @@ httpserver_user_ssl_accept (HTTP_USER_T* user, uint32_t timeout, void * ssl_conf
                 } else if (status == MBEDTLS_ERR_SSL_FATAL_ALERT_MESSAGE) {
                     DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_INFO,
                         "HTTP  : : TLS handshake failed with fatal alert socket %d",
+                        user->socket);
+
+                } else if (status == MBEDTLS_ERR_SSL_TIMEOUT) {
+                    DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_INFO,
+                        "HTTP  : : TLS handshake timed out socket %d",
                         user->socket);
 
                 } else {
