@@ -666,6 +666,35 @@ httpserver_user_close (HTTP_USER_T* user)
 }
 
 /**
+ * @brief   httpserver_wdt_kick
+ * @details Kick the watchdog of the worker that serves this connection.
+ *          A handler that keeps a request for longer than the worker's
+ *          watchdog timeout (60 s), such as a firmware or file upload, calls
+ *          this for every chunk it handles. Without it the worker is
+ *          reported and the device resets mid-transfer.
+ *
+ * @param[in] user   Pointer to the user structure of the connection.
+ *
+ * @return                          The function status.
+ * @retval HTTP_SERVER_E_OK         The watchdog was kicked.
+ * @retval HTTP_SERVER_E_ERROR      The connection has no worker watchdog.
+ *
+ * @http
+ */
+int32_t
+httpserver_wdt_kick (HTTP_USER_T* user)
+{
+    if (!user || !user->hwdt) {
+        return HTTP_SERVER_E_ERROR ;
+
+    }
+
+    svc_wdt_handler_kick (user->hwdt) ;
+
+    return HTTP_SERVER_E_OK ;
+}
+
+/**
  * @brief   httpserver_write
  * @details Write data to a user's connection.
  *

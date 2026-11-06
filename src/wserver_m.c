@@ -169,7 +169,7 @@ _wserver_thread (void *arg)
     SVC_WDT_HANDLE_T hwdt ;
     svc_wdt_register (&hwdt, TIMEOUT_60_SEC) ;
     svc_wdt_activate (&hwdt) ;
-
+    thread->user.hwdt = &hwdt ;
 
     DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_INFO,
             "WSERV : : start socket 0x%x.\r\n", thread->user.socket);
@@ -370,6 +370,7 @@ _wserver_thread (void *arg)
     os_sem_signal(&inst->count_sem) ;
 
 
+    thread->user.hwdt = 0 ;
     svc_wdt_unregister (&hwdt, TIMEOUT_60_SEC) ;
 
 

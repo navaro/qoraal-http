@@ -31,6 +31,7 @@
 #include <stddef.h>
 #include "qoraal-http/qoraal.h"
 #include "qoraal-http/httpparse.h"
+#include "qoraal/svc/svc_wdt.h"
 
 /*===========================================================================*/
 /* Client constants.                                                         */
@@ -207,6 +208,8 @@ typedef struct HTTP_USER_S {
 
     char*                   content ;
     
+    SVC_WDT_HANDLE_T        * hwdt ;
+
 #if !defined(CFG_HTTPSERVER_TLS_DISABLE) || !CFG_HTTPSERVER_TLS_DISABLE
     void*                  ssl ;
 #endif
@@ -236,6 +239,7 @@ extern int32_t      httpserver_user_select (HTTP_USER_T* user, uint32_t timeout)
 extern int32_t      httpserver_is_connected (HTTP_USER_T* user) ;
 extern int32_t      httpserver_user_abort (HTTP_USER_T* user) ;
 extern int32_t      httpserver_user_close (HTTP_USER_T* user) ;
+extern int32_t      httpserver_wdt_kick (HTTP_USER_T* user) ;
 
 extern int32_t      httpserver_read_request_ex (HTTP_USER_T* user, uint32_t timeout, char** endpoint, int32_t* method) ;
 extern const char*  httpserver_get_authorization_header (HTTP_USER_T* user) ;
