@@ -264,6 +264,9 @@ extern int32_t      httpserver_read_content_ex (HTTP_USER_T* user, uint32_t time
 extern int32_t      httpserver_read_all_content_ex (HTTP_USER_T* user, uint32_t timeout, char** request) ;
 extern int32_t      httpserver_free_request (HTTP_USER_T* user) ;
 extern int32_t      httpserver_wait_close (HTTP_USER_T* user, uint32_t timeout) ;
+extern int32_t      httpserver_stream_open (HTTP_USER_T* user) ;
+extern void         httpserver_stream_close (HTTP_USER_T* user) ;
+extern int32_t      httpserver_stream_wait (HTTP_USER_T* user, uint32_t max_ms) ;
 extern int32_t      httpserver_write_response (HTTP_USER_T* user, uint32_t result, const char* content_type, HTTP_HEADER_T* headers, uint32_t headers_count, const char* content, uint32_t length) ;
 
 extern int32_t      httpserver_chunked_response (HTTP_USER_T* user, uint32_t result, const char* content_type, const HTTP_HEADER_T* headers, uint32_t headers_count) ;

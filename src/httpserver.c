@@ -980,6 +980,120 @@ httpserver_wait_close (HTTP_USER_T* user, uint32_t timeout)
     return res ;
 }
 
+/* Streams in progress, under os_sys_lock. A stream holds its worker for as
+ * long as it lasts, so at least one worker is always left for requests. */
+static int32_t _httpserver_streams ;
+
+/**
+ * @brief   httpserver_stream_open
+ * @details Take a slot for a long response that holds the worker, such as an
+ *          event stream. At most CFG_HTTPSERVER_STREAMS_MAX are open at a
+ *          time; when all are taken the request is answered with 503 and a
+ *          Retry-After, and the connection is closed after it.
+ *
+ * @param[in] user   Pointer to the user structure of the connection.
+ *
+ * @return          1 when the stream may start: end it with
+ *                  httpserver_stream_close(). 0 when it was refused and
+ *                  answered, or the error of that answer: the handler
+ *                  returns it.
+ *
+ * @http
+ */
+int32_t
+httpserver_stream_open (HTTP_USER_T* user)
+{
+    static const HTTP_HEADER_T retry_headers[] = {
+            {"Retry-After", "5"} ,
+    };
+    static const char busy[] = "Too many event streams, retry later.\r\n" ;
+    int32_t open = 0 ;
+    int32_t res ;
+
+    os_sys_lock () ;
+    if (_httpserver_streams < CFG_HTTPSERVER_STREAMS_MAX) {
+        _httpserver_streams++ ;
+        open = 1 ;
+    }
+    os_sys_unlock () ;
+    if (open) {
+        return 1 ;
+
+    }
+
+    DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_LOG,
+            "HTTP  : : stream refused, %d open", (int)CFG_HTTPSERVER_STREAMS_MAX);
+    user->keep_alive = 0 ;
+    res = httpserver_write_response (user, 503, HTTP_SERVER_CONTENT_TYPE_TEXT,
+            (HTTP_HEADER_T*)retry_headers, sizeof(retry_headers)/sizeof(retry_headers[0]),
+            busy, sizeof(busy) - 1) ;
+
+    return (res < 0) ? res : 0 ;
+}
+
+/**
+ * @brief   httpserver_stream_close
+ * @details Give back the slot of a stream that httpserver_stream_open()
+ *          opened.
+ *
+ * @param[in] user   Pointer to the user structure of the connection.
+ *
+ * @http
+ */
+void
+httpserver_stream_close (HTTP_USER_T* user)
+{
+    (void)user ;
+    os_sys_lock () ;
+    if (_httpserver_streams > 0) {
+        _httpserver_streams-- ;
+    }
+    os_sys_unlock () ;
+}
+
+/**
+ * @brief   httpserver_stream_wait
+ * @details Hold an open stream until the client closes it, the server stops,
+ *          or @p max_ms have passed. Another thread writes the stream's
+ *          data meanwhile.
+ *
+ * @param[in] user      Pointer to the user structure of the connection.
+ * @param[in] max_ms    The longest the stream lasts, in milliseconds. A
+ *                      browser's EventSource reconnects after it ends.
+ *
+ * @return                          The function status.
+ * @retval HTTP_SERVER_E_OK         The time ran out or the server stops.
+ * @retval HTTP_SERVER_E_CONNECTION The client closed the connection.
+ *
+ * @http
+ */
+int32_t
+httpserver_stream_wait (HTTP_USER_T* user, uint32_t max_ms)
+{
+    uint32_t started = os_sys_timestamp () ;
+
+    while ((os_sys_timestamp () - started) < max_ms) {
+        int32_t res ;
+
+        if (user->server_close && *user->server_close) {
+            return HTTP_SERVER_E_OK ;
+
+        }
+        res = httpserver_wait_close (user, 1000) ;
+        if (res == HTTP_SERVER_E_ERROR) {
+            continue ;      /* a second without data from the client */
+
+        }
+        if ((res <= 0) || user->peer_closed || (user->socket < 0)) {
+            return HTTP_SERVER_E_CONNECTION ;
+
+        }
+
+    }
+
+    return HTTP_SERVER_E_OK ;
+}
+
 void
 alloc_headers (HTTP_USER_T* user)
 {

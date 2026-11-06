@@ -142,9 +142,16 @@ wrtlog_handler(HTTP_USER_T *user, uint32_t method, char* endpoint)
                         {"Cache-Control", "no-cache"}
                     };
 
-            if ((res = httpserver_chunked_response (user, 200, 
-                            HTTP_SERVER_CONTENT_TYPE_EVENT_STREAM, headers, 
-                            sizeof(headers)/sizeof(headers[0])) < HTTP_SERVER_E_OK)) {
+            /* The stream holds this worker: refused (503) when the
+             * streams already open would leave no worker for requests. */
+            if ((res = httpserver_stream_open (user)) <= 0) {
+                return res ;
+            }
+
+            if ((res = httpserver_chunked_response (user, 200,
+                            HTTP_SERVER_CONTENT_TYPE_EVENT_STREAM, headers,
+                            sizeof(headers)/sizeof(headers[0]))) < HTTP_SERVER_E_OK) {
+                httpserver_stream_close (user) ;
                 return res ;
             }
 
@@ -175,8 +182,11 @@ wrtlog_handler(HTTP_USER_T *user, uint32_t method, char* endpoint)
                                         HTTP_SERVER_STREAM_WRITE_TIMEOUT) ;
 
             svc_logger_channel_add (&log_channel) ;
-            httpserver_wait_close (user, 900000) ; // keep the socket open for 15 minutes from our side
+            /* Up to 15 minutes, less when the client goes or the server
+             * stops; the browser reconnects. */
+            httpserver_stream_wait (user, 900000) ;
             svc_logger_channel_remove (&log_channel) ;
+            httpserver_stream_close (user) ;
 
             httpserver_user_set_write_timeout (user, write_timeout) ;
 

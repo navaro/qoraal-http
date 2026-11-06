@@ -162,6 +162,22 @@ svc_wdt_handler_kick (SVC_WDT_HANDLE_T * handler)
     (void)handler ;
 }
 
+void
+os_sys_lock (void)
+{
+}
+
+void
+os_sys_unlock (void)
+{
+}
+
+uint32_t
+os_sys_timestamp (void)
+{
+    return 0 ;
+}
+
 int32_t
 svc_logger_type_log (LOGGER_TYPE_T type, uint8_t facility, const char* str, ...)
 {
@@ -479,6 +495,36 @@ test_pipelined (void)
     check (_live == 0, "split header", "memory left allocated") ;
 }
 
+/* Streams leave one worker for requests: the one after the last slot is
+ * refused (here the refusal cannot be sent, as send() is not faked) and its
+ * connection is not kept. */
+static void
+test_stream_limit (void)
+{
+    HTTP_USER_T users[CFG_HTTPSERVER_STREAMS_MAX + 1] ;
+    const char* name = "stream limit" ;
+    int i ;
+
+    for (i = 0; i < CFG_HTTPSERVER_STREAMS_MAX + 1; i++) {
+        start (&users[i], "", 0) ;
+        users[i].keep_alive = 1 ;
+    }
+    for (i = 0; i < CFG_HTTPSERVER_STREAMS_MAX; i++) {
+        check (httpserver_stream_open (&users[i]) == 1, name, "a free slot refused") ;
+    }
+    check (httpserver_stream_open (&users[i]) <= 0, name, "one stream too many opened") ;
+    check (users[i].keep_alive == 0, name, "refused connection kept") ;
+    httpserver_stream_close (&users[0]) ;
+    check (httpserver_stream_open (&users[i]) == 1, name, "a closed slot not given back") ;
+    for (i = 1; i < CFG_HTTPSERVER_STREAMS_MAX + 1; i++) {
+        httpserver_stream_close (&users[i]) ;
+    }
+    for (i = 0; i < CFG_HTTPSERVER_STREAMS_MAX + 1; i++) {
+        httpserver_user_close (&users[i]) ;
+    }
+    check (_live == 0, name, "memory left allocated") ;
+}
+
 int
 main (int argc, char** argv)
 {
@@ -488,6 +534,7 @@ main (int argc, char** argv)
     test_body_limit () ;
     test_endpoint_alloc_fails () ;
     test_pipelined () ;
+    test_stream_limit () ;
 
     if (_failures) {
         printf ("%d failure(s)\n", _failures) ;
