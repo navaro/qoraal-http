@@ -552,10 +552,13 @@ httpserver_wserver_run (HTTPSERVER_INST_T * inst)
 
             }
         } else {
+            /* Out of memory for now, maybe until workers end: try again
+             * rather than leave the server without a listener until the
+             * next reboot. */
             DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_ERROR,
-                    "WSERV :E: HTTP_SERVER_E_MEMORY\r\n");
-            res = HTTP_SERVER_E_MEMORY ;
-            break ;
+                    "WSERV :E: HTTP_SERVER_E_MEMORY, retrying\r\n");
+            os_thread_sleep (1000) ;
+            continue ;
 
         }
 
