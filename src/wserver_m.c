@@ -162,7 +162,7 @@ _wserver_thread (void *arg)
     char * endpoint = 0 ;
     int32_t len ;
     int32_t method ;
-    int32_t timeout = WSERVER_KEEPALIVE_TIMEOUT  ;
+    int32_t timeout = WSERVER_CONNECT_TIMEOUT  ;
     HTTPSERVER_THREAD_T*    thread = (HTTPSERVER_THREAD_T* )arg ;
     HTTPSERVER_INST_T *     inst = thread->inst ;
 
