@@ -347,11 +347,14 @@ httpserver_apply_write_timeout (HTTP_USER_T* user)
 
 /**
  * @brief   httpserver_user_set_write_timeout
- * @details Sets how long a write to the user's connection may wait without
- *          progress before it fails and the connection is dropped. It bounds
- *          both the wait for the socket to become writable and a blocking
- *          send. A stream written from another thread, such as an SSE event
- *          sink, sets a short one, so a client that stops reading is dropped
+ * @details Sets how long one httpserver_write() to the user's connection may
+ *          take before it fails and the connection is dropped. It bounds the
+ *          whole write, so a client that opens its receive window a few
+ *          bytes at a time cannot stretch it, and also each blocking send. A
+ *          send that started just before the time ran out can still block for
+ *          this long, so a write takes at most about twice the timeout. A
+ *          stream written from another thread, such as an SSE event sink,
+ *          sets a short one, so a client that stops reading is dropped
  *          instead of holding up the writer.
  *
  * @param[in] user          Pointer to the user structure.
@@ -388,9 +391,9 @@ httpserver_user_set_write_timeout (HTTP_USER_T* user, uint32_t timeout)
  * @param[in] server_sock   The server socket descriptor.
  * @param[out] user         Pointer to the user structure to hold the client data.
  * @param[in] timeout       Write timeout in milliseconds: how long a write
- *                          may wait without progress before it fails. The
- *                          accept itself does not wait, so select the server
- *                          socket first. See httpserver_user_set_write_timeout().
+ *                          may take before it fails. The accept itself does
+ *                          not wait, so select the server socket first. See
+ *                          httpserver_user_set_write_timeout().
  *
  * @return                          The function status.
  * @retval HTTP_SERVER_E_OK         Client connection accepted successfully.
@@ -625,24 +628,35 @@ httpserver_is_connected (HTTP_USER_T* user)
     return 1 ;
 }
 
+/**
+ * @brief   httpserver_user_abort
+ * @details Drop a connection from another thread, such as the event sink
+ *          that writes a stream. The connection is only marked closed: from
+ *          then on reads and writes fail, httpserver_stream_wait() returns
+ *          within a second, and the worker closes the socket. Closing it
+ *          here would close it under the worker's select, and the next
+ *          connection could get the same descriptor before the worker is
+ *          done with it.
+ *
+ * @param[in] user   Pointer to the user structure of the connection.
+ *
+ * @return                          The function status.
+ * @retval HTTP_SERVER_E_OK         The connection is marked closed.
+ * @retval HTTP_SERVER_E_ERROR      No user.
+ *
+ * @http
+ */
 int32_t
 httpserver_user_abort (HTTP_USER_T* user)
 {
-    int32_t res = HTTP_SERVER_E_OK ;
-
     if (!user) {
         return HTTP_SERVER_E_ERROR ;
 
     }
 
     user->peer_closed = 1 ;
-    if (user->socket >= 0) {
-        res = closesocket (user->socket) ;
-        user->socket = -1 ;
 
-    }
-
-    return res ;
+    return HTTP_SERVER_E_OK ;
 }
 
 /**
@@ -728,19 +742,16 @@ httpserver_wdt_kick (HTTP_USER_T* user)
     return HTTP_SERVER_E_OK ;
 }
 
-/**
- * @brief   httpserver_write
- * @details Write data to a user's connection.
- *
- * @param[in] user      Pointer to the user structure.
- * @param[in] buffer    Pointer to the data buffer to send.
- * @param[in] length    Length of the data to send.
- *
- * @return                          Number of bytes sent or an error code.
- * @retval HTTP_SERVER_E_CONNECTION Connection error during sending.
- *
- * @http
- */
+/* Milliseconds left of timeout since started (os_sys_timestamp()), 0 when
+ * it has run out. */
+static uint32_t
+httpserver_time_left (uint32_t started, uint32_t timeout)
+{
+    uint32_t elapsed = os_sys_timestamp () - started ;
+
+    return (elapsed < timeout) ? (timeout - elapsed) : 0 ;
+}
+
 static int32_t
 httpserver_wait_socket(HTTP_USER_T* user, bool wait_read, bool wait_write, uint32_t timeout)
 {
@@ -801,17 +812,45 @@ httpserver_wait_socket(HTTP_USER_T* user, bool wait_read, bool wait_write, uint3
     return HTTP_SERVER_E_ERROR ;
 }
 
+/**
+ * @brief   httpserver_write
+ * @details Write data to a user's connection. The whole write is bounded by
+ *          the connection's write timeout, see
+ *          httpserver_user_set_write_timeout(). When it runs out the
+ *          connection is dropped: it cannot be used after part of a write.
+ *
+ * @param[in] user      Pointer to the user structure.
+ * @param[in] buffer    Pointer to the data buffer to send.
+ * @param[in] length    Length of the data to send.
+ *
+ * @return                          Number of bytes sent or an error code.
+ * @retval HTTP_SERVER_E_CONNECTION Connection error, or the write timed out.
+ *
+ * @http
+ */
 int32_t
 httpserver_write (HTTP_USER_T* user, const uint8_t* buffer, uint32_t length)
 {
     int32_t sent_bytes ;
     uint32_t total = 0 ;
-
+    uint32_t started = os_sys_timestamp () ;
+    uint32_t left ;
+    int32_t res ;
 
     while (length) {
 
-        if (httpserver_wait_socket(user, false, true, user->write_timeout) != EOK) {
+        left = httpserver_time_left (started, user->write_timeout) ;
+        res = left ? httpserver_wait_socket (user, false, true, left) : HTTP_SERVER_E_ERROR ;
+        if (res != EOK) {
+            /* Marked first: the log line may go to this connection's own
+             * stream (rtlog), which must not write to it again. */
             user->peer_closed = 1 ;
+            if (res == HTTP_SERVER_E_ERROR) {
+                DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_LOG,
+                        "HTTPD : : socket 0x%x took %u of %u bytes in %u ms, dropped",
+                        user->socket, (unsigned)total, (unsigned)(total + length),
+                        (unsigned)user->write_timeout) ;
+            }
             return HTTP_SERVER_E_CONNECTION ;
 
         }
@@ -820,7 +859,8 @@ httpserver_write (HTTP_USER_T* user, const uint8_t* buffer, uint32_t length)
         if (user->ssl) {
             sent_bytes = mbedtls_ssl_write ((mbedtls_ssl_context *)user->ssl, (unsigned char*)&buffer[total], length) ;
             if (sent_bytes == MBEDTLS_ERR_SSL_WANT_READ) {
-                if (httpserver_wait_socket(user, true, false, user->write_timeout) != EOK) {
+                left = httpserver_time_left (started, user->write_timeout) ;
+                if (!left || (httpserver_wait_socket (user, true, false, left) != EOK)) {
                     user->peer_closed = 1 ;
                     return HTTP_SERVER_E_CONNECTION ;
 
@@ -904,10 +944,12 @@ httpserver_wait_read(HTTP_USER_T* user, uint32_t timeout)
  * @param[in] user      Pointer to the user structure.
  * @param[in] buffer    Pointer to the buffer to store the data.
  * @param[in] length    Maximum number of bytes to read.
- * @param[in] timeout   Timeout in milliseconds.
+ * @param[in] timeout   Timeout in milliseconds, for the whole read: a TLS
+ *                      record that arrives in pieces must be complete
+ *                      within it too.
  *
  * @return                          Number of bytes read or an error code.
- * @retval HTTP_SERVER_E_ERROR      Error occurred during reading.
+ * @retval HTTP_SERVER_E_ERROR      Nothing to read within the timeout.
  *
  * @http
  */
@@ -917,6 +959,8 @@ httpserver_read (HTTP_USER_T* user, void* buffer, uint32_t length, uint32_t time
     int received = EOK;
 #if !defined(CFG_HTTPSERVER_TLS_DISABLE) || !CFG_HTTPSERVER_TLS_DISABLE
     if (user->ssl) {
+        uint32_t started = os_sys_timestamp () ;
+
         if (!mbedtls_ssl_get_bytes_avail ((mbedtls_ssl_context *)user->ssl)) {
             received = httpserver_wait_read (user, timeout) ;
 
@@ -925,7 +969,10 @@ httpserver_read (HTTP_USER_T* user, void* buffer, uint32_t length, uint32_t time
         while (received == EOK) {
             received = mbedtls_ssl_read ((mbedtls_ssl_context *)user->ssl, buffer, length) ;
             if (received == MBEDTLS_ERR_SSL_WANT_READ) {
-                received = httpserver_wait_read (user, timeout) ;
+                /* Part of a record: wait for the rest within what is left
+                 * of the timeout. mbedtls keeps the part for the next read. */
+                uint32_t left = httpserver_time_left (started, timeout) ;
+                received = left ? httpserver_wait_read (user, left) : HTTP_SERVER_E_ERROR ;
 
             } else if ((received == MBEDTLS_ERR_NET_CONN_RESET) ||
                        (received == MBEDTLS_ERR_SSL_CONN_EOF) ||
@@ -1053,9 +1100,18 @@ httpserver_stream_close (HTTP_USER_T* user)
 
 /**
  * @brief   httpserver_stream_wait
- * @details Hold an open stream until the client closes it, the server stops,
- *          or @p max_ms have passed. Another thread writes the stream's
- *          data meanwhile.
+ * @details Hold an open stream until the client closes it, the writer drops
+ *          it, the server stops, or @p max_ms have passed. Another thread
+ *          writes the stream's data meanwhile, and owns the connection's TLS
+ *          context while it does: mbedtls is not thread-safe, so this only
+ *          watches the socket and never reads from it. A stream's client
+ *          sends nothing, so anything to read, data or the end of the
+ *          connection, ends the stream. The worker's watchdog is kicked
+ *          every second.
+ *
+ *          When it returns, remove the writer (its channel or sink) before
+ *          the connection is used again: the removal waits for a write in
+ *          progress.
  *
  * @param[in] user      Pointer to the user structure of the connection.
  * @param[in] max_ms    The longest the stream lasts, in milliseconds. A
@@ -1063,7 +1119,9 @@ httpserver_stream_close (HTTP_USER_T* user)
  *
  * @return                          The function status.
  * @retval HTTP_SERVER_E_OK         The time ran out or the server stops.
- * @retval HTTP_SERVER_E_CONNECTION The client closed the connection.
+ * @retval HTTP_SERVER_E_CONNECTION The client closed the connection or sent
+ *                                  something, or the writer dropped it
+ *                                  (httpserver_user_abort()).
  *
  * @http
  */
@@ -1073,19 +1131,19 @@ httpserver_stream_wait (HTTP_USER_T* user, uint32_t max_ms)
     uint32_t started = os_sys_timestamp () ;
 
     while ((os_sys_timestamp () - started) < max_ms) {
-        int32_t res ;
 
         if (user->server_close && *user->server_close) {
             return HTTP_SERVER_E_OK ;
 
         }
-        httpserver_wdt_kick (user) ;
-        res = httpserver_wait_close (user, 1000) ;
-        if (res == HTTP_SERVER_E_ERROR) {
-            continue ;      /* a second without data from the client */
+        if (user->peer_closed || (user->socket < 0)) {
+            return HTTP_SERVER_E_CONNECTION ;
 
         }
-        if ((res <= 0) || user->peer_closed || (user->socket < 0)) {
+        httpserver_wdt_kick (user) ;
+        if (httpserver_wait_read (user, 1000) != HTTP_SERVER_E_ERROR) {
+            /* Readable, or an exception: what is there is left unread. */
+            user->peer_closed = 1 ;
             return HTTP_SERVER_E_CONNECTION ;
 
         }
@@ -1174,8 +1232,10 @@ httpserver_buffer_consume(HTTP_USER_T* user, char** buffer, uint32_t len)
     return 0;
 }
 
+/* The chunked readers below get the time their call started and its
+ * timeout: everything one call reads must arrive within that. */
 static int32_t
-httpserver_read_line(HTTP_USER_T* user, uint32_t timeout, char* line, uint32_t maxlen)
+httpserver_read_line(HTTP_USER_T* user, uint32_t started, uint32_t timeout, char* line, uint32_t maxlen)
 {
     uint32_t idx = 0;
 
@@ -1188,7 +1248,11 @@ httpserver_read_line(HTTP_USER_T* user, uint32_t timeout, char* line, uint32_t m
         int32_t got = httpserver_buffer_consume(user, &p, 1);
 
         if (got == 0) {
-            got = httpserver_read(user, &line[idx], 1, timeout);
+            uint32_t left = httpserver_time_left (started, timeout) ;
+            if (!left) {
+                return HTTP_SERVER_E_ERROR;
+            }
+            got = httpserver_read(user, &line[idx], 1, left);
             if (got <= 0) {
                 return got;
             }
@@ -1208,12 +1272,13 @@ httpserver_read_line(HTTP_USER_T* user, uint32_t timeout, char* line, uint32_t m
 }
 
 static int32_t
-httpserver_read_exact(HTTP_USER_T* user, uint32_t timeout, char* buffer, uint32_t len)
+httpserver_read_exact(HTTP_USER_T* user, uint32_t started, uint32_t timeout, char* buffer, uint32_t len)
 {
     uint32_t total = 0;
 
     while (total < len) {
         char* p = 0;
+        uint32_t left;
         int32_t got = httpserver_buffer_consume(user, &p, len - total);
 
         if (got > 0) {
@@ -1222,7 +1287,11 @@ httpserver_read_exact(HTTP_USER_T* user, uint32_t timeout, char* buffer, uint32_
             continue;
         }
 
-        got = httpserver_read(user, &buffer[total], len - total, timeout);
+        left = httpserver_time_left (started, timeout) ;
+        if (!left) {
+            return HTTP_SERVER_E_ERROR;
+        }
+        got = httpserver_read(user, &buffer[total], len - total, left);
         if (got <= 0) {
             return got;
         }
@@ -1233,11 +1302,16 @@ httpserver_read_exact(HTTP_USER_T* user, uint32_t timeout, char* buffer, uint32_
     return (int32_t)total;
 }
 
+/* One call reads at most one chunk's data, and all of it, the size line
+ * and the trailer lines after the last chunk included, must come within
+ * timeout: a client that trickles them cannot hold the read longer. The
+ * data that came is returned, as for a body with a Content-Length. */
 static int32_t
 httpserver_read_chunked_content_ex(HTTP_USER_T* user, uint32_t timeout, char** request)
 {
     int32_t received;
     char line[32];
+    uint32_t started = os_sys_timestamp () ;
 
     if (request) {
         *request = 0;
@@ -1252,7 +1326,7 @@ httpserver_read_chunked_content_ex(HTTP_USER_T* user, uint32_t timeout, char** r
         char* endptr;
         char* semi;
 
-        received = httpserver_read_line(user, timeout, line, sizeof(line));
+        received = httpserver_read_line(user, started, timeout, line, sizeof(line));
         if (received <= 0) {
             return received;
         }
@@ -1269,7 +1343,7 @@ httpserver_read_chunked_content_ex(HTTP_USER_T* user, uint32_t timeout, char** r
 
         if (chunk_size == 0) {
             do {
-                received = httpserver_read_line(user, timeout, line, sizeof(line));
+                received = httpserver_read_line(user, started, timeout, line, sizeof(line));
                 if (received < 0) {
                     return received;
                 }
@@ -1292,20 +1366,32 @@ httpserver_read_chunked_content_ex(HTTP_USER_T* user, uint32_t timeout, char** r
 
     if (user->reader.chunk_left) {
         uint32_t want = user->reader.chunk_left;
+        char* data = 0;
+
         if (want > HTTP_SERVER_MAX_XMIT_CONTENT_LENGTH) {
             want = HTTP_SERVER_MAX_XMIT_CONTENT_LENGTH;
         }
 
-        received = httpserver_read_exact(user, timeout, user->rw_buffer, want);
-        if (received <= 0) {
-            return received;
+        /* What came with the header first, in place; then what the
+         * socket has. */
+        received = httpserver_buffer_consume(user, &data, want);
+        if (received == 0) {
+            uint32_t left = httpserver_time_left (started, timeout) ;
+            if (!left) {
+                return HTTP_SERVER_E_ERROR;
+            }
+            received = httpserver_read(user, user->rw_buffer, want, left);
+            if (received <= 0) {
+                return received;
+            }
+            data = user->rw_buffer;
         }
 
         user->reader.chunk_left -= (uint32_t)received;
 
         if (user->reader.chunk_left == 0) {
             char crlf[2];
-            int32_t newline = httpserver_read_exact(user, timeout, crlf, 2);
+            int32_t newline = httpserver_read_exact(user, started, timeout, crlf, 2);
             if (newline <= 0) {
                 return newline;
             }
@@ -1315,7 +1401,7 @@ httpserver_read_chunked_content_ex(HTTP_USER_T* user, uint32_t timeout, char** r
         }
 
         if (request) {
-            *request = user->rw_buffer;
+            *request = data;
         }
 
         return received;
@@ -1343,6 +1429,8 @@ httpserver_read_chunked_content_ex(HTTP_USER_T* user, uint32_t timeout, char** r
  * @retval HTTP_SERVER_E_LENGTH     Request exceeded maximum allowed length, or its
  *                                  Content-Length is not 1*DIGIT up to INT32_MAX.
  * @retval HTTP_SERVER_E_MEMORY     Failed to allocate memory for request data.
+ * @retval HTTP_SERVER_E_TIMEOUT    The header did not come within
+ *                                  CFG_HTTPSERVER_HEADER_TIMEOUT of its first byte.
  *
  * @http
  */
@@ -1390,6 +1478,8 @@ httpserver_read_request_ex (HTTP_USER_T* user, uint32_t timeout, char** endpoint
     }
 
     while (!strnstr(user->rw_buffer, "\r\n\r\n", offset)) {
+        uint32_t wait = timeout ;
+
         if (offset >= HTTP_SERVER_MAX_XMIT_CONTENT_LENGTH) {
             DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_ERROR,
                     "HTTPD :E: HTTP_SERVER_MAX_XMIT_CONTENT_LENGTH to small for HTTP headers!");
@@ -1397,7 +1487,27 @@ httpserver_read_request_ex (HTTP_USER_T* user, uint32_t timeout, char** endpoint
 
         }
 
-        received = httpserver_read (user, &user->rw_buffer[offset], HTTP_SERVER_MAX_XMIT_CONTENT_LENGTH - offset, timeout) ;
+        /* Once a request has started, its header gets
+         * CFG_HTTPSERVER_HEADER_TIMEOUT in all, over as many calls as it
+         * takes, however slowly it comes. */
+        if (offset) {
+            uint32_t left = httpserver_time_left (user->request_started,
+                                CFG_HTTPSERVER_HEADER_TIMEOUT) ;
+            if (!left) {
+                DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_LOG,
+                        "HTTPD : : request header not complete in %u ms (%d bytes), dropped",
+                        (unsigned)CFG_HTTPSERVER_HEADER_TIMEOUT, (int)offset) ;
+                return HTTP_SERVER_E_TIMEOUT ;
+
+            }
+            if (wait > left) {
+                wait = left ;
+
+            }
+
+        }
+
+        received = httpserver_read (user, &user->rw_buffer[offset], HTTP_SERVER_MAX_XMIT_CONTENT_LENGTH - offset, wait) ;
         if(received <= 0) {
             /* After a read timeout the caller reads again: keep what has
              * come of the request so far for that call. */
@@ -1410,6 +1520,10 @@ httpserver_read_request_ex (HTTP_USER_T* user, uint32_t timeout, char** endpoint
 
         }
 
+        if (!offset) {
+            user->request_started = os_sys_timestamp () ;
+
+        }
         offset += received ;
 
     }
@@ -1497,6 +1611,8 @@ httpserver_read_request_ex (HTTP_USER_T* user, uint32_t timeout, char** endpoint
                 return HTTP_SERVER_E_MEMORY ;
 
             }
+            /* They are the start of that request: its header time starts. */
+            user->request_started = os_sys_timestamp () ;
             left = (int)content_length ;
 
         }
@@ -1622,31 +1738,78 @@ httpserver_read_content_ex (HTTP_USER_T* user, uint32_t timeout, char** request)
     return received ;
 }
 
+/* One read of a body that is read whole since started: within the read's
+ * timeout, and HTTP_SERVER_E_TIMEOUT once the body has had
+ * CFG_HTTPSERVER_CONTENT_TIMEOUT. */
+static int32_t
+httpserver_read_content_part (HTTP_USER_T* user, uint32_t started, uint32_t timeout, char** buffer)
+{
+    uint32_t left = httpserver_time_left (started, CFG_HTTPSERVER_CONTENT_TIMEOUT) ;
+    int32_t res = HTTP_SERVER_E_ERROR ;
+
+    if (left) {
+        res = httpserver_read_content_ex (user, (timeout < left) ? timeout : left, buffer) ;
+
+    }
+    if ((res == HTTP_SERVER_E_ERROR) &&
+            !httpserver_time_left (started, CFG_HTTPSERVER_CONTENT_TIMEOUT)) {
+        DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_LOG,
+                "HTTPD : : body not complete in %u ms, dropped",
+                (unsigned)CFG_HTTPSERVER_CONTENT_TIMEOUT) ;
+        return HTTP_SERVER_E_TIMEOUT ;
+
+    }
+
+    return res ;
+}
+
 /**
  * @brief   httpserver_read_all_content_ex
- * @details Reads the entire HTTP request body content for a user's connection. 
- *          Allocates memory for the full content and stores it in the provided 
- *          request pointer. The function attempts to read until all content is 
- *          received or an error occurs.
+ * @details Reads the entire HTTP request body content for a user's connection.
+ *          Allocates memory for the full content and stores it in the provided
+ *          request pointer. The function attempts to read until all content is
+ *          received or an error occurs. The whole body must come within
+ *          CFG_HTTPSERVER_CONTENT_TIMEOUT. A body that ends before its
+ *          Content-Length is an error: no content is returned. After an
+ *          error the response says Connection: close, as the rest of the
+ *          body may still come and would be taken for the next request.
  *
  * @param[in] user         Pointer to the user structure representing the connection.
- * @param[in] timeout      Timeout in milliseconds for reading the content.
+ * @param[in] timeout      Timeout in milliseconds for each read of the content.
  * @param[out] request     Pointer to the buffer that will store the complete content.
  *
  * @return                          Total number of bytes read from the request body.
  * @retval >0                       Total bytes read successfully.
- * @retval HTTP_SERVER_E_ERROR      Error occurred during reading.
+ * @retval HTTP_SERVER_E_ERROR      A read timed out.
+ * @retval HTTP_SERVER_E_CONNECTION The connection closed before the body ended.
+ * @retval HTTP_SERVER_E_TIMEOUT    The body did not come within CFG_HTTPSERVER_CONTENT_TIMEOUT.
  * @retval HTTP_SERVER_E_MEMORY     Failed to allocate memory for the content.
  * @retval HTTP_SERVER_E_LENGTH     The body is larger than CFG_HTTPSERVER_CONTENT_MAX.
  *
  * @http
  */
+static int32_t      httpserver_read_all_body (HTTP_USER_T* user, uint32_t timeout, char** request) ;
+
 int32_t
 httpserver_read_all_content_ex (HTTP_USER_T* user, uint32_t timeout, char** request)
 {
-    int32_t recvlen ;
+    int32_t res = httpserver_read_all_body (user, timeout, request) ;
+
+    if (res < 0) {
+        user->keep_alive = 0 ;
+
+    }
+
+    return res ;
+}
+
+static int32_t
+httpserver_read_all_body (HTTP_USER_T* user, uint32_t timeout, char** request)
+{
+    int32_t recvlen = 0 ;
     uint32_t total = 0 ;
     char* buffer ;
+    uint32_t started = os_sys_timestamp () ;
 
     if (request) {
         *request = 0 ;
@@ -1655,7 +1818,7 @@ httpserver_read_all_content_ex (HTTP_USER_T* user, uint32_t timeout, char** requ
     if (user->reader.chunked) {
         char* content = 0 ;
 
-        while ((recvlen = httpserver_read_content_ex(user, timeout, &buffer)) > 0) {
+        while ((recvlen = httpserver_read_content_part(user, started, timeout, &buffer)) > 0) {
             char* newbuf ;
 
             if (total + (uint32_t)recvlen > CFG_HTTPSERVER_CONTENT_MAX) {
@@ -1717,7 +1880,7 @@ httpserver_read_all_content_ex (HTTP_USER_T* user, uint32_t timeout, char** requ
             if (user->content) {
                 user->content[content_length] = 0 ;
             while (total < content_length) {
-                if ((recvlen = httpserver_read_content_ex (user, timeout, &buffer)) <= 0) {
+                if ((recvlen = httpserver_read_content_part (user, started, timeout, &buffer)) <= 0) {
                     break ;
 
                 }
@@ -1726,6 +1889,19 @@ httpserver_read_all_content_ex (HTTP_USER_T* user, uint32_t timeout, char** requ
                 total += recvlen ;
 
             }
+
+                /* A body cut short is not returned: the rest of the buffer
+                 * is whatever the heap held before, maybe another
+                 * connection's data. */
+                if (total < content_length) {
+                    DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_LOG,
+                            "HTTPD : : body ended at %u of %u bytes (%d)",
+                            (unsigned)total, (unsigned)content_length, (int)recvlen);
+                    HTTP_SERVER_FREE (user->content) ;
+                    user->content = 0 ;
+                    return (recvlen < 0) ? recvlen : HTTP_SERVER_E_CONNECTION ;
+
+                }
 
                 if (request) {
                     *request = user->content ;

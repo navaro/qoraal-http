@@ -376,7 +376,6 @@ _wserver_thread (void *arg)
             "WSERV : : complete socket 0x%x read %d write %d.\r\n", thread->user.socket, thread->user.read, thread->user.write);
 
     httpserver_user_close (&thread->user) ;
-    os_sem_signal(&inst->count_sem) ;
 
 
     thread->user.hwdt = 0 ;
@@ -404,6 +403,12 @@ void _wserver_thread_complete(SVC_THREADS_T * service_thread, void* arg)
     DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_INFO,
         "WSERV : : complete (%d)\r\n", os_sem_count(&inst->count_sem)) ;
     HTTP_SERVER_FREE (service_thread) ;
+
+    /* The worker's slot is given back only now that its stack is freed.
+     * Given back when the worker ended, a new worker could start while
+     * the old stack still waited for the cleanup thread, and under load
+     * the stacks piled up until the heap ran out. */
+    os_sem_signal (&inst->count_sem) ;
 
     /* The worker's stack is freed now. This is the last use of inst:
      * httpserver_wserver_run() may return and the instance be freed as
@@ -547,10 +552,13 @@ httpserver_wserver_run (HTTPSERVER_INST_T * inst)
 
             }
         } else {
+            /* Out of memory for now, maybe until workers end: try again
+             * rather than leave the server without a listener until the
+             * next reboot. */
             DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_ERROR,
-                    "WSERV :E: HTTP_SERVER_E_MEMORY\r\n");
-            res = HTTP_SERVER_E_MEMORY ;
-            break ;
+                    "WSERV :E: HTTP_SERVER_E_MEMORY, retrying\r\n");
+            os_thread_sleep (1000) ;
+            continue ;
 
         }
 
