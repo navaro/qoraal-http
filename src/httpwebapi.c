@@ -766,9 +766,13 @@ static size_t generate_wot_json(struct json_out *out, const char * uri) {
         for (prop_idx = 0; prop_idx < inst->props_count; prop_idx++) {
             QORAAL_PROP_T* current = &inst->props[prop_idx];
             char href[192];
+            char action_name[96];
 
             if (webapi_prop_is_action(current)) {
                 snprintf(href, sizeof(href), "%s/%s/%s", _webapi_root, inst->ep, current->name);
+                /* One Thing holds every resource, so an action name such as
+                 * "sync" can occur more than once: key it by its resource. */
+                snprintf(action_name, sizeof(action_name), "%s.%s", inst->ep, current->name);
 
                 if (!first_action) {
                     total_length += json_printf(out, ",");
@@ -785,7 +789,7 @@ static size_t generate_wot_json(struct json_out *out, const char * uri) {
                         "op:[%Q]"
                       "}]"
                     "}",
-                    current->name,
+                    action_name,
                     current->description ? current->description : "",
                     "x-module-id",
                     inst->module,
