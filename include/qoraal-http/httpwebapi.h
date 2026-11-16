@@ -70,7 +70,8 @@ extern "C" {
      * response, again to render it, and again on a retry if a value grew. */
     int32_t webapi_property_resources_set(const char *root, QORAAL_PROP_RESOURCE_T *resources) ;
     bool webapi_ep_available(const char * ep) ;
-    /* Event routing module id for event-capable endpoints; -1 otherwise. */
+    /* The module id that ep names in event filters: the module of a
+     * QORAAL_PROP_RESOURCE_FLAG_EVENTS resource; -1 otherwise. */
     int32_t webapi_ep_module(const char *ep) ;
 
     /* Must be set before publishing enum properties so schema emitters can
@@ -87,6 +88,12 @@ int32_t webapi_openapi_json_stream(webapi_json_stream_callback_t callback,
 /* Existing simple endpoint JSON */
     char * webapi_generate_simple_response(const char *ep, const char *property, bool is_json) ;
     void webapi_simple_response_free(char *buffer) ;
+    /* A GET of <ep> or <ep>/<property>. A property with a response callback
+     * answers through ctx itself, and *response is NULL. Otherwise *response
+     * is the simple response: send it, then webapi_simple_response_free() it.
+     * An E_* result means nothing was sent. */
+    int32_t webapi_generate_response(const char *ep, const char *property, char *query,
+                                     bool is_json, void *ctx, char **response) ;
 
 /* New WoT (https://playground.thingweb.io) */
     char * webapi_wot_json(const char * uri) ;
