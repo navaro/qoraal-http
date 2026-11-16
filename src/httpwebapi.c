@@ -142,6 +142,26 @@ static bool webapi_prop_is_action(QORAAL_PROP_T *prop)
     return prop && prop->type == QORAAL_PROP_ACTION;
 }
 
+/* Only its response callback can answer a GET of this property. */
+static bool webapi_prop_is_response(QORAAL_PROP_T *prop)
+{
+    return prop && ((prop->type == QORAAL_PROP_EVENT) || (prop->type == QORAAL_PROP_LIST));
+}
+
+/* A property whose value a GET of its resource returns. */
+static bool webapi_prop_is_value(QORAAL_PROP_T *prop)
+{
+    return prop && !webapi_prop_is_action(prop) && !webapi_prop_is_response(prop) &&
+           (prop->get_callback || prop->set_callback);
+}
+
+/* A query parameter of the resource's response properties: a property with
+ * no callback (QORAAL_PROP_PARAM_INIT). */
+static bool webapi_prop_is_param(QORAAL_PROP_T *prop)
+{
+    return prop && !prop->get_callback && !prop->set_callback && !prop->response_callback;
+}
+
 static const char * webapi_type_to_string(QORAAL_PROP_TYPE_T type)
 {
     return (type == QORAAL_PROP_STRING) ? "string" :
@@ -217,6 +237,23 @@ static bool webapi_resource_has_writable_props(QORAAL_PROP_RESOURCE_T *inst)
     return false ;
 }
 
+/* False when the resource holds no value and no action, only response props
+ * and their parameters: it then has no GET or POST of its own, only the
+ * paths of its response props. */
+static bool webapi_resource_has_own_path(QORAAL_PROP_RESOURCE_T *inst)
+{
+    size_t i;
+
+    for (i = 0; i < inst->props_count; i++) {
+        if (webapi_prop_is_value(&inst->props[i]) ||
+            webapi_prop_is_action(&inst->props[i])) {
+            return true ;
+        }
+    }
+
+    return inst->props_count == 0 ;
+}
+
 static const char *
 webapi_resource_tag(QORAAL_PROP_RESOURCE_T *inst)
 {
@@ -289,18 +326,6 @@ webapi_json_printer_stream(struct json_out *out, const char *buf, size_t len)
     return (int)len;
 }
 
-static bool
-webapi_has_event_resources(void)
-{
-    size_t i;
-    for (i = 0; i < webapi_resource_count(); i++) {
-        if (webapi_resource_at(i)->flags & QORAAL_PROP_RESOURCE_FLAG_EVENTS) {
-            return true;
-        }
-    }
-    return false;
-}
-
 #define JSON_OUT_NULL() \
   {                            \
     json_printer_null, {        \
@@ -308,9 +333,202 @@ webapi_has_event_resources(void)
     }                          \
   }
 
+/* OpenAPI ",parameters:[...]" for the query parameters of a resource. */
+static size_t
+webapi_emit_query_parameters(struct json_out *out, QORAAL_PROP_RESOURCE_T *inst)
+{
+    size_t total_length = 0;
+    size_t n = 0;
+    size_t i;
+
+    for (i = 0; i < inst->props_count; i++) {
+        QORAAL_PROP_T *param = &inst->props[i];
+
+        if (!webapi_prop_is_param(param)) {
+            continue;
+        }
+
+        total_length += json_printf(out, n++ ? "," : ",parameters:[");
+        total_length += json_printf(out,
+            "{name:%Q,in:%Q,required:%B,description:%Q,schema:{type:%Q",
+            param->name, "query", 0,
+            param->description ? param->description : "",
+            webapi_openapi_type_to_string(param->type));
+        if (param->type == QORAAL_PROP_ENUM) {
+            total_length += webapi_emit_enum_schema(out, param->enum_name);
+        }
+        total_length += json_printf(out, "}}");
+    }
+    if (n) {
+        total_length += json_printf(out, "]");
+    }
+
+    return total_length;
+}
+
+/* TD ",uriVariables:{...}" for the query parameters of a resource. */
+static size_t
+webapi_emit_uri_variables(struct json_out *out, QORAAL_PROP_RESOURCE_T *inst)
+{
+    size_t total_length = 0;
+    size_t n = 0;
+    size_t i;
+
+    for (i = 0; i < inst->props_count; i++) {
+        QORAAL_PROP_T *param = &inst->props[i];
+
+        if (!webapi_prop_is_param(param)) {
+            continue;
+        }
+
+        total_length += json_printf(out, n++ ? "," : ",uriVariables:{");
+        total_length += json_printf(out, "%Q:{type:%Q,description:%Q",
+            param->name,
+            webapi_type_to_string(param->type),
+            param->description ? param->description : "");
+        if (param->type == QORAAL_PROP_ENUM) {
+            total_length += webapi_emit_enum_schema(out, param->enum_name);
+        }
+        total_length += json_printf(out, "}");
+    }
+    if (n) {
+        total_length += json_printf(out, "}");
+    }
+
+    return total_length;
+}
+
+/* TD href of a response prop: <root>/<ep>/<name>, then its query parameters
+ * as an RFC 6570 template, e.g. {?modules,limit}. A consumer expands only the
+ * variables in the template. */
+static void
+webapi_response_href(QORAAL_PROP_RESOURCE_T *inst, QORAAL_PROP_T *prop,
+                     char *href, size_t size)
+{
+    size_t len;
+    size_t n = 0;
+    size_t i;
+
+    len = (size_t)snprintf(href, size, "%s/%s/%s", _webapi_root, inst->ep, prop->name);
+    for (i = 0; (i < inst->props_count) && (len < size); i++) {
+        if (webapi_prop_is_param(&inst->props[i])) {
+            len += (size_t)snprintf(href + len, size - len, "%s%s",
+                                    n++ ? "," : "{?", inst->props[i].name);
+        }
+    }
+    if (n && (len < size)) {
+        snprintf(href + len, size - len, "}");
+    }
+}
+
+/* OpenAPI path of a response prop. */
+static size_t
+webapi_openapi_response_path(struct json_out *out, QORAAL_PROP_RESOURCE_T *inst,
+                             QORAAL_PROP_T *prop)
+{
+    size_t total_length = 0;
+    char path[128];
+
+    snprintf(path, sizeof(path), "/%s/%s/%s", _webapi_root, inst->ep, prop->name);
+
+    total_length += json_printf(out,
+        "%Q:{"
+          "get:{"
+            "tags:[%Q],"
+            "summary:%Q,"
+            "description:%Q",
+        path,
+        webapi_resource_tag(inst),
+        webapi_resource_get_summary(inst),
+        prop->description ? prop->description : "");
+
+    total_length += webapi_emit_query_parameters(out, inst);
+
+    if (prop->type == QORAAL_PROP_EVENT) {
+        total_length += json_printf(out,
+            ",responses:{%Q:{description:%Q,content:{%Q:{schema:{type:%Q}}}}}",
+            "200", "Server-Sent Events", "text/event-stream", "string");
+    } else {
+        total_length += json_printf(out,
+            ",responses:{%Q:{description:%Q,content:{%Q:{schema:{type:%Q,items:{type:%Q}}}}}}",
+            "200", "JSON array", "application/json", "array", "object");
+    }
+
+    total_length += json_printf(out, "}}");
+
+    return total_length;
+}
+
+/* TD affordance of a response prop, keyed <ep>.<name>: a LIST prop is a
+ * read-only property, an EVENT prop an event. */
+static size_t
+webapi_wot_response_affordance(struct json_out *out, QORAAL_PROP_RESOURCE_T *inst,
+                               QORAAL_PROP_T *prop)
+{
+    size_t total_length = 0;
+    bool list = (prop->type == QORAAL_PROP_LIST);
+    char name[96];
+    char href[192];
+
+    snprintf(name, sizeof(name), "%s.%s", inst->ep, prop->name);
+    webapi_response_href(inst, prop, href, sizeof(href));
+
+    total_length += json_printf(out, "%Q:{description:%Q",
+        name, prop->description ? prop->description : "");
+    if (list) {
+        total_length += json_printf(out, ",type:%Q,items:{type:%Q},readOnly:%B",
+            "array", "object", 1);
+    } else {
+        total_length += json_printf(out, ",data:{type:%Q}", "object");
+    }
+    total_length += webapi_emit_uri_variables(out, inst);
+
+    /* The event form names no contentType: the TD default, JSON, is the
+     * content of each event, and subprotocol sse says how they are framed. */
+    total_length += json_printf(out, ",forms:[{href:%Q,", href);
+    if (list) {
+        total_length += json_printf(out, "contentType:%Q,op:[%Q]}]}",
+            "application/json", "readproperty");
+    } else {
+        total_length += json_printf(out, "subprotocol:%Q,op:[%Q]}]}",
+            "sse", "subscribeevent");
+    }
+
+    return total_length;
+}
+
+/* TD affordances of every response prop of one type, each preceded by a
+ * comma unless *first. */
+static size_t
+webapi_wot_response_affordances(struct json_out *out, QORAAL_PROP_TYPE_T type, bool *first)
+{
+    size_t total_length = 0;
+    size_t inst_idx;
+    size_t prop_idx;
+
+    for (inst_idx = 0; inst_idx < webapi_resource_count(); inst_idx++) {
+        QORAAL_PROP_RESOURCE_T* inst = webapi_resource_at(inst_idx);
+
+        for (prop_idx = 0; prop_idx < inst->props_count; prop_idx++) {
+            if (inst->props[prop_idx].type != type) {
+                continue;
+            }
+
+            if (!*first) {
+                total_length += json_printf(out, ",");
+            }
+            *first = false;
+
+            total_length += webapi_wot_response_affordance(out, inst, &inst->props[prop_idx]);
+        }
+    }
+
+    return total_length;
+}
+
 static size_t generate_openapi_json(struct json_out *out) {
     size_t total_length = 0;
-    bool first_inst = true;
+    bool first_path = true;
 
     total_length += json_printf(out,
         "{"
@@ -331,10 +549,14 @@ static size_t generate_openapi_json(struct json_out *out) {
         char path[128];
         size_t prop_idx;
 
-        if (!first_inst) {
+        if (!webapi_resource_has_own_path(inst)) {
+            continue;
+        }
+
+        if (!first_path) {
             total_length += json_printf(out, ",");
         }
-        first_inst = false;
+        first_path = false;
 
         snprintf(path, sizeof(path), "/%s/%s", _webapi_root, inst->ep);
 
@@ -367,7 +589,7 @@ static size_t generate_openapi_json(struct json_out *out) {
         for (prop_idx = 0; prop_idx < inst->props_count; prop_idx++) {
             QORAAL_PROP_T* current = &inst->props[prop_idx];
 
-            if (!webapi_prop_is_action(current) && webapi_prop_enum_resolvable(current)) {
+            if (webapi_prop_is_value(current) && webapi_prop_enum_resolvable(current)) {
                 if (!first_prop) {
                     total_length += json_printf(out, ",");
                 }
@@ -470,179 +692,25 @@ static size_t generate_openapi_json(struct json_out *out) {
         total_length += json_printf(out, "}");
     }
 
-    if (webapi_has_event_resources()) {
-        char events_path[128];
-        char replay_path[128];
-        bool first_mod = true;
-        size_t i;
+    for (inst_idx = 0; inst_idx < webapi_resource_count(); inst_idx++) {
+        QORAAL_PROP_RESOURCE_T* inst = webapi_resource_at(inst_idx);
+        size_t prop_idx;
 
-        snprintf(events_path, sizeof(events_path), "/%s/events", _webapi_root);
-        snprintf(replay_path, sizeof(replay_path), "/%s/events/replay", _webapi_root);
+        for (prop_idx = 0; prop_idx < inst->props_count; prop_idx++) {
+            if (!webapi_prop_is_response(&inst->props[prop_idx])) {
+                continue;
+            }
 
-        total_length += json_printf(out,
-            ",%Q:{"
-              "get:{"
-                "tags:[%Q],"
-                "summary:%Q,"
-                "parameters:[{"
-                  "name:%Q,"
-                  "in:%Q,"
-                  "required:%B,"
-                  "description:%Q,"
-                  "schema:{type:%Q,enum:[",
-            events_path,
-            "Events",
-            "Subscribe to Server-Sent Events. The stream starts with recent replayed events, then continues live.",
-            "modules", "query", 0,
-            "Comma-separated module names to filter. Omit for all.",
-            "string");
+            if (!first_path) {
+                total_length += json_printf(out, ",");
+            }
+            first_path = false;
 
-        for (i = 0; i < webapi_resource_count(); i++) {
-            QORAAL_PROP_RESOURCE_T *inst = webapi_resource_at(i);
-            if (!(inst->flags & QORAAL_PROP_RESOURCE_FLAG_EVENTS)) continue;
-            if (!first_mod) total_length += json_printf(out, ",");
-            first_mod = false;
-            total_length += json_printf(out, "%Q", inst->ep);
+            total_length += webapi_openapi_response_path(out, inst, &inst->props[prop_idx]);
         }
-
-        total_length += json_printf(out,
-                  "]}"
-                "},{"
-                  "name:%Q,"
-                  "in:%Q,"
-                  "required:%B,"
-                  "description:%Q,"
-                  "schema:{type:%Q,enum:[%Q,%Q,%Q,%Q]}"
-                "},{"
-                  "name:%Q,"
-                  "in:%Q,"
-                  "required:%B,"
-                  "description:%Q,"
-                  "schema:{type:%Q,minimum:%u,maximum:%u,default:%u}"
-                "}],"
-                "responses:{"
-                  "%Q:{"
-                    "description:%Q,"
-                    "content:{"
-                      "%Q:{"
-                        "schema:{%Q:%Q}"
-                      "},"
-                      "%Q:{"
-                        "schema:{%Q:%Q}"
-                      "}"
-                    "}"
-                  "}"
-                "}"
-              "}"
-            "}",
-            "severity", "query", 0,
-            "Comma-separated severity names to filter. Omit for all.",
-            "string", "debug", "info", "warn", "error",
-            "limit", "query", 0,
-            "Maximum replayed events sent before live streaming. Defaults to 20.",
-            "integer", 0U, 100U, 20U,
-            "200",
-            "SSE stream of module events",
-            "text/event-stream",
-            "$ref", "#/components/schemas/EventMessage",
-            "application/json",
-            "$ref", "#/components/schemas/EventMessage");
-
-        first_mod = true;
-        total_length += json_printf(out,
-            ",%Q:{"
-              "get:{"
-                "tags:[%Q],"
-                "summary:%Q,"
-                "parameters:[{"
-                  "name:%Q,"
-                  "in:%Q,"
-                  "required:%B,"
-                  "description:%Q,"
-                  "schema:{type:%Q,enum:[",
-            replay_path,
-            "Events",
-            "Replay recent events",
-            "modules", "query", 0,
-            "Comma-separated module names to filter. Omit for all.",
-            "string");
-
-        for (i = 0; i < webapi_resource_count(); i++) {
-            QORAAL_PROP_RESOURCE_T *inst = webapi_resource_at(i);
-            if (!(inst->flags & QORAAL_PROP_RESOURCE_FLAG_EVENTS)) continue;
-            if (!first_mod) total_length += json_printf(out, ",");
-            first_mod = false;
-            total_length += json_printf(out, "%Q", inst->ep);
-        }
-
-        total_length += json_printf(out,
-                  "]}"
-                "},{"
-                  "name:%Q,"
-                  "in:%Q,"
-                  "required:%B,"
-                  "description:%Q,"
-                  "schema:{type:%Q,enum:[%Q,%Q,%Q,%Q]}"
-                "},{"
-                  "name:%Q,"
-                  "in:%Q,"
-                  "required:%B,"
-                  "description:%Q,"
-                  "schema:{type:%Q,minimum:%u,maximum:%u,default:%u}"
-                "}],"
-                "responses:{"
-                  "%Q:{"
-                    "description:%Q,"
-                    "content:{"
-                      "%Q:{"
-                        "schema:{"
-                          "type:%Q,"
-                          "items:{%Q:%Q}"
-                        "}"
-                      "}"
-                    "}"
-                  "}"
-                "}"
-              "}"
-            "}",
-            "severity", "query", 0,
-            "Comma-separated severity names to filter. Omit for all.",
-            "string", "debug", "info", "warn", "error",
-            "limit", "query", 0,
-            "Maximum number of replayed events. Defaults to 20.",
-            "integer", 0U, 100U, 20U,
-            "200",
-            "Recent module events",
-            "application/json",
-            "array",
-            "$ref", "#/components/schemas/EventMessage");
     }
 
-    total_length += json_printf(out,
-        "},"
-        "components:{"
-          "schemas:{"
-            "EventMessage:{"
-              "type:%Q,"
-              "description:%Q,"
-              "properties:{"
-                "module:{type:%Q,description:%Q},"
-                "type:{type:%Q,description:%Q},"
-                "version:{type:%Q,description:%Q},"
-                "ts:{type:%Q,description:%Q},"
-                "d:{type:%Q,description:%Q}"
-              "}"
-            "}"
-          "}"
-        "}"
-        "}",
-        "object",
-        "A single Server-Sent Event data payload",
-        "integer", "Module ID",
-        "integer", "Event type",
-        "integer", "Event version",
-        "integer", "Unix timestamp (seconds)",
-        "object",  "Event-specific JSON payload");
+    total_length += json_printf(out, "}}");  /* close paths and root */
 
     return total_length;
 }
@@ -689,6 +757,7 @@ static size_t generate_wot_json(struct json_out *out, const char * uri) {
     size_t total_length = 0;
     bool first_property = true;
     bool first_action = true;
+    bool first_event = true;
     size_t inst_idx;
 
     total_length += json_printf(out, "%s", "{");
@@ -710,7 +779,7 @@ static size_t generate_wot_json(struct json_out *out, const char * uri) {
             QORAAL_PROP_T* current = &inst->props[prop_idx];
             char href[192];
 
-            if (!webapi_prop_is_action(current) && webapi_prop_enum_resolvable(current)) {
+            if (webapi_prop_is_value(current) && webapi_prop_enum_resolvable(current)) {
                 snprintf(href, sizeof(href), "%s/%s/%s", _webapi_root, inst->ep, current->name);
 
                 if (!first_property) {
@@ -757,6 +826,8 @@ static size_t generate_wot_json(struct json_out *out, const char * uri) {
         }
     }
 
+    total_length += webapi_wot_response_affordances(out, QORAAL_PROP_LIST, &first_property);
+
     total_length += json_printf(out, "%s", "},\"actions\":{");
 
     for (inst_idx = 0; inst_idx < webapi_resource_count(); inst_idx++) {
@@ -800,92 +871,11 @@ static size_t generate_wot_json(struct json_out *out, const char * uri) {
         }
     }
 
-    if (webapi_has_event_resources()) {
-        size_t i;
-
-        for (i = 0; i < webapi_resource_count(); i++) {
-            QORAAL_PROP_RESOURCE_T *inst = webapi_resource_at(i);
-            char href[192];
-            char action_name[96];
-
-            if (!(inst->flags & QORAAL_PROP_RESOURCE_FLAG_EVENTS)) continue;
-
-            snprintf(href, sizeof(href), "%s/events/replay?modules=%s{&limit,severity}", _webapi_root, inst->ep);
-            snprintf(action_name, sizeof(action_name), "replay.%s", inst->ep);
-
-            if (!first_action) {
-                total_length += json_printf(out, ",");
-            }
-            first_action = false;
-
-            total_length += json_printf(out,
-                "%Q:{"
-                  "description:%Q,"
-                  "%Q:%d,"
-                  "safe:%B,"
-                  "idempotent:%B,"
-                  "output:{"
-                    "type:%Q,"
-                    "items:{type:%Q}"
-                  "},"
-                  "forms:[{"
-                    "href:%Q,"
-                    "contentType:%Q,"
-                    "op:[%Q]"
-                  "}]"
-                "}",
-                action_name,
-                inst->description ? inst->description : inst->title,
-                "x-module-id",
-                inst->module,
-                1,
-                1,
-                "array",
-                "object",
-                href,
-                "application/json",
-                "invokeaction");
-        }
-    }
-
     total_length += json_printf(out, "}");  /* close actions */
 
-    if (webapi_has_event_resources()) {
-        bool first_event = true;
-        size_t i;
-        char href[192];
-
-        total_length += json_printf(out, "%s", ",\"events\":{");
-
-        for (i = 0; i < webapi_resource_count(); i++) {
-            QORAAL_PROP_RESOURCE_T *inst = webapi_resource_at(i);
-            if (!(inst->flags & QORAAL_PROP_RESOURCE_FLAG_EVENTS)) continue;
-            snprintf(href, sizeof(href), "%s/events?modules=%s{&limit,severity}", _webapi_root, inst->ep);
-            if (!first_event) total_length += json_printf(out, ",");
-            first_event = false;
-            total_length += json_printf(out,
-                "%Q:{"
-                  "description:%Q,"
-                  "%Q:%d,"
-                  "forms:[{"
-                    "href:%Q,"
-                    "contentType:%Q,"
-                    "subprotocol:%Q,"
-                    "op:[%Q]"
-                  "}]"
-                "}",
-                inst->ep,
-                inst->description ? inst->description : inst->title,
-                "x-module-id",
-                inst->module,
-                href,
-                "text/event-stream",
-                "sse",
-                "subscribeevent");
-        }
-
-        total_length += json_printf(out, "}");  /* close events */
-    }
+    total_length += json_printf(out, "%s", ",\"events\":{");
+    total_length += webapi_wot_response_affordances(out, QORAAL_PROP_EVENT, &first_event);
+    total_length += json_printf(out, "}");  /* close events */
 
     total_length += json_printf(out, "}");  /* close root */
 
@@ -1041,7 +1031,7 @@ generate_simple_json(QORAAL_PROP_RESOURCE_T *inst, struct json_out *out)
     for (i = 0; i < inst->props_count; i++) {
         current = &inst->props[i];
 
-        if (webapi_prop_is_action(current)) {
+        if (!webapi_prop_is_value(current)) {
             continue;
         }
 
@@ -1147,7 +1137,7 @@ webapi_generate_simple_response(const char *ep, const char *property, bool is_js
 
     if (property && property[0]) {
         prop = webapi_prop_get(inst, property);
-        if (!prop || webapi_prop_is_action(prop)) {
+        if (!webapi_prop_is_value(prop)) {
             buffer = (char *)qoraal_malloc(_webapi_heap, 1);
             if (!buffer) {
                 return NULL;
@@ -1188,6 +1178,21 @@ void
 webapi_simple_response_free(char *buffer)
 {
     qoraal_free(_webapi_heap, buffer);
+}
+
+int32_t
+webapi_generate_response(const char *ep, const char *property, char *query,
+                         bool is_json, void *ctx, char **response)
+{
+    QORAAL_PROP_T *prop = webapi_prop_get(webapi_resource_get(ep), property);
+
+    *response = NULL;
+    if (prop && prop->response_callback) {
+        return prop->response_callback(prop, ctx, query);
+    }
+
+    *response = webapi_generate_simple_response(ep, property, is_json);
+    return *response ? EOK : E_NOMEM;
 }
 
 static int32_t
