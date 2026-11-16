@@ -151,7 +151,15 @@ static bool webapi_prop_is_response(QORAAL_PROP_T *prop)
 /* A property whose value a GET of its resource returns. */
 static bool webapi_prop_is_value(QORAAL_PROP_T *prop)
 {
-    return prop && !webapi_prop_is_action(prop) && !webapi_prop_is_response(prop);
+    return prop && !webapi_prop_is_action(prop) && !webapi_prop_is_response(prop) &&
+           (prop->get_callback || prop->set_callback);
+}
+
+/* A query parameter of the resource's response properties: a property with
+ * no callback (QORAAL_PROP_PARAM_INIT). */
+static bool webapi_prop_is_param(QORAAL_PROP_T *prop)
+{
+    return prop && !prop->get_callback && !prop->set_callback && !prop->response_callback;
 }
 
 static const char * webapi_type_to_string(QORAAL_PROP_TYPE_T type)
@@ -229,14 +237,16 @@ static bool webapi_resource_has_writable_props(QORAAL_PROP_RESOURCE_T *inst)
     return false ;
 }
 
-/* False when every prop of the resource is a response prop: the resource
- * then has no GET or POST of its own, only the paths of its props. */
+/* False when the resource holds no value and no action, only response props
+ * and their parameters: it then has no GET or POST of its own, only the
+ * paths of its response props. */
 static bool webapi_resource_has_own_path(QORAAL_PROP_RESOURCE_T *inst)
 {
     size_t i;
 
     for (i = 0; i < inst->props_count; i++) {
-        if (!webapi_prop_is_response(&inst->props[i])) {
+        if (webapi_prop_is_value(&inst->props[i]) ||
+            webapi_prop_is_action(&inst->props[i])) {
             return true ;
         }
     }
@@ -328,17 +338,17 @@ static size_t
 webapi_emit_query_parameters(struct json_out *out, QORAAL_PROP_RESOURCE_T *inst)
 {
     size_t total_length = 0;
+    size_t n = 0;
     size_t i;
 
-    if (!inst->params_count) {
-        return 0;
-    }
+    for (i = 0; i < inst->props_count; i++) {
+        QORAAL_PROP_T *param = &inst->props[i];
 
-    total_length += json_printf(out, ",parameters:[");
-    for (i = 0; i < inst->params_count; i++) {
-        const QORAAL_PROP_T *param = &inst->params[i];
+        if (!webapi_prop_is_param(param)) {
+            continue;
+        }
 
-        if (i > 0) total_length += json_printf(out, ",");
+        total_length += json_printf(out, n++ ? "," : ",parameters:[");
         total_length += json_printf(out,
             "{name:%Q,in:%Q,required:%B,description:%Q,schema:{type:%Q",
             param->name, "query", 0,
@@ -349,7 +359,9 @@ webapi_emit_query_parameters(struct json_out *out, QORAAL_PROP_RESOURCE_T *inst)
         }
         total_length += json_printf(out, "}}");
     }
-    total_length += json_printf(out, "]");
+    if (n) {
+        total_length += json_printf(out, "]");
+    }
 
     return total_length;
 }
@@ -359,17 +371,17 @@ static size_t
 webapi_emit_uri_variables(struct json_out *out, QORAAL_PROP_RESOURCE_T *inst)
 {
     size_t total_length = 0;
+    size_t n = 0;
     size_t i;
 
-    if (!inst->params_count) {
-        return 0;
-    }
+    for (i = 0; i < inst->props_count; i++) {
+        QORAAL_PROP_T *param = &inst->props[i];
 
-    total_length += json_printf(out, ",uriVariables:{");
-    for (i = 0; i < inst->params_count; i++) {
-        const QORAAL_PROP_T *param = &inst->params[i];
+        if (!webapi_prop_is_param(param)) {
+            continue;
+        }
 
-        if (i > 0) total_length += json_printf(out, ",");
+        total_length += json_printf(out, n++ ? "," : ",uriVariables:{");
         total_length += json_printf(out, "%Q:{type:%Q,description:%Q",
             param->name,
             webapi_type_to_string(param->type),
@@ -379,7 +391,9 @@ webapi_emit_uri_variables(struct json_out *out, QORAAL_PROP_RESOURCE_T *inst)
         }
         total_length += json_printf(out, "}");
     }
-    total_length += json_printf(out, "}");
+    if (n) {
+        total_length += json_printf(out, "}");
+    }
 
     return total_length;
 }
@@ -392,14 +406,17 @@ webapi_response_href(QORAAL_PROP_RESOURCE_T *inst, QORAAL_PROP_T *prop,
                      char *href, size_t size)
 {
     size_t len;
+    size_t n = 0;
     size_t i;
 
     len = (size_t)snprintf(href, size, "%s/%s/%s", _webapi_root, inst->ep, prop->name);
-    for (i = 0; (i < inst->params_count) && (len < size); i++) {
-        len += (size_t)snprintf(href + len, size - len, "%s%s",
-                                (i == 0) ? "{?" : ",", inst->params[i].name);
+    for (i = 0; (i < inst->props_count) && (len < size); i++) {
+        if (webapi_prop_is_param(&inst->props[i])) {
+            len += (size_t)snprintf(href + len, size - len, "%s%s",
+                                    n++ ? "," : "{?", inst->props[i].name);
+        }
     }
-    if (inst->params_count && (len < size)) {
+    if (n && (len < size)) {
         snprintf(href + len, size - len, "}");
     }
 }
