@@ -67,7 +67,9 @@ extern "C" {
     int32_t webapi_init (const char * root, QORAAL_HEAP heap) ;
     /* Getters in these resources must have no side effects:
      * webapi_generate_simple_response() calls each getter once to size the
-     * response, again to render it, and again on a retry if a value grew. */
+     * response, again to render it, and again on a retry if a value grew.
+     * A property with a setter and no getter is write-only: a GET leaves it
+     * out, and OpenAPI and the Thing Description mark it writeOnly. */
     int32_t webapi_property_resources_set(const char *root, QORAAL_PROP_RESOURCE_T *resources) ;
     bool webapi_ep_available(const char * ep) ;
     /* The module id that ep names in event filters: the module of a

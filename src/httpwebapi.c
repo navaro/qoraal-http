@@ -148,11 +148,23 @@ static bool webapi_prop_is_response(QORAAL_PROP_T *prop)
     return prop && ((prop->type == QORAAL_PROP_EVENT) || (prop->type == QORAAL_PROP_LIST));
 }
 
-/* A property whose value a GET of its resource returns. */
+/* A property that holds a value: it has a getter, a setter or both. */
 static bool webapi_prop_is_value(QORAAL_PROP_T *prop)
 {
     return prop && !webapi_prop_is_action(prop) && !webapi_prop_is_response(prop) &&
            (prop->get_callback || prop->set_callback);
+}
+
+/* A value a GET of its resource returns: it has a getter. */
+static bool webapi_prop_is_readable(QORAAL_PROP_T *prop)
+{
+    return webapi_prop_is_value(prop) && prop->get_callback;
+}
+
+/* A value with a setter and no getter: it can be written, not read. */
+static bool webapi_prop_is_write_only(QORAAL_PROP_T *prop)
+{
+    return webapi_prop_is_value(prop) && !prop->get_callback;
 }
 
 /* A query parameter of the resource's response properties: a property with
@@ -589,7 +601,7 @@ static size_t generate_openapi_json(struct json_out *out) {
         for (prop_idx = 0; prop_idx < inst->props_count; prop_idx++) {
             QORAAL_PROP_T* current = &inst->props[prop_idx];
 
-            if (webapi_prop_is_value(current) && webapi_prop_enum_resolvable(current)) {
+            if (webapi_prop_is_readable(current) && webapi_prop_enum_resolvable(current)) {
                 if (!first_prop) {
                     total_length += json_printf(out, ",");
                 }
@@ -665,7 +677,7 @@ static size_t generate_openapi_json(struct json_out *out) {
                         total_length += webapi_emit_enum_schema(out, current->enum_name);
                     }
 
-                    if (webapi_prop_is_action(current)) {
+                    if (webapi_prop_is_action(current) || webapi_prop_is_write_only(current)) {
                         total_length += json_printf(out, ",writeOnly:%B", 1);
                     }
 
@@ -801,6 +813,10 @@ static size_t generate_wot_json(struct json_out *out, const char * uri) {
                 total_length += json_printf(out, ",readOnly:%B",
                     current->set_callback == NULL);
 
+                if (webapi_prop_is_write_only(current)) {
+                    total_length += json_printf(out, ",writeOnly:%B", 1);
+                }
+
                 if (current->type == QORAAL_PROP_ENUM && current->enum_name) {
                     total_length += webapi_emit_enum_schema(out, current->enum_name);
                 }
@@ -809,13 +825,17 @@ static size_t generate_wot_json(struct json_out *out, const char * uri) {
                       ",forms:[{"
                         "href:%Q,"
                         "contentType:%Q,"
-                        "op:[%Q",
+                        "op:[",
                         href,
-                        "application/json",
-                        "readproperty");
+                        "application/json");
+
+                if (webapi_prop_is_readable(current)) {
+                    total_length += json_printf(out, "%Q", "readproperty");
+                }
 
                 if (current->set_callback != NULL) {
-                    total_length += json_printf(out, ",%Q", "writeproperty");
+                    total_length += json_printf(out, "%s%Q",
+                        webapi_prop_is_readable(current) ? "," : "", "writeproperty");
                 }
 
                 total_length += json_printf(out,
@@ -1031,7 +1051,7 @@ generate_simple_json(QORAAL_PROP_RESOURCE_T *inst, struct json_out *out)
     for (i = 0; i < inst->props_count; i++) {
         current = &inst->props[i];
 
-        if (!webapi_prop_is_value(current)) {
+        if (!webapi_prop_is_readable(current)) {
             continue;
         }
 
@@ -1137,7 +1157,7 @@ webapi_generate_simple_response(const char *ep, const char *property, bool is_js
 
     if (property && property[0]) {
         prop = webapi_prop_get(inst, property);
-        if (!webapi_prop_is_value(prop)) {
+        if (!webapi_prop_is_readable(prop)) {
             buffer = (char *)qoraal_malloc(_webapi_heap, 1);
             if (!buffer) {
                 return NULL;
