@@ -65,6 +65,17 @@ static const HTTP_HEADER_T _http_headers_close[] = {
             sizeof(_http_headers_keep_alive)/sizeof(_http_headers_keep_alive[0]) : \
             sizeof(_http_headers_close)/sizeof(_http_headers_close[0]))
 
+/* The key of each request header slot. Indexed by HTTP_SERVER_HEADER_T, so a
+ * key cannot end up in another header's slot. */
+static const char * const _http_request_headers[HTTP_SERVER_HEADER_COUNT] = {
+        [HTTP_SERVER_HEADER_CONTENT_TYPE]       = HTTP_HEADER_KEY_CONTENT_TYPE ,
+        [HTTP_SERVER_HEADER_CONTENT_LENGTH]     = HTTP_HEADER_KEY_CONTENT_LENGTH ,
+        [HTTP_SERVER_HEADER_TRANSFER_ENCODING]  = HTTP_HEADER_KEY_TRANSFER_ENCODING ,
+        [HTTP_SERVER_HEADER_CONNECTION]         = HTTP_HEADER_KEY_CONNECTION ,
+        [HTTP_SERVER_HEADER_AUTHORIZATION]      = HTTP_HEADER_KEY_AUTHORIZATION ,
+        [HTTP_SERVER_HEADER_ACCEPT]             = HTTP_HEADER_KEY_ACCEPT ,
+};
+
 const   HTTP_HEADER_T _http_headers_chunked[]   = {
         {"Transfer-Encoding", "chunked"} ,
 };
@@ -1442,6 +1453,7 @@ httpserver_read_request_ex (HTTP_USER_T* user, uint32_t timeout, char** endpoint
     char*           content ;
     char*           pendpoint ;
     char*           payload ;
+    const char*     encoding ;
     unsigned int    content_length = 0 ;
 
     DBG_ASSERT_HTTP_SERVER (user->socket,
@@ -1529,16 +1541,12 @@ httpserver_read_request_ex (HTTP_USER_T* user, uint32_t timeout, char** endpoint
     }
 
     memset (user->headers, 0, sizeof(user->headers)) ;
-    user->headers[0].key = HTTP_HEADER_KEY_CONTENT_TYPE ;
-    user->headers[1].key = HTTP_HEADER_KEY_CONTENT_LENGTH ;
-    user->headers[2].key = HTTP_HEADER_KEY_TRANSFER_ENCODING ;
-    user->headers[3].key = HTTP_HEADER_KEY_CONNECTION ;
-    user->headers[4].key = HTTP_HEADER_KEY_AUTHORIZATION ;
-    user->headers[5].key = HTTP_HEADER_KEY_ACCEPT ;
-
+    for (int i = 0; i < HTTP_SERVER_HEADER_COUNT; i++) {
+        user->headers[i].key = _http_request_headers[i] ;
+    }
 
     *method = httpparse_request(user->rw_buffer, offset, user->headers,
-                6, &pendpoint, &content) ;
+                HTTP_SERVER_HEADER_COUNT, &pendpoint, &content) ;
     if (*method <= 0) {
         DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_WARNING,
                     "HTTPD :W: httpserver_read_request_ex httpparse_request returned  %d", *method);
@@ -1546,7 +1554,8 @@ httpserver_read_request_ex (HTTP_USER_T* user, uint32_t timeout, char** endpoint
 
     }
 
-    if (user->headers[2].value && (strncmp(user->headers[2].value, "chunked", 7) == 0)) {
+    encoding = user->headers[HTTP_SERVER_HEADER_TRANSFER_ENCODING].value ;
+    if (encoding && (strncmp(encoding, "chunked", 7) == 0)) {
         user->reader.chunked = 1 ;
     } else {
         user->reader.chunked = 0 ;
@@ -1630,51 +1639,20 @@ httpserver_read_request_ex (HTTP_USER_T* user, uint32_t timeout, char** endpoint
 }
 
 /**
- * @brief Retrieve the Authorization header from the user's HTTP headers.
+ * @brief Retrieve a request header that the server keeps.
  *
  * @param[in] user      Pointer to the user structure containing the headers.
- * @return              Pointer to the Authorization header value, or NULL if not found.
+ * @param[in] header    Which header.
+ * @return              Pointer to its value, or NULL if the request had none.
  */
-const char* 
-httpserver_get_authorization_header (HTTP_USER_T* user) 
+const char*
+httpserver_get_header (HTTP_USER_T* user, HTTP_SERVER_HEADER_T header)
 {
-    // Assuming headers are stored in user->headers and HTTP_HEADER_KEY_AUTHORIZATION is defined.
-    for (int i = 0; i < sizeof(user->headers) / sizeof(user->headers[0]); i++) {
-        if ((uintptr_t)user->headers[i].key == (uintptr_t)HTTP_HEADER_KEY_AUTHORIZATION) {
-            return user->headers[i].value;  // Return the value of the Authorization header.
-
-        }
-
+    if ((unsigned int)header >= HTTP_SERVER_HEADER_COUNT) {
+        return NULL ;
     }
-    return NULL;  // Return NULL if the Authorization header is not found.
-}
 
-const char* 
-httpserver_get_content_type_header (HTTP_USER_T* user) 
-{
-    // Assuming headers are stored in user->headers and HTTP_HEADER_KEY_CONTENT_TYPE is defined.
-    for (int i = 0; i < sizeof(user->headers) / sizeof(user->headers[0]); i++) {
-        if ((uintptr_t)user->headers[i].key == (uintptr_t)HTTP_HEADER_KEY_CONTENT_TYPE) {
-            return user->headers[i].value;  // Return the value of the Content-Type header.
-
-        }
-
-    }
-    return NULL;  // Return NULL if the Content-Type header is not found.
-}
-
-const char* 
-httpserver_get_accept_header (HTTP_USER_T* user) 
-{
-    // Assuming headers are stored in user->headers and HTTP_HEADER_KEY_ACCEPT is defined.
-    for (int i = 0; i < sizeof(user->headers) / sizeof(user->headers[0]); i++) {
-        if ((uintptr_t)user->headers[i].key == (uintptr_t)HTTP_HEADER_KEY_ACCEPT) {
-            return user->headers[i].value;  // Return the value of the Accept header.
-
-        }
-
-    }
-    return NULL;  // Return NULL if the Accept header is not found.
+    return user->headers[header].value ;
 }
 
 

@@ -361,6 +361,31 @@ test_content_length (void)
     }
 }
 
+/* The request headers the server keeps come back from their slots, and a
+ * header the request lacks reads as NULL. */
+static void
+test_kept_headers (void)
+{
+    static const char request[] =
+            "GET /api/v1/audit/events HTTP/1.1\r\nHost: device\r\n"
+            "Accept: text/event-stream\r\n\r\n" ;
+    const char* name = "kept headers" ;
+    HTTP_USER_T user ;
+    const char* value ;
+
+    start (&user, request, sizeof(request) - 1) ;
+    check (read_request (&user) >= 0, name, "the request was refused") ;
+    value = httpserver_get_header (&user, HTTP_SERVER_HEADER_ACCEPT) ;
+    check (value && (strcmp (value, "text/event-stream") == 0), name, "Accept not kept") ;
+    check (httpserver_get_header (&user, HTTP_SERVER_HEADER_CONTENT_TYPE) == 0, name,
+            "a missing header read as set") ;
+    check (httpserver_get_header (&user, HTTP_SERVER_HEADER_COUNT) == 0, name,
+            "a header past the slots read as set") ;
+    check (_asserts == 0, name, "the server asserted") ;
+    httpserver_user_close (&user) ;
+    check (_live == 0, name, "memory left allocated") ;
+}
+
 /* A body read with httpserver_read_all_content_ex(): returns its length, or
  * the error, and the largest allocation the read made. */
 static int32_t
@@ -471,7 +496,8 @@ test_endpoint_alloc_fails (void)
     }
     _fail_size = 0 ;
     check (res == HTTP_SERVER_E_MEMORY, name, "not refused") ;
-    check (user.headers[3].value == 0, name, "header values left pointing into the read buffer") ;
+    check (user.headers[HTTP_SERVER_HEADER_CONNECTION].value == 0, name,
+            "header values left pointing into the read buffer") ;
     httpserver_user_close (&user) ;
     check (_asserts == 0, name, "the server asserted") ;
     check (_live == 0, name, "memory left allocated") ;
@@ -799,6 +825,7 @@ main (int argc, char** argv)
     _verbose = (argc > 1) && (strcmp (argv[1], "-v") == 0) ;
 
     test_content_length () ;
+    test_kept_headers () ;
     test_body_limit () ;
     test_endpoint_alloc_fails () ;
     test_pipelined () ;

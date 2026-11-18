@@ -73,7 +73,7 @@ qoraal_http_keep_server(void)
 	httpserver_user_abort(0);
 	httpserver_user_close(0);
 	httpserver_read_request_ex(0, 0, 0, 0);
-	httpserver_get_authorization_header(0);
+	httpserver_get_header(0, HTTP_SERVER_HEADER_AUTHORIZATION);
 	httpserver_read_content_ex(0, 0, 0);
 	httpserver_read_all_content_ex(0, 0, 0);
 	httpserver_free_request(0);

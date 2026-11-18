@@ -85,7 +85,8 @@ wserver_thread_authenticate (HTTPSERVER_INST_T * inst, const WSERVER_HANDLERS_T*
             !(thread->authenticated & handler->access)
         ) {
         resp401 = true ;
-        unsigned char* in = (unsigned char*)httpserver_get_authorization_header(&thread->user);
+        unsigned char* in = (unsigned char*)httpserver_get_header(&thread->user,
+                                                HTTP_SERVER_HEADER_AUTHORIZATION);
         if (in) {
             const char* expected_scheme = "Basic ";
             size_t scheme_len = strlen(expected_scheme);
@@ -229,14 +230,16 @@ _wserver_thread (void *arg)
 
         timeout = WSERVER_KEEPALIVE_TIMEOUT ;
 
+        const char* connection = httpserver_get_header (&thread->user,
+                                        HTTP_SERVER_HEADER_CONNECTION) ;
+
         /* Decide now whether the connection stays open after this request,
          * so that the response can say so: not when the client asks to
          * close it, and not while fewer than two other workers are free
          * (the connection gives way). With two workers it never stays. */
 #if HTTPSERVER_USE_KEEPALIVE
         thread->user.keep_alive =
-                !(thread->user.headers[3].value &&
-                  (strnicmp(thread->user.headers[3].value, "close", 5) == 0)) &&
+                !(connection && (strnicmp(connection, "close", 5) == 0)) &&
                 (os_sem_count(&inst->count_sem) >= 2) ;
 #else
         thread->user.keep_alive = 0 ;
@@ -244,7 +247,7 @@ _wserver_thread (void *arg)
         DBG_MESSAGE_HTTP_SERVER (DBG_MESSAGE_SEVERITY_INFO,
                 "WSERV : : connection %s (client '%s', workers free %d).\r\n",
                 thread->user.keep_alive ? "kept" : "closed after the response",
-                thread->user.headers[3].value ? thread->user.headers[3].value : "",
+                connection ? connection : "",
                 os_sem_count(&inst->count_sem));
 
         const WSERVER_HANDLERS_T* handler = 0 ;
