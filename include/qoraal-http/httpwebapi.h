@@ -97,7 +97,10 @@ int32_t webapi_openapi_json_stream(webapi_json_stream_callback_t callback,
     int32_t webapi_generate_response(const char *ep, const char *property, char *query,
                                      bool is_json, void *ctx, char **response) ;
 
-/* New WoT (https://playground.thingweb.io) */
+/* New WoT (https://playground.thingweb.io)
+ * uri becomes the TD's base. Pass NULL or "" to leave base out: every href is
+ * an absolute path, so a consumer then resolves it against the URL it fetched
+ * the TD from, keeping that URL's scheme, host and port. */
     char * webapi_wot_json(const char * uri) ;
     void webapi_wot_json_free(char * buffer) ;
     /** Streams the WoT Thing Description without allocating a response buffer. */

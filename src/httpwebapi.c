@@ -410,8 +410,19 @@ webapi_emit_uri_variables(struct json_out *out, QORAAL_PROP_RESOURCE_T *inst)
     return total_length;
 }
 
-/* TD href of a response prop: <root>/<ep>/<name>, then its query parameters
- * as an RFC 6570 template, e.g. {?modules,limit}. A consumer expands only the
+/* Path of a prop, /<root>/<ep>/<name>, also used as its TD href. It must be
+ * an absolute path: without a TD base, a consumer resolves an href against
+ * the URL it fetched the TD from, and a relative one would resolve against
+ * that URL's directory instead of the server root. */
+static size_t
+webapi_prop_path(const QORAAL_PROP_RESOURCE_T *inst, const QORAAL_PROP_T *prop,
+                 char *path, size_t size)
+{
+    return (size_t)snprintf(path, size, "/%s/%s/%s", _webapi_root, inst->ep, prop->name);
+}
+
+/* TD href of a response prop: its path, then its query parameters as an
+ * RFC 6570 template, e.g. {?modules,limit}. A consumer expands only the
  * variables in the template. */
 static void
 webapi_response_href(QORAAL_PROP_RESOURCE_T *inst, QORAAL_PROP_T *prop,
@@ -421,7 +432,7 @@ webapi_response_href(QORAAL_PROP_RESOURCE_T *inst, QORAAL_PROP_T *prop,
     size_t n = 0;
     size_t i;
 
-    len = (size_t)snprintf(href, size, "%s/%s/%s", _webapi_root, inst->ep, prop->name);
+    len = webapi_prop_path(inst, prop, href, size);
     for (i = 0; (i < inst->props_count) && (len < size); i++) {
         if (webapi_prop_is_param(&inst->props[i])) {
             len += (size_t)snprintf(href + len, size - len, "%s%s",
@@ -441,7 +452,7 @@ webapi_openapi_response_path(struct json_out *out, QORAAL_PROP_RESOURCE_T *inst,
     size_t total_length = 0;
     char path[128];
 
-    snprintf(path, sizeof(path), "/%s/%s/%s", _webapi_root, inst->ep, prop->name);
+    webapi_prop_path(inst, prop, path, sizeof(path));
 
     total_length += json_printf(out,
         "%Q:{"
@@ -777,8 +788,13 @@ static size_t generate_wot_json(struct json_out *out, const char * uri) {
     total_length += json_printf(out, "%Q", "https://www.w3.org/2022/wot/td/v1.1");
     total_length += json_printf(out, "%s", ",\"title\":");
     total_length += json_printf(out, "%Q", "Device");
-    total_length += json_printf(out, "%s", ",\"base\":");
-    total_length += json_printf(out, "%Q", uri);
+    /* Without base, every href resolves against the URL the TD was fetched
+     * from. The TD then names no address or scheme, so it is the same on
+     * every device and stays right over HTTP, HTTPS or another interface. */
+    if (uri && *uri) {
+        total_length += json_printf(out, "%s", ",\"base\":");
+        total_length += json_printf(out, "%Q", uri);
+    }
     total_length += json_printf(out, "%s", ",\"securityDefinitions\":{\"nosec_sc\":{\"scheme\":\"nosec\"}}");
     total_length += json_printf(out, "%s", ",\"security\":[\"nosec_sc\"]");
     total_length += json_printf(out, "%s", ",\"properties\":{");
@@ -792,7 +808,7 @@ static size_t generate_wot_json(struct json_out *out, const char * uri) {
             char href[192];
 
             if (webapi_prop_is_value(current) && webapi_prop_enum_resolvable(current)) {
-                snprintf(href, sizeof(href), "%s/%s/%s", _webapi_root, inst->ep, current->name);
+                webapi_prop_path(inst, current, href, sizeof(href));
 
                 if (!first_property) {
                     total_length += json_printf(out, ",");
@@ -860,7 +876,7 @@ static size_t generate_wot_json(struct json_out *out, const char * uri) {
             char action_name[96];
 
             if (webapi_prop_is_action(current)) {
-                snprintf(href, sizeof(href), "%s/%s/%s", _webapi_root, inst->ep, current->name);
+                webapi_prop_path(inst, current, href, sizeof(href));
                 /* One Thing holds every resource, so an action name such as
                  * "sync" can occur more than once: key it by its resource. */
                 snprintf(action_name, sizeof(action_name), "%s.%s", inst->ep, current->name);
