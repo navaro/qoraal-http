@@ -80,6 +80,13 @@ extern "C" {
      * look up enum values. */
     void webapi_set_enum_resolver(qoraal_enum_resolver_t resolver) ;
 
+    /* Writes the API version into buf, NUL terminated, and returns its
+     * length. The documents carry it as OpenAPI info.version and as the TD's
+     * version.instance. Without a callback info.version is "1.0" and the TD
+     * has no version. */
+    typedef size_t (*webapi_version_callback_t)(char *buf, size_t size) ;
+    void webapi_set_version_callback(webapi_version_callback_t callback) ;
+
 /* New: OpenAPI JSON support for browser tooling */
 char * webapi_openapi_json(void);
 void webapi_openapi_json_free(char * buffer);
