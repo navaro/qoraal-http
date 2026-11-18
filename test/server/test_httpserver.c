@@ -362,19 +362,22 @@ test_content_length (void)
 }
 
 /* The request headers the server keeps come back from their slots, and a
- * header the request lacks reads as NULL. */
+ * header the request lacks reads as NULL. Last-Event-ID is what lets a
+ * reconnecting EventSource resume. */
 static void
 test_kept_headers (void)
 {
     static const char request[] =
             "GET /api/v1/audit/events HTTP/1.1\r\nHost: device\r\n"
-            "Accept: text/event-stream\r\n\r\n" ;
+            "Accept: text/event-stream\r\nLast-Event-ID: 42\r\n\r\n" ;
     const char* name = "kept headers" ;
     HTTP_USER_T user ;
     const char* value ;
 
     start (&user, request, sizeof(request) - 1) ;
     check (read_request (&user) >= 0, name, "the request was refused") ;
+    value = httpserver_get_header (&user, HTTP_SERVER_HEADER_LAST_EVENT_ID) ;
+    check (value && (strcmp (value, "42") == 0), name, "Last-Event-ID not kept") ;
     value = httpserver_get_header (&user, HTTP_SERVER_HEADER_ACCEPT) ;
     check (value && (strcmp (value, "text/event-stream") == 0), name, "Accept not kept") ;
     check (httpserver_get_header (&user, HTTP_SERVER_HEADER_CONTENT_TYPE) == 0, name,

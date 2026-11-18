@@ -74,6 +74,7 @@ static const char * const _http_request_headers[HTTP_SERVER_HEADER_COUNT] = {
         [HTTP_SERVER_HEADER_CONNECTION]         = HTTP_HEADER_KEY_CONNECTION ,
         [HTTP_SERVER_HEADER_AUTHORIZATION]      = HTTP_HEADER_KEY_AUTHORIZATION ,
         [HTTP_SERVER_HEADER_ACCEPT]             = HTTP_HEADER_KEY_ACCEPT ,
+        [HTTP_SERVER_HEADER_LAST_EVENT_ID]      = HTTP_HEADER_KEY_LAST_EVENT_ID ,
 };
 
 const   HTTP_HEADER_T _http_headers_chunked[]   = {
