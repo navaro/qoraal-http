@@ -80,6 +80,13 @@ extern "C" {
      * look up enum values. */
     void webapi_set_enum_resolver(qoraal_enum_resolver_t resolver) ;
 
+    /* Writes the API version into buf, NUL terminated, and returns its
+     * length. The documents carry it as OpenAPI info.version and as the TD's
+     * version.instance. Without a callback info.version is "1.0" and the TD
+     * has no version. */
+    typedef size_t (*webapi_version_callback_t)(char *buf, size_t size) ;
+    void webapi_set_version_callback(webapi_version_callback_t callback) ;
+
 /* New: OpenAPI JSON support for browser tooling */
 char * webapi_openapi_json(void);
 void webapi_openapi_json_free(char * buffer);
@@ -97,7 +104,10 @@ int32_t webapi_openapi_json_stream(webapi_json_stream_callback_t callback,
     int32_t webapi_generate_response(const char *ep, const char *property, char *query,
                                      bool is_json, void *ctx, char **response) ;
 
-/* New WoT (https://playground.thingweb.io) */
+/* New WoT (https://playground.thingweb.io)
+ * uri becomes the TD's base. Pass NULL or "" to leave base out: every href is
+ * an absolute path, so a consumer then resolves it against the URL it fetched
+ * the TD from, keeping that URL's scheme, host and port. */
     char * webapi_wot_json(const char * uri) ;
     void webapi_wot_json_free(char * buffer) ;
     /** Streams the WoT Thing Description without allocating a response buffer. */

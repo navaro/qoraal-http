@@ -189,6 +189,22 @@ typedef struct HTTP_READ_S {
 } HTTP_READ_T ;
 
 /**
+ * @brief The request headers the server keeps, each in its own slot of
+ *        HTTP_USER_T.headers: read one with httpserver_get_header(). The
+ *        server skips every other header of a request.
+ */
+typedef enum {
+    HTTP_SERVER_HEADER_CONTENT_TYPE = 0,
+    HTTP_SERVER_HEADER_CONTENT_LENGTH,
+    HTTP_SERVER_HEADER_TRANSFER_ENCODING,
+    HTTP_SERVER_HEADER_CONNECTION,
+    HTTP_SERVER_HEADER_AUTHORIZATION,
+    HTTP_SERVER_HEADER_ACCEPT,
+    HTTP_SERVER_HEADER_LAST_EVENT_ID,   /* where a reconnecting EventSource resumes */
+    HTTP_SERVER_HEADER_COUNT
+} HTTP_SERVER_HEADER_T ;
+
+/**
  * @brief User Instance.
  */
 typedef struct HTTP_USER_S {
@@ -203,7 +219,7 @@ typedef struct HTTP_USER_S {
     uint32_t                read ;
     uint32_t                write ;
     int32_t                 peer_closed ;
-    HTTP_HEADER_T           headers[8] ;
+    HTTP_HEADER_T           headers[HTTP_SERVER_HEADER_COUNT] ;
 
     char*                   endpoint ;
 
@@ -265,9 +281,7 @@ extern int32_t      httpserver_user_close (HTTP_USER_T* user) ;
 extern int32_t      httpserver_wdt_kick (HTTP_USER_T* user) ;
 
 extern int32_t      httpserver_read_request_ex (HTTP_USER_T* user, uint32_t timeout, char** endpoint, int32_t* method) ;
-extern const char*  httpserver_get_authorization_header (HTTP_USER_T* user) ;
-extern const char*  httpserver_get_content_type_header (HTTP_USER_T* user) ;
-extern const char*  httpserver_get_accept_header (HTTP_USER_T* user) ;
+extern const char*  httpserver_get_header (HTTP_USER_T* user, HTTP_SERVER_HEADER_T header) ;
 extern int32_t      httpserver_read_content_ex (HTTP_USER_T* user, uint32_t timeout, char** request) ;
 extern int32_t      httpserver_read_all_content_ex (HTTP_USER_T* user, uint32_t timeout, char** request) ;
 extern int32_t      httpserver_free_request (HTTP_USER_T* user) ;
